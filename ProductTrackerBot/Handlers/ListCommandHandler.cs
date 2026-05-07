@@ -7,7 +7,6 @@ namespace ProductTrackerBot.Handlers;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
 using Telegram.Bot;
-using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 
 /// <summary>
@@ -43,27 +42,6 @@ public class ListCommandHandler : ICommandHandler
     {
         var (messageText, keyboard, group) = await this.listService.BuildListAsync(message.Chat.Id);
 
-        if (group.ListMessageId.HasValue)
-        {
-            // Try to edit the existing list message
-            try
-            {
-                await this.botClient.EditMessageText(
-                    chatId: message.Chat.Id,
-                    messageId: group.ListMessageId.Value,
-                    text: messageText,
-                    replyMarkup: keyboard,
-                    cancellationToken: cancellationToken);
-                return;
-            }
-            catch (ApiRequestException ex) when (ex.ErrorCode == 400)
-            {
-                // Edit limit exceeded (48h) or message no longer exists — repost
-                group.ListMessageId = null;
-            }
-        }
-
-        // Post a new list message
         var sent = await this.botClient.SendMessage(
             chatId: message.Chat.Id,
             text: messageText,

@@ -14,11 +14,19 @@ The system SHALL initialize a `TelegramBotClient` using the bot token from confi
 ---
 
 ### Requirement: Update dispatcher routes incoming updates to a handler
-The system SHALL pass each received `Update` object to a registered `IUpdateHandler` implementation.
+The system SHALL pass each received `Update` object to an `UpdateDispatcher` that resolves the correct `ICommandHandler` by command text or `ICallbackHandler` by callback data prefix.
 
-#### Scenario: Message update received
-- **WHEN** a Telegram user sends a text message to the bot
-- **THEN** the update is dispatched to the handler within the same polling iteration
+#### Scenario: Message update with known command
+- **WHEN** a Telegram user sends a text message starting with a known command (e.g. `/buy`, `/list`)
+- **THEN** the matching `ICommandHandler` is invoked for that update
+
+#### Scenario: Callback query with known prefix
+- **WHEN** a Telegram `CallbackQuery` arrives with data matching a registered `ICallbackHandler.CallbackPrefix`
+- **THEN** the matching `ICallbackHandler` is invoked
+
+#### Scenario: Message update with unknown command
+- **WHEN** a text message starts with `/` but no `ICommandHandler` matches
+- **THEN** the system SHALL log a Debug-level message and take no further action
 
 #### Scenario: Unhandled update type
 - **WHEN** an update type has no registered handler logic

@@ -46,23 +46,30 @@ public class ShoppingListService
         var sb = new StringBuilder("🛒 Список покупок:\n\n");
         var buttons = new List<List<InlineKeyboardButton>>();
 
-        foreach (var item in items)
-        {
-            var line = item.Quantity is not null
-                ? $"{item.Name} {item.Quantity}"
-                : item.Name;
-            sb.AppendLine($"• {line}");
+        var groups = items.GroupBy(i => i.Name, StringComparer.OrdinalIgnoreCase);
 
-            var row = new List<InlineKeyboardButton>
+        foreach (var group2 in groups)
+        {
+            var groupItems = group2.ToList();
+            var quantities = groupItems
+                .Where(i => i.Quantity is not null)
+                .Select(i => i.Quantity!);
+            var label = groupItems[0].Name;
+            if (quantities.Any())
+                label += " " + string.Join(", ", quantities);
+            sb.AppendLine($"• {label}");
+
+            foreach (var item in groupItems)
             {
-                InlineKeyboardButton.WithCallbackData(
-                    $"✓ {line}",
-                    $"shop:done:{item.Id}"),
-                InlineKeyboardButton.WithCallbackData(
-                    "✗ Убрать",
-                    $"shop:remove:{item.Id}"),
-            };
-            buttons.Add(row);
+                var btnLabel = item.Quantity is not null
+                    ? $"✓ {item.Name} {item.Quantity}"
+                    : $"✓ {item.Name}";
+                buttons.Add(
+                [
+                    InlineKeyboardButton.WithCallbackData(btnLabel, $"shop:done:{item.Id}"),
+                    InlineKeyboardButton.WithCallbackData("✗ Убрать", $"shop:remove:{item.Id}"),
+                ]);
+            }
         }
 
         return (sb.ToString(), new InlineKeyboardMarkup(buttons), group);
