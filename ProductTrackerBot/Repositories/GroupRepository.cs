@@ -28,7 +28,7 @@ public class GroupRepository
     /// </summary>
     /// <param name="chatId">The Telegram chat ID.</param>
     /// <returns>The group record.</returns>
-    public async Task<Group> GetOrCreateAsync(long chatId)
+    public virtual async Task<Group> GetOrCreateAsync(long chatId)
     {
         await using var connection = new SqliteConnection(this.connectionString);
         await connection.OpenAsync();
@@ -72,7 +72,7 @@ public class GroupRepository
     /// <param name="groupId">The group ID.</param>
     /// <param name="listMessageId">The new list message ID.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public async Task UpdateListMessageIdAsync(int groupId, int listMessageId)
+    public virtual async Task UpdateListMessageIdAsync(int groupId, int listMessageId)
     {
         await using var connection = new SqliteConnection(this.connectionString);
         await connection.OpenAsync();

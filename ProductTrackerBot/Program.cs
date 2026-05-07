@@ -6,6 +6,10 @@ using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 using ProductTrackerBot;
 using ProductTrackerBot.Database;
+using ProductTrackerBot.Handlers;
+using ProductTrackerBot.Models;
+using ProductTrackerBot.Repositories;
+using ProductTrackerBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 
@@ -57,6 +61,28 @@ builder.Services.AddHostedService<DatabaseInitializer>();
 
 builder.Services.AddSingleton<IUpdateHandler, UpdateDispatcher>();
 builder.Services.AddHostedService<BotHostedService>();
+
+// Register dialog state service
+builder.Services.AddSingleton<PendingDialogService<BuyDialogState>>();
+
+// Register repositories
+builder.Services.AddScoped<GroupRepository>();
+builder.Services.AddScoped<ShoppingItemRepository>();
+
+// Register services
+builder.Services.AddScoped<ShoppingListService>();
+
+// Register command handlers
+builder.Services.AddScoped<ICommandHandler, BuyCommandHandler>();
+builder.Services.AddScoped<ICommandHandler, ListCommandHandler>();
+
+// Register dialog message handlers
+builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();
+
+// Register callback handlers
+builder.Services.AddScoped<ICallbackHandler, BuySkipCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, ShopDoneCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, ShopRemoveCallbackHandler>();
 
 var host = builder.Build();
 await host.RunAsync();

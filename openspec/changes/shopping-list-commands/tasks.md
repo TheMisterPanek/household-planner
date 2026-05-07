@@ -29,28 +29,28 @@
 
 ## 6. /buy Command
 
-- [ ] 6.1 Create `BuyCommandHandler : ICommandHandler` — handles `/buy`, validates group chat, initiates 2-step dialog via `PendingDialogService`
-- [ ] 6.2 Create `BuyStepHandler` (message handler registered in `UpdateDispatcher`) that processes dialog step 1 (name) and step 2 (quantity), saves item, sends confirmation
-- [ ] 6.3 Register `BuyCommandHandler` in `Program.cs`
+- [x] 6.1 Create `BuyCommandHandler : ICommandHandler` — handles `/buy`, validates group chat, initiates 2-step dialog via `PendingDialogService`
+- [x] 6.2 Create `BuyStepHandler` (message handler registered in `UpdateDispatcher`) that processes dialog step 1 (name) and step 2 (quantity), saves item, sends confirmation
+- [x] 6.3 Register `BuyCommandHandler` in `Program.cs`
 
 ## 7. /list Command
 
-- [ ] 7.1 Create `ListCommandHandler : ICommandHandler` — calls `ShoppingListService`, posts or edits list message, handles 400-error repost fallback, saves `ListMessageId` to group
+- [x] 7.1 Create `ListCommandHandler : ICommandHandler` — calls `ShoppingListService`, posts or edits list message, handles 400-error repost fallback, saves `ListMessageId` to group
 
 ## 8. Inline Button Handlers
 
-- [ ] 8.1 Create `ShopDoneCallbackHandler : ICallbackHandler` (`CallbackPrefix = "shop:done:"`) — deletes item, updates list message, sends bought confirmation
-- [ ] 8.2 Create `ShopRemoveCallbackHandler : ICallbackHandler` (`CallbackPrefix = "shop:remove:"`) — deletes item, updates list message
-- [ ] 8.3 Register both callback handlers in `Program.cs`
+- [x] 8.1 Create `ShopDoneCallbackHandler : ICallbackHandler` (`CallbackPrefix = "shop:done:"`) — deletes item, updates list message, sends bought confirmation
+- [x] 8.2 Create `ShopRemoveCallbackHandler : ICallbackHandler` (`CallbackPrefix = "shop:remove:"`) — deletes item, updates list message
+- [x] 8.3 Register both callback handlers in `Program.cs`
 
 ## 9. Unit Tests
 
-- [ ] 9.1 Create `ProductTrackerBot.Tests` xUnit project in the solution
-- [ ] 9.2 Write unit tests for `PendingDialogService`: set state, get state, clear state, concurrent access
-- [ ] 9.3 Write unit tests for `ShoppingListService`: empty list message, single item, multiple items, message text format
-- [ ] 9.4 Write unit tests for `UpdateDispatcher`: routes known command, routes known callback prefix, logs and ignores unknown command, logs and ignores unknown callback
+- [x] 9.1 Create `ProductTrackerBot.Tests` xUnit project in the solution
+- [x] 9.2 Write unit tests for `PendingDialogService`: set state, get state, clear state, concurrent access
+- [x] 9.3 Write unit tests for `ShoppingListService`: empty list message, single item, multiple items, message text format
+- [x] 9.4 Write unit tests for `UpdateDispatcher`: routes known command, routes known callback prefix, logs and ignores unknown command, logs and ignores unknown callback
 
 ## 10. Integration Smoke Test
 
-- [ ] 10.1 Write an integration test using `Microsoft.Data.Sqlite` in-memory mode for `ShoppingItemRepository`: add item, get all, delete item
-- [ ] 10.2 Write an integration test for `GroupRepository`: first call creates row, second call returns same row
+- [x] 10.1 Write an integration test using `Microsoft.Data.Sqlite` in-memory mode for `ShoppingItemRepository`: add item, get all, delete item
+- [x] 10.2 Write an integration test for `GroupRepository`: first call creates row, second call returns same row

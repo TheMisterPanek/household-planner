@@ -31,7 +31,7 @@ public class ShoppingItemRepository
     /// <param name="quantity">Optional quantity.</param>
     /// <param name="addedByName">The display name of the user who added the item.</param>
     /// <returns>The created item.</returns>
-    public async Task<ShoppingItem> AddAsync(int groupId, string name, string? quantity, string addedByName)
+    public virtual async Task<ShoppingItem> AddAsync(int groupId, string name, string? quantity, string addedByName)
     {
         await using var connection = new SqliteConnection(this.connectionString);
         await connection.OpenAsync();
@@ -63,7 +63,7 @@ public class ShoppingItemRepository
     /// </summary>
     /// <param name="groupId">The group ID.</param>
     /// <returns>A read-only list of items.</returns>
-    public async Task<IReadOnlyList<ShoppingItem>> GetAllAsync(int groupId)
+    public virtual async Task<IReadOnlyList<ShoppingItem>> GetAllAsync(int groupId)
     {
         await using var connection = new SqliteConnection(this.connectionString);
         await connection.OpenAsync();
@@ -94,7 +94,7 @@ public class ShoppingItemRepository
     /// </summary>
     /// <param name="itemId">The item ID to delete.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public async Task DeleteAsync(int itemId)
+    public virtual async Task DeleteAsync(int itemId)
     {
         await using var connection = new SqliteConnection(this.connectionString);
         await connection.OpenAsync();
