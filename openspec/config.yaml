@@ -1,0 +1,27 @@
+schema: spec-driven
+
+context: |
+  Tech stack: .NET 9+ (latest), C# with AOT compilation support
+  Architecture: Clean Architecture with dependency injection
+  API conventions: RESTful with minimal APIs, JSON responses
+  Testing: xUnit for unit tests, SpecFlow for BDD
+  Style: EditorConfig, StyleCop analyzers, nullable reference types enabled
+  Deployment: Docker with AOT-compatible runtime, minimal images for small deploys
+  Features: Trimming-safe code, no reflection-heavy patterns, dependency-injection native
+
+rules:
+  proposal:
+    - Include rollback plan
+    - Identify affected teams
+    - Consider AOT compatibility implications
+  specs:
+    - Use Given/When/Then format for scenarios
+  design:
+    - Include sequence diagrams for complex flows
+    - Flag any patterns that may break AOT (reflection, dynamic code generation)
+  tasks:
+    - Include unit tests for all main functionality as explicit tasks
+  code:
+    - Ensure all types are statically analyzable
+    - Avoid runtime code generation
+    - Use constructor injection exclusively

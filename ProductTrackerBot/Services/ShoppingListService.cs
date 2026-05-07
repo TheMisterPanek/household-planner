@@ -1,0 +1,70 @@
+// <copyright file="ShoppingListService.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
+
+namespace ProductTrackerBot.Services;
+
+using System.Text;
+using ProductTrackerBot.Models;
+using ProductTrackerBot.Repositories;
+using Telegram.Bot.Types.ReplyMarkups;
+
+/// <summary>
+/// Builds shopping list message text and inline keyboards.
+/// </summary>
+public class ShoppingListService
+{
+    private readonly GroupRepository groupRepository;
+    private readonly ShoppingItemRepository itemRepository;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ShoppingListService"/> class.
+    /// </summary>
+    /// <param name="groupRepository">The group repository.</param>
+    /// <param name="itemRepository">The shopping item repository.</param>
+    public ShoppingListService(GroupRepository groupRepository, ShoppingItemRepository itemRepository)
+    {
+        this.groupRepository = groupRepository;
+        this.itemRepository = itemRepository;
+    }
+
+    /// <summary>
+    /// Builds the shopping list message text and inline keyboard for a group chat.
+    /// </summary>
+    /// <param name="chatId">The Telegram chat ID.</param>
+    /// <returns>A tuple of (messageText, inlineKeyboard, group).</returns>
+    public async Task<(string MessageText, InlineKeyboardMarkup? Keyboard, Group Group)> BuildListAsync(long chatId)
+    {
+        var group = await this.groupRepository.GetOrCreateAsync(chatId);
+        var items = await this.itemRepository.GetAllAsync(group.Id);
+
+        if (items.Count == 0)
+        {
+            return ("Список покупок пуст", null, group);
+        }
+
+        var sb = new StringBuilder("🛒 Список покупок:\n\n");
+        var buttons = new List<List<InlineKeyboardButton>>();
+
+        foreach (var item in items)
+        {
+            var line = item.Quantity is not null
+                ? $"{item.Name} {item.Quantity}"
+                : item.Name;
+            sb.AppendLine($"• {line}");
+
+            var row = new List<InlineKeyboardButton>
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    $"✓ {line}",
+                    $"shop:done:{item.Id}"),
+                InlineKeyboardButton.WithCallbackData(
+                    "✗ Убрать",
+                    $"shop:remove:{item.Id}"),
+            };
+            buttons.Add(row);
+        }
+
+        return (sb.ToString(), new InlineKeyboardMarkup(buttons), group);
+    }
+}

@@ -1,0 +1,8 @@
+services:
+  bot:
+    build:
+      context: ./ProductTrackerBot
+      dockerfile: Dockerfile
+    env_file:
+      - ./ProductTrackerBot/.env
+    restart: unless-stopped

@@ -1,0 +1,41 @@
+# Environment variables
+.env
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+[Xx]64/
+[Xx]86/
+[Ww][Ii][Nn]32/
+[Ww][Ii][Nn]64/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio cache/options
+.vs/
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# IDE files
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/

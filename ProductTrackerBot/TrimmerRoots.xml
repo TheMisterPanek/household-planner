@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<linker>
+  <!-- Preserve Telegram.Bot JSON serializer context and related types -->
+  <assembly fullname="Telegram.Bot" preserve="all" />
+  <assembly fullname="System.Text.Json" preserve="all" />
+  
+  <!-- Preserve ProductTrackerBot types -->
+  <assembly fullname="ProductTrackerBot">
+    <type fullname="ProductTrackerBot.BotConfiguration" preserve="all" />
+    <type fullname="ProductTrackerBot.UpdateHandler" preserve="all" />
+    <type fullname="ProductTrackerBot.BotHostedService" preserve="all" />
+  </assembly>
+
+  <!-- Preserve logging and hosting infrastructure -->
+  <assembly fullname="Microsoft.Extensions.Hosting" preserve="all" />
+  <assembly fullname="Microsoft.Extensions.Logging" preserve="all" />
+  <assembly fullname="Microsoft.Extensions.Logging.Console" preserve="all" />
+  <assembly fullname="Microsoft.Extensions.Options" preserve="all" />
+  <assembly fullname="Microsoft.Extensions.Configuration" preserve="all" />
+  <assembly fullname="Microsoft.Extensions.DependencyInjection" preserve="all" />
+</linker>
