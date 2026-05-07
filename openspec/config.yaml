@@ -9,19 +9,72 @@ context: |
   Deployment: Docker with AOT-compatible runtime, minimal images for small deploys
   Features: Trimming-safe code, no reflection-heavy patterns, dependency-injection native
 
+  Cross-cutting architecture (load-bearing for all changes):
+    Persistence: Single SQLite file accessed through raw `Microsoft.Data.Sqlite`
+      (no Dapper, no EF Core). All schema changes happen in
+      `DatabaseInitializer.StartAsync` — `CREATE TABLE IF NOT EXISTS` for new
+      tables; for new columns, `PRAGMA table_info(...)` check followed by
+      `ALTER TABLE ... ADD COLUMN`, with `SqliteException` on duplicate-column
+      caught and ignored. No migration framework.
+    Date/time storage: ISO-8601 TEXT — `yyyy-MM-dd` for `DateOnly`, full
+      ISO-8601 UTC for instants. Sortable lexicographically.
+    JSON: `System.Text.Json` only via a source-generated `JsonSerializerContext`
+      (`[JsonSerializable]`). Variable payloads in the DB stored as JSON TEXT
+      through that context. No reflection-based serialization, no third-party
+      JSON libraries.
+    Telegram dispatch: New commands implement `ICommandHandler`; new callbacks
+      implement `ICallbackHandler` keyed by `CallbackPrefix`; multi-step text
+      dialogs use `IDialogMessageHandler` + `PendingDialogService<TState>`.
+      Reuse this trio — do not add parallel routing mechanisms.
+    Callback data: Must fit Telegram's 64-byte limit. For payloads that don't
+      fit, store state in an in-memory keyed session service and embed a short
+      random token in the callback data.
+    Group context: Group rows are materialized lazily via
+      `GroupRepository.GetOrCreateAsync`. Every flow that needs group state
+      goes through it. Group-only commands invoked in private chats reply with
+      the standard localized "group chat only" message and exit.
+    Localization: All user-facing text — replies, button labels, error
+      messages, confirmations — resolved through `ILocalizer.Get(chatId, key)`.
+      No hardcoded user-facing string literals in handlers or services.
+      Missing keys fall back to the default locale and log a Warning; never
+      throw.
+    Background jobs: Implement as `IHostedService` with `PeriodicTimer`. No
+      Quartz, Hangfire, or other reflection-heavy schedulers. Default fire
+      times in UTC, overridable via env var.
+    History audit: After every successful state-changing handler action, call
+      `IHistoryRepository.RecordAsync`. Wrap the call in try/catch — log at
+      Warning on failure and never suppress the user-facing response.
+    Error handling in handlers: Do not throw on user input errors. Reply with
+      a localized error and log at Warning. In batch jobs, log per-group
+      failures and continue the batch.
+
 rules:
   proposal:
     - Include rollback plan
     - Identify affected teams
     - Consider AOT compatibility implications
+    - List every cross-cutting decision the change relies on or deviates from;
+      deviations must be justified
   specs:
     - Use Given/When/Then format for scenarios
   design:
     - Include sequence diagrams for complex flows
     - Flag any patterns that may break AOT (reflection, dynamic code generation)
+    - When introducing schema, follow the migration pattern
+      (`CREATE TABLE IF NOT EXISTS` / `PRAGMA table_info` + `ALTER TABLE`)
+    - When persisting variable-shape data, use JSON TEXT via the source-gen
+      `JsonSerializerContext`
+    - When adding scheduled work, use `IHostedService` + `PeriodicTimer`
+    - When adding callbacks, verify data fits the 64-byte limit; otherwise
+      design an in-memory session keyed by a short token
   tasks:
     - Include unit tests for all main functionality as explicit tasks
   code:
     - Ensure all types are statically analyzable
     - Avoid runtime code generation
     - Use constructor injection exclusively
+    - User-facing strings flow through `ILocalizer`; no string literals
+    - State-changing handlers call `IHistoryRepository.RecordAsync` (try/catch
+      wrapped) after the primary action succeeds
+    - Repositories registered behind interfaces; concrete types stay internal
+      to the registration
