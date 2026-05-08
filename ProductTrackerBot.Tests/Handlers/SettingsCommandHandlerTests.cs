@@ -41,8 +41,8 @@ public class SettingsCommandHandlerTests
         };
 
         this.mockLocalizer
-            .Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("translated");
+            .Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
+            .Returns("translated");
 
         await this.handler.HandleAsync(message, CancellationToken.None);
 
@@ -64,8 +64,8 @@ public class SettingsCommandHandlerTests
         };
 
         this.mockLocalizer
-            .Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("translated");
+            .Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
+            .Returns("translated");
 
         await this.handler.HandleAsync(message, CancellationToken.None);
 

@@ -57,7 +57,7 @@ public class LanguageSelectionHandlerTests
 
         mockLocalizer
             .Setup(l => l.Get(200L, "language_saved"))
-            .ReturnsAsync("Language saved");
+            .Returns("Language saved");
 
         var handler = new LanguageSelectionHandler(
             mockBotClient.Object,
@@ -84,7 +84,7 @@ public class LanguageSelectionHandlerTests
 
         mockLocalizer
             .Setup(l => l.Get(200L, "language_saved"))
-            .ReturnsAsync("Language saved");
+            .Returns("Language saved");
 
         var handler = new LanguageSelectionHandler(
             mockBotClient.Object,

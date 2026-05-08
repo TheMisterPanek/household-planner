@@ -16,13 +16,25 @@
   "buy.group-only": "❌ The /buy command only works in group chats.",
   "buy.item-added": "✓ {name} added: {item}",
   "buy.item-added-quantity": "✓ {name} added: {item} ({quantity})",
+  "buy.item-added-expiry": "✓ {name} added: {item} (until {expiry})",
+  "buy.item-added-quantity-expiry": "✓ {name} added: {item} ({quantity}, until {expiry})",
   "buy.what-to-buy": "What do you want to buy?",
+  "buy.how-much": "How much?",
+  "buy.expiry-date": "Days until expiry? (example: 5, \"1 week\", \"2 weeks\", \"1 month\")",
+  "buy.invalid-date": "Invalid format. Please enter days (e.g. 5) or a variant (e.g. 1 week, 2 months) or click Skip.",
   "buy.skip": "Skip",
   "shop.done-confirmation": "✓ Shopping complete!",
   "language.confirmation": "✓ Language updated",
   "list.header": "📋 Shopping List",
   "list.empty": "Your shopping list is empty",
   "list.remove": "Remove",
-  "shop:remove:{item.Id}": "🗑️"
+  "shop:remove:{item.Id}": "🗑️",
+  "prices.group-only": "❌ The /prices command only works in group chats.",
+  "prices.usage": "Usage: /prices <item name>\nExample: /prices milk",
+  "prices.not-found": "❌ No price data found for that item.",
+  "prices.header": "📊 Price Statistics for {item}",
+  "prices.stats-line": "Overall: min {min}, avg {avg}, max {max} ({count} observations)",
+  "prices.store-line": "  🏪 {store}: min {min}, avg {avg}, max {max} ({count})",
+  "prices.unknown-store": "Unknown Store"
 }
 

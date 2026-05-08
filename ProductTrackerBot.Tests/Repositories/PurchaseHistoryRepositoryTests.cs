@@ -249,6 +249,28 @@ public class PurchaseHistoryRepositoryTests : IDisposable
         Assert.Equal("Stokrotka", shops2[0]);
     }
 
+    [Fact]
+    public async Task SearchAsync_Is_Case_Insensitive_For_Cyrillic()
+    {
+        await InsertRecordAsync(1, "Молоко", "Alice");
+
+        var results = await this.repository.SearchAsync(1, "молоко");
+
+        Assert.Single(results);
+        Assert.Equal("Молоко", results[0].ItemName);
+    }
+
+    [Fact]
+    public async Task SearchAsync_Is_Case_Insensitive_For_Polish_Diacritics()
+    {
+        await InsertRecordAsync(1, "Żółty", "Alice");
+
+        var results = await this.repository.SearchAsync(1, "żółty");
+
+        Assert.Single(results);
+        Assert.Equal("Żółty", results[0].ItemName);
+    }
+
     private async Task InsertRecordAsync(int groupId, string itemName, string boughtByName, DateTime? purchasedAt = null, long userId = 123)
     {
         await using var cmd = this.connection.CreateCommand();

@@ -53,7 +53,7 @@ public class BuyStepAndSkipHandlerHistoryTests
         });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(10, "Молоко", "2л", "Alice"))
+        itemRepo.Setup(r => r.AddAsync(10, "Молоко", "2л", "Alice", It.IsAny<DateOnly?>()))
             .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Молоко", Quantity = "2л", AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();

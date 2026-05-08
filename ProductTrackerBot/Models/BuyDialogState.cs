@@ -11,7 +11,7 @@ public class BuyDialogState
 {
     /// <summary>
     /// Gets or sets the current dialog step.
-    /// 1 = waiting for item name, 2 = waiting for quantity.
+    /// 1 = waiting for item name, 2 = waiting for quantity, 3 = waiting for expiry date.
     /// </summary>
     public int Step { get; set; }
 
@@ -24,6 +24,16 @@ public class BuyDialogState
     /// Gets or sets the item name entered by the user.
     /// </summary>
     public string? Name { get; set; }
+
+    /// <summary>
+    /// Gets or sets the quantity entered by the user.
+    /// </summary>
+    public string? Quantity { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional expiry date.
+    /// </summary>
+    public DateOnly? ExpDate { get; set; }
 
     /// <summary>
     /// Gets or sets the display name of the user who started /buy.

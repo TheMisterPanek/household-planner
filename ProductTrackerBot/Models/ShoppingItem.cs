@@ -30,6 +30,11 @@ public record ShoppingItem
     public string? Quantity { get; init; }
 
     /// <summary>
+    /// Gets the optional expiry date.
+    /// </summary>
+    public DateOnly? ExpDate { get; init; }
+
+    /// <summary>
     /// Gets the display name of the user who added the item.
     /// </summary>
     public string AddedByName { get; init; } = string.Empty;

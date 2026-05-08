@@ -105,4 +105,32 @@ public class GroupRepository
 
         await cmd.ExecuteNonQueryAsync();
     }
+
+    /// <summary>
+    /// Gets all registered groups.
+    /// </summary>
+    /// <returns>A read-only list of all groups.</returns>
+    public virtual async Task<IReadOnlyList<Group>> GetAllAsync()
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT Id, ChatId, ListMessageId, LanguageCode FROM Groups";
+
+        var groups = new List<Group>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            groups.Add(new Group
+            {
+                Id = reader.GetInt32(0),
+                ChatId = reader.GetInt64(1),
+                ListMessageId = reader.IsDBNull(2) ? null : reader.GetInt32(2),
+                LanguageCode = reader.IsDBNull(3) ? "ru" : reader.GetString(3),
+            });
+        }
+
+        return groups.AsReadOnly();
+    }
 }

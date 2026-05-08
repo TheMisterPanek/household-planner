@@ -101,6 +101,18 @@ public class ShoppingListService
                 label += " " + string.Join(", ", quantities);
             }
 
+            var firstItem = groupItems[0];
+            if (firstItem.ExpDate.HasValue)
+            {
+                label += $" (до {firstItem.ExpDate.Value:dd.MM})";
+            }
+
+            var isExpired = firstItem.ExpDate.HasValue && firstItem.ExpDate.Value <= DateOnly.FromDateTime(DateTime.Now);
+            if (isExpired)
+            {
+                sb.Append("⚠️ ");
+            }
+
             sb.AppendLine($"• {label}");
 
             foreach (var item in groupItems)
@@ -108,6 +120,12 @@ public class ShoppingListService
                 var btnLabel = item.Quantity is not null
                     ? $"✓ {item.Name} {item.Quantity}"
                     : $"✓ {item.Name}";
+
+                if (item.ExpDate.HasValue)
+                {
+                    btnLabel += $" (до {item.ExpDate.Value:dd.MM})";
+                }
+
                 buttons.Add(
                 [
                     InlineKeyboardButton.WithCallbackData(btnLabel, $"shop:done:{item.Id}"),

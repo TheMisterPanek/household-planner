@@ -21,6 +21,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
     private readonly ITelegramBotClient botClient;
     private readonly PendingDialogService<PriceCaptureDialogState> dialogService;
     private readonly PurchaseHistoryRepository purchaseRepository;
+    private readonly PriceLogRepository priceLogRepository;
     private readonly GroupRepository groupRepository;
     private readonly ILogger<PriceCaptureStepHandler> logger;
 
@@ -30,18 +31,21 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
     /// <param name="botClient">The Telegram bot client.</param>
     /// <param name="dialogService">The price-capture dialog state service.</param>
     /// <param name="purchaseRepository">The purchase history repository.</param>
+    /// <param name="priceLogRepository">The price log repository.</param>
     /// <param name="groupRepository">The group repository.</param>
     /// <param name="logger">The logger.</param>
     public PriceCaptureStepHandler(
         ITelegramBotClient botClient,
         PendingDialogService<PriceCaptureDialogState> dialogService,
         PurchaseHistoryRepository purchaseRepository,
+        PriceLogRepository priceLogRepository,
         GroupRepository groupRepository,
         ILogger<PriceCaptureStepHandler> logger)
     {
         this.botClient = botClient;
         this.dialogService = dialogService;
         this.purchaseRepository = purchaseRepository;
+        this.priceLogRepository = priceLogRepository;
         this.groupRepository = groupRepository;
         this.logger = logger;
     }
@@ -131,6 +135,23 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
         };
 
         await this.purchaseRepository.AddAsync(record);
+
+        if (record.Price.HasValue)
+        {
+            try
+            {
+                await this.priceLogRepository.AddAsync(
+                    group.Id,
+                    record.ItemName,
+                    record.Price.Value,
+                    record.StoreName,
+                    DateTime.UtcNow);
+            }
+            catch (Exception ex)
+            {
+                this.logger.LogWarning(ex, "Failed to log price for item {ItemName}", record.ItemName);
+            }
+        }
 
         this.dialogService.ClearState(chatId, userId);
 

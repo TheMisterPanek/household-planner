@@ -30,21 +30,23 @@ public class ShoppingItemRepository
     /// <param name="name">The item name.</param>
     /// <param name="quantity">Optional quantity.</param>
     /// <param name="addedByName">The display name of the user who added the item.</param>
+    /// <param name="expDate">Optional expiry date.</param>
     /// <returns>The created item.</returns>
-    public virtual async Task<ShoppingItem> AddAsync(int groupId, string name, string? quantity, string addedByName)
+    public virtual async Task<ShoppingItem> AddAsync(int groupId, string name, string? quantity, string addedByName, DateOnly? expDate = null)
     {
         await using var connection = new SqliteConnection(this.connectionString);
         await connection.OpenAsync();
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = @"
-            INSERT INTO ShoppingItems (GroupId, Name, Quantity, AddedByName)
-            VALUES (@groupId, @name, @quantity, @addedByName);
+            INSERT INTO ShoppingItems (GroupId, Name, Quantity, AddedByName, exp_date)
+            VALUES (@groupId, @name, @quantity, @addedByName, @expDate);
             SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("@groupId", groupId);
         cmd.Parameters.AddWithValue("@name", name);
         cmd.Parameters.AddWithValue("@quantity", (object?)quantity ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@addedByName", addedByName);
+        cmd.Parameters.AddWithValue("@expDate", expDate.HasValue ? (object)expDate.Value.ToString("yyyy-MM-dd") : DBNull.Value);
 
         var newId = (long)(await cmd.ExecuteScalarAsync())!;
 
@@ -54,6 +56,7 @@ public class ShoppingItemRepository
             GroupId = groupId,
             Name = name,
             Quantity = quantity,
+            ExpDate = expDate,
             AddedByName = addedByName,
         };
     }
@@ -69,20 +72,24 @@ public class ShoppingItemRepository
         await connection.OpenAsync();
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Id, GroupId, Name, Quantity, AddedByName FROM ShoppingItems WHERE GroupId = @groupId ORDER BY Id";
+        cmd.CommandText = "SELECT Id, GroupId, Name, Quantity, exp_date, AddedByName FROM ShoppingItems WHERE GroupId = @groupId ORDER BY Id";
         cmd.Parameters.AddWithValue("@groupId", groupId);
 
         var items = new List<ShoppingItem>();
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
+            var expDateStr = reader.IsDBNull(4) ? null : reader.GetString(4);
+            var expDate = expDateStr != null ? (DateOnly?)DateOnly.ParseExact(expDateStr, "yyyy-MM-dd") : null;
+
             items.Add(new ShoppingItem
             {
                 Id = reader.GetInt32(0),
                 GroupId = reader.GetInt32(1),
                 Name = reader.GetString(2),
                 Quantity = reader.IsDBNull(3) ? null : reader.GetString(3),
-                AddedByName = reader.GetString(4),
+                ExpDate = expDate,
+                AddedByName = reader.GetString(5),
             });
         }
 
@@ -100,23 +107,62 @@ public class ShoppingItemRepository
         await connection.OpenAsync();
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Id, GroupId, Name, Quantity, AddedByName FROM ShoppingItems WHERE Id = @id";
+        cmd.CommandText = "SELECT Id, GroupId, Name, Quantity, exp_date, AddedByName FROM ShoppingItems WHERE Id = @id";
         cmd.Parameters.AddWithValue("@id", itemId);
 
         await using var reader = await cmd.ExecuteReaderAsync();
         if (await reader.ReadAsync())
         {
+            var expDateStr = reader.IsDBNull(4) ? null : reader.GetString(4);
+            var expDate = expDateStr != null ? (DateOnly?)DateOnly.ParseExact(expDateStr, "yyyy-MM-dd") : null;
+
             return new ShoppingItem
             {
                 Id = reader.GetInt32(0),
                 GroupId = reader.GetInt32(1),
                 Name = reader.GetString(2),
                 Quantity = reader.IsDBNull(3) ? null : reader.GetString(3),
-                AddedByName = reader.GetString(4),
+                ExpDate = expDate,
+                AddedByName = reader.GetString(5),
             };
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Gets all shopping items with expiry dates for a group.
+    /// </summary>
+    /// <param name="groupId">The group ID.</param>
+    /// <returns>A read-only list of items with expiry dates.</returns>
+    public virtual async Task<IReadOnlyList<ShoppingItem>> GetItemsWithExpiryAsync(int groupId)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT Id, GroupId, Name, Quantity, exp_date, AddedByName FROM ShoppingItems WHERE GroupId = @groupId AND exp_date IS NOT NULL ORDER BY exp_date";
+        cmd.Parameters.AddWithValue("@groupId", groupId);
+
+        var items = new List<ShoppingItem>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var expDateStr = reader.GetString(4);
+            var expDate = DateOnly.ParseExact(expDateStr, "yyyy-MM-dd");
+
+            items.Add(new ShoppingItem
+            {
+                Id = reader.GetInt32(0),
+                GroupId = reader.GetInt32(1),
+                Name = reader.GetString(2),
+                Quantity = reader.IsDBNull(3) ? null : reader.GetString(3),
+                ExpDate = expDate,
+                AddedByName = reader.GetString(5),
+            });
+        }
+
+        return items.AsReadOnly();
     }
 
     /// <summary>

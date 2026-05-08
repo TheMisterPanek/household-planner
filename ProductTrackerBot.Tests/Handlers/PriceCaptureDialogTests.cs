@@ -52,6 +52,15 @@ public class PriceCaptureDialogTests
         return repo;
     }
 
+    private static Mock<PriceLogRepository> CreatePriceLogRepoMock()
+    {
+        var repo = new Mock<PriceLogRepository>("Data Source=file:test");
+        repo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<DateTime>()))
+            .ReturnsAsync((int groupId, string itemName, decimal price, string? storeName, DateTime loggedAt) =>
+                new PriceLogEntry(1, groupId, itemName, price, storeName, loggedAt));
+        return repo;
+    }
+
     private static CallbackQuery CreateCallback(string data, long chatId = -100, int userId = 42, string firstName = "Alice")
     {
         return new CallbackQuery
@@ -148,6 +157,7 @@ public class PriceCaptureDialogTests
             bot.Object,
             dialogService,
             CreatePurchaseRepoMock().Object,
+            CreatePriceLogRepoMock().Object,
             CreateGroupRepoMock().Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
@@ -187,12 +197,14 @@ public class PriceCaptureDialogTests
         });
 
         var purchaseRepo = CreatePurchaseRepoMock();
+        var priceLogRepo = CreatePriceLogRepoMock();
         var groupRepo = CreateGroupRepoMock();
 
         var handler = new PriceCaptureStepHandler(
             bot.Object,
             dialogService,
             purchaseRepo.Object,
+            priceLogRepo.Object,
             groupRepo.Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
@@ -236,6 +248,7 @@ public class PriceCaptureDialogTests
             bot.Object,
             dialogService,
             CreatePurchaseRepoMock().Object,
+            CreatePriceLogRepoMock().Object,
             CreateGroupRepoMock().Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
@@ -361,7 +374,7 @@ public class PriceCaptureDialogTests
         var listService = new Mock<ShoppingListService>(
             CreateGroupRepoMock().Object,
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object);
-        listService.Setup(s => s.BuildListAsync(-100L))
+        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>()))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
 
         var groupRepo = CreateGroupRepoMock();
@@ -416,7 +429,7 @@ public class PriceCaptureDialogTests
         var listService = new Mock<ShoppingListService>(
             CreateGroupRepoMock().Object,
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object);
-        listService.Setup(s => s.BuildListAsync(-100L))
+        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>()))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
 
         var groupRepo = CreateGroupRepoMock();
@@ -471,7 +484,7 @@ public class PriceCaptureDialogTests
         var listService = new Mock<ShoppingListService>(
             CreateGroupRepoMock().Object,
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object);
-        listService.Setup(s => s.BuildListAsync(-100L))
+        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>()))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
 
         var groupRepo = CreateGroupRepoMock();
@@ -571,6 +584,7 @@ public class PriceCaptureDialogTests
             bot.Object,
             dialogService,
             CreatePurchaseRepoMock().Object,
+            CreatePriceLogRepoMock().Object,
             CreateGroupRepoMock().Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
@@ -605,7 +619,7 @@ public class PriceCaptureDialogTests
         var listService = new Mock<ShoppingListService>(
             CreateGroupRepoMock().Object,
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object);
-        listService.Setup(s => s.BuildListAsync(-100L))
+        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>()))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
 
         var groupRepo = CreateGroupRepoMock();
@@ -646,5 +660,144 @@ public class PriceCaptureDialogTests
         Assert.Equal(2, state.TopShops.Count);
         Assert.True(state.TopShops[0].Length <= 31); // 30 chars + ellipsis
         Assert.EndsWith("…", state.TopShops[0]);
+    }
+
+    [Fact]
+    public async Task PriceCaptureStepHandler_WithNonNullPrice_CallsPriceLogRepository()
+    {
+        // Arrange
+        var bot = CreateBotMock();
+        var dialogService = new PendingDialogService<PriceCaptureDialogState>();
+        dialogService.SetState(-100L, 42L, new PriceCaptureDialogState
+        {
+            Step = 2,
+            ItemName = "Milk",
+            Quantity = "2л",
+            StoreName = "Magnit",
+            BoughtByName = "Alice",
+        });
+
+        var purchaseRepo = CreatePurchaseRepoMock();
+        var groupRepo = CreateGroupRepoMock();
+        var priceLogRepo = new Mock<PriceLogRepository>("Data Source=file:test");
+        priceLogRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<DateTime>()))
+            .ReturnsAsync((int groupId, string itemName, decimal price, string? storeName, DateTime loggedAt) =>
+                new PriceLogEntry(1, groupId, itemName, price, storeName, loggedAt));
+
+        var handler = new PriceCaptureStepHandler(
+            bot.Object,
+            dialogService,
+            purchaseRepo.Object,
+            priceLogRepo.Object,
+            groupRepo.Object,
+            Mock.Of<ILogger<PriceCaptureStepHandler>>());
+
+        var message = DeserializeMessage(
+            "{\"message_id\":10,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100,\"type\":\"supergroup\"},\"text\":\"89.90\"}");
+
+        // Act
+        await handler.HandleAsync(message, CancellationToken.None);
+
+        // Assert - PriceLogRepository.AddAsync called with correct parameters
+        priceLogRepo.Verify(r => r.AddAsync(
+            10,
+            "Milk",
+            89.90m,
+            "Magnit",
+            It.IsAny<DateTime>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PriceCaptureStepHandler_WithNullPrice_DoesNotCallPriceLogRepository()
+    {
+        // Arrange
+        var bot = new Mock<ITelegramBotClient>();
+        bot.Setup(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Message());
+        bot.Setup(b => b.SendRequest(It.IsAny<EditMessageTextRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Message());
+
+        var dialogService = new PendingDialogService<PriceCaptureDialogState>();
+        dialogService.SetState(-100L, 42L, new PriceCaptureDialogState
+        {
+            Step = 2,
+            ItemName = "Milk",
+            Quantity = "2л",
+            StoreName = "Magnit",
+            BoughtByName = "Alice",
+        });
+
+        var purchaseRepo = CreatePurchaseRepoMock();
+        var groupRepo = CreateGroupRepoMock();
+        var priceLogRepo = new Mock<PriceLogRepository>("Data Source=file:test");
+
+        var skipHandler = new PriceSkipCallbackHandler(
+            bot.Object,
+            dialogService,
+            purchaseRepo.Object,
+            groupRepo.Object);
+
+        var callback = CreateCallback("price:skip_price");
+
+        // Act
+        await skipHandler.HandleAsync(callback, CancellationToken.None);
+
+        // Assert - PriceLogRepository.AddAsync NOT called
+        priceLogRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<DateTime>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PriceCaptureStepHandler_PriceLogRepositoryFailure_DoesNotSuppressConfirmation()
+    {
+        // Arrange
+        var bot = CreateBotMock();
+        var dialogService = new PendingDialogService<PriceCaptureDialogState>();
+        dialogService.SetState(-100L, 42L, new PriceCaptureDialogState
+        {
+            Step = 2,
+            ItemName = "Milk",
+            StoreName = "Magnit",
+            BoughtByName = "Alice",
+        });
+
+        var purchaseRepo = CreatePurchaseRepoMock();
+        var groupRepo = CreateGroupRepoMock();
+        var priceLogRepo = new Mock<PriceLogRepository>("Data Source=file:test");
+        priceLogRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<DateTime>()))
+            .ThrowsAsync(new Exception("Database error"));
+
+        var logger = new Mock<ILogger<PriceCaptureStepHandler>>();
+
+        var handler = new PriceCaptureStepHandler(
+            bot.Object,
+            dialogService,
+            purchaseRepo.Object,
+            priceLogRepo.Object,
+            groupRepo.Object,
+            logger.Object);
+
+        var message = DeserializeMessage(
+            "{\"message_id\":10,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100,\"type\":\"supergroup\"},\"text\":\"89.90\"}");
+
+        // Act
+        await handler.HandleAsync(message, CancellationToken.None);
+
+        // Assert - confirmation message still sent despite price log failure
+        bot.Verify(b => b.SendRequest(
+            It.Is<SendMessageRequest>(r => r.Text!.Contains("✓ Milk recorded")),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        // Assert - dialog cleared
+        Assert.Null(dialogService.GetState(-100L, 42L));
+
+        // Assert - warning logged
+        logger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 }
