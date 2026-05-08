@@ -72,7 +72,7 @@ public class LanguageSelectionHandler : ICallbackHandler
         {
             await this.preferenceRepository.SaveLanguageAsync(chatId, languageCode, cancellationToken);
 
-            var confirmationMessage = await this.localizer.GetAsync(chatId, "language_saved", cancellationToken);
+            var confirmationMessage = this.localizer.Get(chatId, "language_saved");
 
             await this.botClient.AnswerCallbackQuery(
                 callbackQueryId: callbackQuery.Id,

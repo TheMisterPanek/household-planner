@@ -121,6 +121,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
         var record = new PurchaseRecord
         {
             GroupId = group.Id,
+            UserId = userId,
             ItemName = state.ItemName,
             Quantity = state.Quantity,
             StoreName = state.StoreName,

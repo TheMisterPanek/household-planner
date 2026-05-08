@@ -1,3 +1,4 @@
+using ProductTrackerBot.Localization;
 using System.Text.Json;
 using Moq;
 using ProductTrackerBot.Handlers;

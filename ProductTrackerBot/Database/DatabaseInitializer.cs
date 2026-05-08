@@ -104,6 +104,20 @@ public class DatabaseInitializer : IHostedService
             this.logger.LogInformation("LanguageCode column already exists on Groups table");
         }
 
+        // Migrate PurchaseHistory table: add UserId column if it doesn't exist
+        try
+        {
+            await using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE PurchaseHistory ADD COLUMN UserId INTEGER NOT NULL DEFAULT 0";
+            await alterCmd.ExecuteNonQueryAsync(cancellationToken);
+            this.logger.LogInformation("Added UserId column to PurchaseHistory table");
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 1)
+        {
+            // Column already exists, ignore
+            this.logger.LogInformation("UserId column already exists on PurchaseHistory table");
+        }
+
         this.logger.LogInformation("Database schema initialized successfully");
     }
 

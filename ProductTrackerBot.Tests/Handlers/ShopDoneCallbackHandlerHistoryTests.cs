@@ -1,3 +1,4 @@
+using ProductTrackerBot.Localization;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -65,9 +66,20 @@ public class ShopDoneCallbackHandlerHistoryTests
         else
             setup.Returns(Task.CompletedTask);
 
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file:test");
+        purchaseRepo.Setup(r => r.GetTopShopsAsync(It.IsAny<int>(), It.IsAny<long>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<string>());
+
+        var priceDialogService = new PendingDialogService<PriceCaptureDialogState>();
+
         var handler = new ShopDoneCallbackHandler(
-            bot.Object, itemRepo.Object, listService, groupRepo.Object, historyMock.Object,
-            new PendingDialogService<PriceCaptureDialogState>(),
+            bot.Object,
+            itemRepo.Object,
+            listService,
+            groupRepo.Object,
+            historyMock.Object,
+            priceDialogService,
+            purchaseRepo.Object,
             localizer.Object,
             Mock.Of<ILogger<ShopDoneCallbackHandler>>());
 

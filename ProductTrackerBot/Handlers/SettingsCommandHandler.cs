@@ -43,12 +43,12 @@ public class SettingsCommandHandler : ICommandHandler
     {
         var chatId = message.Chat.Id;
 
-        var menuPrompt = await this.localizer.GetAsync(chatId, "menu_prompt", cancellationToken);
+        var menuPrompt = this.localizer.Get(chatId, "menu_prompt");
 
         var buttons = new List<InlineKeyboardButton[]>();
         foreach (var (languageCode, labelKey) in SupportedLanguages.Languages)
         {
-            var label = await this.localizer.GetAsync(chatId, labelKey, cancellationToken);
+            var label = this.localizer.Get(chatId, labelKey);
             var button = InlineKeyboardButton.WithCallbackData(label, $"settings_lang:{languageCode}");
             buttons.Add(new[] { button });
         }

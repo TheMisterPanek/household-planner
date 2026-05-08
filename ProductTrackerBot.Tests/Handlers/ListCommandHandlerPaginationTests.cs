@@ -1,3 +1,4 @@
+using ProductTrackerBot.Localization;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
