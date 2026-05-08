@@ -50,7 +50,8 @@ public class ListCommandHandler : ICommandHandler
     /// <inheritdoc/>
     public async Task HandleAsync(Message message, CancellationToken cancellationToken)
     {
-        var (messageText, keyboard, group) = await this.listService.BuildListAsync(message.Chat.Id);
+        var pageNumber = ParsePageNumber(message.Text);
+        var (messageText, keyboard, group) = await this.listService.BuildListAsync(message.Chat.Id, pageNumber);
 
         var sent = await this.botClient.SendMessage(
             chatId: message.Chat.Id,
@@ -62,8 +63,9 @@ public class ListCommandHandler : ICommandHandler
 
         try
         {
-            var payload = new EmptyPayload();
-            var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.EmptyPayload);
+            var (_, totalItems, totalPages, actualPageNumber) = await this.listService.GetPagedItemsAsync(group.Id, pageNumber, pageSize: 10);
+            var payload = new ListViewedPayload(actualPageNumber, 10, totalItems);
+            var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.ListViewedPayload);
             await this.historyRepository.RecordAsync(
                 chatId: message.Chat.Id,
                 userId: message.From?.Id ?? 0,
@@ -76,5 +78,26 @@ public class ListCommandHandler : ICommandHandler
         {
             this.logger.LogWarning(ex, "Failed to record history for ListViewed");
         }
+    }
+
+    private static int ParsePageNumber(string? commandText)
+    {
+        if (string.IsNullOrWhiteSpace(commandText))
+        {
+            return 1;
+        }
+
+        var parts = commandText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2)
+        {
+            return 1;
+        }
+
+        if (int.TryParse(parts[1], out var pageNumber) && pageNumber > 0)
+        {
+            return pageNumber;
+        }
+
+        return 1;
     }
 }

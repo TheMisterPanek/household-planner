@@ -12,6 +12,11 @@ using System.Text.Json.Serialization;
 public record ItemPayload(string Name, string? Quantity);
 
 /// <summary>
+/// Payload for list viewing with pagination metadata.
+/// </summary>
+public record ListViewedPayload(int Page, int PageSize, int TotalItems);
+
+/// <summary>
 /// Payload for actions with no additional data (list viewed, history viewed).
 /// </summary>
 public record EmptyPayload();
@@ -27,6 +32,7 @@ public record LanguagePayload(string LanguageCode);
 [JsonSerializable(typeof(ItemPayload))]
 [JsonSerializable(typeof(EmptyPayload))]
 [JsonSerializable(typeof(LanguagePayload))]
+[JsonSerializable(typeof(ListViewedPayload))]
 public partial class BotActionPayloadContext : JsonSerializerContext
 {
 }

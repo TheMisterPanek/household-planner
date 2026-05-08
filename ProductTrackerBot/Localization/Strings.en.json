@@ -5,5 +5,11 @@
   "language_saved": "Language preference saved",
   "language_english": "English",
   "language_russian": "Русский (Russian)",
-  "language_polish": "Polski"
+  "language_polish": "Polski",
+  "pagination_page_label": "Page",
+  "pagination_of_label": "of",
+  "pagination_items_label": "items",
+  "pagination_previous_button": "← Previous",
+  "pagination_next_button": "Next →",
+  "pagination_out_of_range": "showing page 1 of {maxPage}"
 }
