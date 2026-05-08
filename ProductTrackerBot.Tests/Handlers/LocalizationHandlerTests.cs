@@ -223,8 +223,9 @@ public class LocalizationHandlerTests
         Assert.Single(sentTexts);
         Assert.Equal("Select language:", sentTexts[0]);
         Assert.NotNull(capturedKeyboard);
-        Assert.Single(capturedKeyboard!.InlineKeyboard); // One row of buttons
-        Assert.Equal(2, capturedKeyboard.InlineKeyboard[0].Count); // Two buttons: English and Russian
+        var rows = capturedKeyboard!.InlineKeyboard.ToList();
+        Assert.Single(rows); // One row of buttons
+        Assert.Equal(2, rows[0].Count()); // Two buttons: English and Russian
     }
 
     [Fact]

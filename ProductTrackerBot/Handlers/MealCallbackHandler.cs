@@ -174,7 +174,7 @@ public class MealCallbackHandler : ICallbackHandler
             this.logger.LogError(ex, "Error handling meal callback: {Data}", data);
         }
 
-        await this.botClient.AnswerCallbackQueryAsync(callbackQuery.Id, cancellationToken: cancellationToken);
+        await this.botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: cancellationToken);
     }
 
     private async Task HandleMealListAsync(CallbackQuery callbackQuery, CancellationToken cancellationToken)
@@ -203,7 +203,7 @@ public class MealCallbackHandler : ICallbackHandler
             ? "📋 No meals yet. Create one with [➕ New Meal]!"
             : $"📋 Meals ({meals.Count}):";
 
-        await this.botClient.EditMessageTextAsync(
+        await this.botClient.EditMessageText(
             chatId,
             callbackQuery.Message.MessageId,
             text,
@@ -218,7 +218,7 @@ public class MealCallbackHandler : ICallbackHandler
 
         if (meal is null)
         {
-            await this.botClient.AnswerCallbackQueryAsync(callbackQuery.Id, "Meal not found", cancellationToken: cancellationToken);
+            await this.botClient.AnswerCallbackQuery(callbackQuery.Id, "Meal not found", cancellationToken: cancellationToken);
             return;
         }
 
@@ -228,7 +228,7 @@ public class MealCallbackHandler : ICallbackHandler
         var text = this.BuildMealDetailText(meal, ingredients, steps);
         var keyboard = this.BuildMealDetailKeyboard(mealId, ingredients.Count, steps.Count);
 
-        await this.botClient.EditMessageTextAsync(
+        await this.botClient.EditMessageText(
             chatId,
             callbackQuery.Message.MessageId,
             text,
@@ -243,7 +243,7 @@ public class MealCallbackHandler : ICallbackHandler
 
         this.mealCreateDialogService.SetState(chatId, userId, new MealCreateDialogState { Step = 1 });
 
-        await this.botClient.SendTextMessageAsync(
+        await this.botClient.SendMessage(
             chatId,
             "What's the meal name?",
             cancellationToken: cancellationToken);
@@ -258,7 +258,7 @@ public class MealCallbackHandler : ICallbackHandler
             new[] { InlineKeyboardButton.WithCallbackData("Cancel", "meal:list") },
         });
 
-        await this.botClient.EditMessageTextAsync(
+        await this.botClient.EditMessageText(
             chatId,
             callbackQuery.Message.MessageId,
             "⚠️ Are you sure you want to delete this meal?",
@@ -293,7 +293,7 @@ public class MealCallbackHandler : ICallbackHandler
             ? "📋 No meals yet. Create one with [➕ New Meal]!"
             : $"📋 Meals ({meals.Count}):";
 
-        await this.botClient.EditMessageTextAsync(
+        await this.botClient.EditMessageText(
             chatId,
             callbackQuery.Message.MessageId,
             text,
@@ -309,7 +309,7 @@ public class MealCallbackHandler : ICallbackHandler
         var state = new MealAddIngredientDialogState { Step = 1, MealId = mealId };
         this.ingredientDialogService.SetState(chatId, userId, state);
 
-        await this.botClient.SendTextMessageAsync(
+        await this.botClient.SendMessage(
             chatId,
             "What ingredient?",
             cancellationToken: cancellationToken);
@@ -333,7 +333,7 @@ public class MealCallbackHandler : ICallbackHandler
             var text = this.BuildMealDetailText(meal!, ingredients, steps);
             var keyboard = this.BuildMealDetailKeyboard(mealId, ingredients.Count, steps.Count);
 
-            await this.botClient.EditMessageTextAsync(
+            await this.botClient.EditMessageText(
                 chatId,
                 callbackQuery.Message.MessageId,
                 text,
@@ -354,7 +354,7 @@ public class MealCallbackHandler : ICallbackHandler
         var text = this.BuildMealDetailText(meal!, ingredients, steps);
         var keyboard = this.BuildMealDetailKeyboard(mealId, ingredients.Count, steps.Count);
 
-        await this.botClient.EditMessageTextAsync(
+        await this.botClient.EditMessageText(
             chatId,
             callbackQuery.Message.MessageId,
             text,
@@ -369,7 +369,7 @@ public class MealCallbackHandler : ICallbackHandler
 
         this.stepDialogService.SetState(chatId, userId, new MealAddStepDialogState { MealId = mealId });
 
-        await this.botClient.SendTextMessageAsync(
+        await this.botClient.SendMessage(
             chatId,
             "What's the step?",
             cancellationToken: cancellationToken);
@@ -387,7 +387,7 @@ public class MealCallbackHandler : ICallbackHandler
         var text = this.BuildMealDetailText(meal!, ingredients, steps);
         var keyboard = this.BuildMealDetailKeyboard(mealId, ingredients.Count, steps.Count);
 
-        await this.botClient.EditMessageTextAsync(
+        await this.botClient.EditMessageText(
             chatId,
             callbackQuery.Message.MessageId,
             text,
@@ -433,7 +433,7 @@ public class MealCallbackHandler : ICallbackHandler
 
         if (conflicts.Count == 0)
         {
-            await this.botClient.AnswerCallbackQueryAsync(
+            await this.botClient.AnswerCallbackQuery(
                 callbackQuery.Id,
                 $"✅ Added {addedCount} items",
                 cancellationToken: cancellationToken);
@@ -444,7 +444,7 @@ public class MealCallbackHandler : ICallbackHandler
             var conflictText = this.BuildConflictMessage(conflicts);
             var conflictKeyboard = this.BuildConflictKeyboard(sessionId, conflicts);
 
-            await this.botClient.SendTextMessageAsync(
+            await this.botClient.SendMessage(
                 chatId,
                 conflictText,
                 replyMarkup: conflictKeyboard,
@@ -462,7 +462,7 @@ public class MealCallbackHandler : ICallbackHandler
         var session = this.mergeService.TryGetSession(sessionId);
         if (session is null)
         {
-            await this.botClient.AnswerCallbackQueryAsync(
+            await this.botClient.AnswerCallbackQuery(
                 callbackQuery.Id,
                 "⏰ This request has expired, please tap 🛒 again",
                 cancellationToken: cancellationToken);
@@ -494,7 +494,7 @@ public class MealCallbackHandler : ICallbackHandler
 
             var summary = this.BuildSummaryMessage(added, skipped);
 
-            await this.botClient.EditMessageTextAsync(
+            await this.botClient.EditMessageText(
                 callbackQuery.Message!.Chat.Id,
                 callbackQuery.Message.MessageId,
                 summary,
@@ -505,7 +505,7 @@ public class MealCallbackHandler : ICallbackHandler
             var conflictText = this.BuildConflictMessage(unresolved);
             var conflictKeyboard = this.BuildConflictKeyboard(sessionId, unresolved);
 
-            await this.botClient.EditMessageTextAsync(
+            await this.botClient.EditMessageText(
                 callbackQuery.Message!.Chat.Id,
                 callbackQuery.Message.MessageId,
                 conflictText,
@@ -523,7 +523,7 @@ public class MealCallbackHandler : ICallbackHandler
             lines.Add("\n**Ingredients:**");
             foreach (var ing in ingredients)
             {
-                var qty = ing.Quantity is null ? "" : $" ({ing.Quantity})";
+                var qty = ing.Quantity is null ? string.Empty : $" ({ing.Quantity})";
                 lines.Add($"• {ing.Name}{qty}");
             }
         }

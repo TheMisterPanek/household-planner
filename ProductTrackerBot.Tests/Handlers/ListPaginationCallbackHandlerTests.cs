@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Handlers;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -53,9 +54,11 @@ public class ListPaginationCallbackHandlerTests
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object);
-        var handler = new ListPrevCallbackHandler(bot, listService, groupRepo.Object, Mock.Of<ILogger<ListPrevCallbackHandler>>());
-        return (handler, null);
+        var localizer = CreateLocalizerMock();
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+        var historyRepo = new Mock<IHistoryRepository>();
+        var handler = new ListPrevCallbackHandler(bot, listService, groupRepo.Object, historyRepo.Object, Mock.Of<ILogger<ListPrevCallbackHandler>>());
+        return (handler, historyRepo);
     }
 
     private static ListNextCallbackHandler CreateNextHandler(ITelegramBotClient bot)
@@ -69,8 +72,10 @@ public class ListPaginationCallbackHandlerTests
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object);
-        return new ListNextCallbackHandler(bot, listService, groupRepo.Object, Mock.Of<ILogger<ListNextCallbackHandler>>());
+        var localizer = CreateLocalizerMock();
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+        var historyRepo = new Mock<IHistoryRepository>();
+        return new ListNextCallbackHandler(bot, listService, groupRepo.Object, historyRepo.Object, Mock.Of<ILogger<ListNextCallbackHandler>>());
     }
 
     [Fact]
@@ -109,5 +114,13 @@ public class ListPaginationCallbackHandlerTests
         await handler.HandleAsync(callback, CancellationToken.None);
 
         bot.Verify(b => b.SendRequest(It.IsAny<EditMessageTextRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static Mock<ILocalizer> CreateLocalizerMock()
+    {
+        var mock = new Mock<ILocalizer>();
+        mock.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
+            .Returns((long _, string key) => key);
+        return mock;
     }
 }

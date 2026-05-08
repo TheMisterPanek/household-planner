@@ -45,7 +45,7 @@ public class MealMergeService
     /// <returns>The session, or null if not found or expired.</returns>
     public MergeSession? TryGetSession(string sessionId)
     {
-        PurgeExpiredSessions();
+        this.PurgeExpiredSessions();
 
         if (this.sessions.TryGetValue(sessionId, out var session))
         {

@@ -127,20 +127,28 @@ public class BuyCommandHandler : ICommandHandler
     private static (string Name, string? Quantity)? ParseArgs(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
+        {
             return null;
+        }
 
         // Strip "/buy" or "/buy@botname"
         var spaceIdx = text.IndexOf(' ');
         if (spaceIdx < 0)
+        {
             return null;
+        }
 
         var args = text[(spaceIdx + 1)..].Trim();
         if (string.IsNullOrEmpty(args))
+        {
             return null;
+        }
 
         var lastSpace = args.LastIndexOf(' ');
         if (lastSpace < 0)
+        {
             return (args, null);
+        }
 
         return (args[..lastSpace].Trim(), args[(lastSpace + 1)..].Trim());
     }

@@ -35,6 +35,13 @@ public class BotHostedService : BackgroundService
     }
 
     /// <inheritdoc/>
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        this.logger.LogInformation("Bot polling stopped");
+        await base.StopAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         this.logger.LogInformation("Bot polling started");
@@ -48,12 +55,5 @@ public class BotHostedService : BackgroundService
 
         // Keep the service running until cancellation is requested
         await Task.Delay(Timeout.Infinite, stoppingToken).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc/>
-    public override async Task StopAsync(CancellationToken cancellationToken)
-    {
-        this.logger.LogInformation("Bot polling stopped");
-        await base.StopAsync(cancellationToken);
     }
 }

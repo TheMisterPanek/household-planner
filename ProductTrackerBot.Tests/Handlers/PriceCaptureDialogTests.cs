@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Handlers;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -74,8 +75,9 @@ public class PriceCaptureDialogTests
 
         var listService = new Mock<ShoppingListService>(
             CreateGroupRepoMock().Object,
-            new Mock<ShoppingItemRepository>("Data Source=file:test").Object);
-        listService.Setup(s => s.BuildListAsync(-100L))
+            new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
+            Mock.Of<ILocalizer>());
+        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>()))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
 
         var groupRepo = new Mock<GroupRepository>("Data Source=file:test");
@@ -95,6 +97,7 @@ public class PriceCaptureDialogTests
             groupRepo.Object,
             historyMock.Object,
             priceDialogService,
+            Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<ShopDoneCallbackHandler>>());
 
         var callback = CreateCallback("shop:done:1");

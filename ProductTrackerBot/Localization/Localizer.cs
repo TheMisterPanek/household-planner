@@ -38,6 +38,19 @@ public class Localizer : ILocalizer
         var group = languageTask.Result;
         var languageCode = group.LanguageCode ?? "en";
 
+        return this.GetTranslation(languageCode, key);
+    }
+
+    /// <inheritdoc/>
+    public async Task<string> GetAsync(long chatId, string key, CancellationToken cancellationToken)
+    {
+        var group = await this.groupRepository.GetOrCreateAsync(chatId);
+        var languageCode = group.LanguageCode ?? "en";
+        return this.GetTranslation(languageCode, key);
+    }
+
+    private string GetTranslation(string languageCode, string key)
+    {
         // Try to find the translation in the chat's language
         if (this.translations.TryGetValue(languageCode, out var langDict))
         {
@@ -64,47 +77,50 @@ public class Localizer : ILocalizer
 
     private void LoadTranslations()
     {
-        var assembly = typeof(Localizer).Assembly;
-        var resourceNames = assembly.GetManifestResourceNames();
         var context = new StringsJsonSerializerContext();
-        var options = context.GetTypeInfo(typeof(Dictionary<string, string>)).Options;
+        var basePath = AppContext.BaseDirectory;
+        var localizationPath = Path.Combine(basePath, "Localization");
 
-        foreach (var resourceName in resourceNames)
+        if (!Directory.Exists(localizationPath))
         {
-            if (!resourceName.StartsWith("ProductTrackerBot.Resources.Strings.") || !resourceName.EndsWith(".json"))
+            this.logger.LogWarning("Could not find Localization directory at {Path}", localizationPath);
+            return;
+        }
+
+        var foundPath = localizationPath;
+
+        var files = Directory.GetFiles(foundPath, "Strings.*.json");
+        if (files.Length == 0)
+        {
+            this.logger.LogWarning("No translation files found in {Path}", foundPath);
+            return;
+        }
+
+        foreach (var filePath in files)
+        {
+            var fileName = Path.GetFileNameWithoutExtension(filePath);
+            var parts = fileName.Split('.');
+            if (parts.Length != 2)
             {
                 continue;
             }
 
-            // Extract language code from resource name (e.g., "ProductTrackerBot.Resources.Strings.en.json" -> "en")
-            var parts = resourceName.Split('.');
-            if (parts.Length < 2)
-            {
-                continue;
-            }
-
-            var languageCode = parts[^2]; // Second to last part before .json
-
-            using var stream = assembly.GetManifestResourceStream(resourceName);
-            if (stream == null)
-            {
-                this.logger.LogWarning("Could not load embedded resource '{resourceName}'", resourceName);
-                continue;
-            }
+            var languageCode = parts[1];
 
             try
             {
-                var typeInfo = (System.Text.Json.JsonTypeInfo<Dictionary<string, string>>)context.GetTypeInfo(typeof(Dictionary<string, string>));
-                var translations = JsonSerializer.Deserialize(stream, typeInfo);
+                var json = File.ReadAllText(filePath);
+                var typeInfo = context.GetTypeInfo(typeof(Dictionary<string, string>))!;
+                var translations = JsonSerializer.Deserialize(json, typeInfo) as Dictionary<string, string>;
                 if (translations != null)
                 {
                     this.translations[languageCode] = translations;
-                    this.logger.LogInformation("Loaded translations for language '{language}'", languageCode);
+                    this.logger.LogInformation("Loaded {Count} translations for language '{language}'", translations.Count, languageCode);
                 }
             }
             catch (Exception ex)
             {
-                this.logger.LogError(ex, "Failed to load translations from resource '{resourceName}'", resourceName);
+                this.logger.LogError(ex, "Failed to load translations from file '{FilePath}'", filePath);
             }
         }
     }

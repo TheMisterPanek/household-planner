@@ -79,22 +79,6 @@ public class SearchCommandHandler : ICommandHandler
             cancellationToken: cancellationToken);
     }
 
-    private static string? ExtractQuery(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return null;
-        }
-
-        var spaceIdx = text.IndexOf(' ');
-        if (spaceIdx < 0)
-        {
-            return null;
-        }
-
-        return text[(spaceIdx + 1)..].Trim();
-    }
-
     internal static string FormatResults(IReadOnlyList<PurchaseRecord> records, string query)
     {
         // Group by item name (case-insensitive)
@@ -159,5 +143,21 @@ public class SearchCommandHandler : ICommandHandler
         var delta = Math.Round((latestPrice - previousPrice) / previousPrice * 100, 1);
         var sign = delta > 0 ? "+" : string.Empty;
         return $"{sign}{delta:F1}%";
+    }
+
+    private static string? ExtractQuery(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var spaceIdx = text.IndexOf(' ');
+        if (spaceIdx < 0)
+        {
+            return null;
+        }
+
+        return text[(spaceIdx + 1)..].Trim();
     }
 }

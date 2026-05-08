@@ -26,6 +26,7 @@ public static class SupportedLanguages
         { "en", "language_english" },
         { "ru", "language_russian" },
         { "pl", "language_polish" },
+
         // { "es", "language_spanish" },   // To add Spanish: add here, create Strings.es.json, update csproj
         // { "fr", "language_french" },    // To add French: add here, create Strings.fr.json, update csproj
     };

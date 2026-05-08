@@ -97,7 +97,10 @@ public class ShoppingListService
                 .Select(i => i.Quantity!);
             var label = groupItems[0].Name;
             if (quantities.Any())
+            {
                 label += " " + string.Join(", ", quantities);
+            }
+
             sb.AppendLine($"• {label}");
 
             foreach (var item in groupItems)
@@ -119,12 +122,16 @@ public class ShoppingListService
             var paginationButtons = new List<InlineKeyboardButton>();
             if (actualPageNumber > 1)
             {
-                paginationButtons.Add(InlineKeyboardButton.WithCallbackData("← Previous", $"list_prev:{group.ChatId}:{actualPageNumber - 1}"));
+                paginationButtons.Add(InlineKeyboardButton.WithCallbackData(
+                    this.localizer.Get(chatId, "pagination_previous_button"),
+                    $"list_prev:{group.ChatId}:{actualPageNumber - 1}"));
             }
 
             if (actualPageNumber < totalPages)
             {
-                paginationButtons.Add(InlineKeyboardButton.WithCallbackData("Next →", $"list_next:{group.ChatId}:{actualPageNumber + 1}"));
+                paginationButtons.Add(InlineKeyboardButton.WithCallbackData(
+                    this.localizer.Get(chatId, "pagination_next_button"),
+                    $"list_next:{group.ChatId}:{actualPageNumber + 1}"));
             }
 
             if (paginationButtons.Count > 0)
@@ -134,7 +141,10 @@ public class ShoppingListService
         }
 
         // Add page footer
-        sb.AppendLine($"\nPage {actualPageNumber} of {totalPages} ({totalItems} total items)");
+        var pageLabel = this.localizer.Get(chatId, "pagination_page_label");
+        var ofLabel = this.localizer.Get(chatId, "pagination_of_label");
+        var itemsLabel = this.localizer.Get(chatId, "pagination_items_label");
+        sb.AppendLine($"\n{pageLabel} {actualPageNumber} {ofLabel} {totalPages} ({totalItems} {itemsLabel})");
 
         return (sb.ToString(), new InlineKeyboardMarkup(buttons), group);
     }

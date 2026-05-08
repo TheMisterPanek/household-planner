@@ -105,7 +105,7 @@ public class BuyStepAndSkipHandlerHistoryTests
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = new BuySkipCallbackHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, Mock.Of<ILogger<BuySkipCallbackHandler>>());
+        var handler = new BuySkipCallbackHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, Mock.Of<ILocalizer>(), Mock.Of<ILogger<BuySkipCallbackHandler>>());
         var callbackQuery = DeserializeCallbackQuery("{\"id\":\"cb1\",\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"message\":{\"message_id\":5,\"chat\":{\"id\":-100},\"text\":\"Сколько?\"},\"data\":\"buy:skip_quantity\"}");
 
         await handler.HandleAsync(callbackQuery, CancellationToken.None);
@@ -130,7 +130,7 @@ public class BuyStepAndSkipHandlerHistoryTests
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB error"));
 
-        var handler = new BuySkipCallbackHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, Mock.Of<ILogger<BuySkipCallbackHandler>>());
+        var handler = new BuySkipCallbackHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, Mock.Of<ILocalizer>(), Mock.Of<ILogger<BuySkipCallbackHandler>>());
         var callbackQuery = DeserializeCallbackQuery("{\"id\":\"cb2\",\"from\":{\"id\":42,\"first_name\":\"Bob\"},\"message\":{\"message_id\":6,\"chat\":{\"id\":-100},\"text\":\"Сколько?\"},\"data\":\"buy:skip_quantity\"}");
 
         await handler.HandleAsync(callbackQuery, CancellationToken.None);

@@ -1,10 +1,14 @@
+// <copyright file="UpdateHandler.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
+
+namespace ProductTrackerBot;
+
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
-
-namespace ProductTrackerBot;
 
 /// <summary>
 /// Handles updates from the Telegram bot API.
@@ -33,7 +37,7 @@ public class UpdateHandler : IUpdateHandler
             switch (update.Type)
             {
                 case UpdateType.Message:
-                    await HandleMessageAsync(botClient, update.Message!, cancellationToken);
+                    await this.HandleMessageAsync(botClient, update.Message!, cancellationToken);
                     break;
 
                 case UpdateType.EditedMessage:
@@ -51,13 +55,13 @@ public class UpdateHandler : IUpdateHandler
                 case UpdateType.ChatJoinRequest:
                 case UpdateType.Unknown:
                 default:
-                    logger.LogDebug("Received unhandled update type: {UpdateType}", update.Type);
+                    this.logger.LogDebug("Received unhandled update type: {UpdateType}", update.Type);
                     break;
             }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error handling update {UpdateId}", update.Id);
+            this.logger.LogError(ex, "Error handling update {UpdateId}", update.Id);
         }
     }
 
@@ -68,7 +72,7 @@ public class UpdateHandler : IUpdateHandler
         HandleErrorSource source,
         CancellationToken cancellationToken)
     {
-        logger.LogError(exception, "Error while processing updates from source: {Source}", source);
+        this.logger.LogError(exception, "Error while processing updates from source: {Source}", source);
         await Task.CompletedTask;
     }
 
@@ -79,11 +83,11 @@ public class UpdateHandler : IUpdateHandler
     {
         if (message.Text is null)
         {
-            logger.LogDebug("Received message without text from user {UserId}", message.From?.Id);
+            this.logger.LogDebug("Received message without text from user {UserId}", message.From?.Id);
             return;
         }
 
-        logger.LogInformation("Received message from {UserId}: {MessageText}", message.From?.Id, message.Text);
+        this.logger.LogInformation("Received message from {UserId}: {MessageText}", message.From?.Id, message.Text);
 
         // TODO: Implement echo response
         await Task.CompletedTask;

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Handlers;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -51,7 +52,8 @@ public class ShopDoneCallbackHandlerHistoryTests
         itemRepo.Setup(r => r.DeleteAsync(item.Id)).Returns(Task.CompletedTask);
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var localizer = CreateLocalizerMock();
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
 
         var historyMock = new Mock<IHistoryRepository>();
         var setup = historyMock.Setup(h => h.RecordAsync(
@@ -66,6 +68,7 @@ public class ShopDoneCallbackHandlerHistoryTests
         var handler = new ShopDoneCallbackHandler(
             bot.Object, itemRepo.Object, listService, groupRepo.Object, historyMock.Object,
             new PendingDialogService<PriceCaptureDialogState>(),
+            localizer.Object,
             Mock.Of<ILogger<ShopDoneCallbackHandler>>());
 
         return (handler, historyMock, bot);
@@ -101,5 +104,13 @@ public class ShopDoneCallbackHandlerHistoryTests
             "\"data\":\"shop:done:6\"}");
 
         await handler.HandleAsync(callbackQuery, CancellationToken.None);
+    }
+
+    private static Mock<ILocalizer> CreateLocalizerMock()
+    {
+        var mock = new Mock<ILocalizer>();
+        mock.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
+            .Returns((long _, string key) => key);
+        return mock;
     }
 }

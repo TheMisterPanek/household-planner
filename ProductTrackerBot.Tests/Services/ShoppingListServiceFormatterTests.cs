@@ -1,4 +1,5 @@
 using Moq;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -15,9 +16,18 @@ public class ShoppingListServiceFormatterTests
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
         itemRepo.Setup(r => r.GetAllAsync(10))
-            .ReturnsAsync((items ?? new List<ShoppingItem>()).AsReadOnly());
+            .ReturnsAsync(items ?? new List<ShoppingItem>());
 
-        return new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var localizer = CreateLocalizerMock();
+        return new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+    }
+
+    private static Mock<ILocalizer> CreateLocalizerMock()
+    {
+        var mock = new Mock<ILocalizer>();
+        mock.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
+            .Returns((long _, string key) => key);
+        return mock;
     }
 
     [Fact]

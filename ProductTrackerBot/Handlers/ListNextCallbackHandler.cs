@@ -4,13 +4,13 @@
 
 namespace ProductTrackerBot.Handlers;
 
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
-using System.Text.Json;
 
 /// <summary>
 /// Handles the list next page navigation callback.

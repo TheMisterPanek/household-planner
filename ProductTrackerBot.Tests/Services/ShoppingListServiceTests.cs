@@ -1,4 +1,5 @@
 using Moq;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -13,8 +14,9 @@ public class ShoppingListServiceTests
         var groupRepo = CreateGroupRepoMock(chatId: 1, groupId: 10);
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
+        var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
 
         var (text, keyboard, group) = await service.BuildListAsync(1);
 
@@ -33,8 +35,9 @@ public class ShoppingListServiceTests
             new() { Id = 1, GroupId = 10, Name = "Молоко", Quantity = "2л", AddedByName = "Иван" },
         };
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
 
         var (text, keyboard, group) = await service.BuildListAsync(1);
 
@@ -62,8 +65,9 @@ public class ShoppingListServiceTests
             new() { Id = 2, GroupId = 10, Name = "Хлеб", Quantity = null, AddedByName = "Мария" },
         };
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
 
         var (text, keyboard, _) = await service.BuildListAsync(1);
 
@@ -92,8 +96,9 @@ public class ShoppingListServiceTests
             new() { Id = 1, GroupId = 10, Name = "Хлеб", Quantity = null, AddedByName = "Мария" },
         };
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
 
         var (text, keyboard, _) = await service.BuildListAsync(1);
 
@@ -115,8 +120,9 @@ public class ShoppingListServiceTests
             new() { Id = 5, GroupId = 10, Name = "Item5", Quantity = null, AddedByName = "User1" },
         };
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object);
+        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object, localizer.Object);
 
         var (pagedItems, totalItems, totalPages, actualPage) = await service.GetPagedItemsAsync(10, pageNumber: 1, pageSize: 2);
 
@@ -139,8 +145,9 @@ public class ShoppingListServiceTests
             new() { Id = 3, GroupId = 10, Name = "Item3", Quantity = null, AddedByName = "User1" },
         };
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object);
+        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object, localizer.Object);
 
         var (pagedItems, totalItems, totalPages, actualPage) = await service.GetPagedItemsAsync(10, pageNumber: 99, pageSize: 2);
 
@@ -157,8 +164,9 @@ public class ShoppingListServiceTests
     {
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
+        var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object);
+        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object, localizer.Object);
 
         var (pagedItems, totalItems, totalPages, actualPage) = await service.GetPagedItemsAsync(10, pageNumber: 1, pageSize: 10);
 
@@ -176,8 +184,9 @@ public class ShoppingListServiceTests
             .Select(i => new ShoppingItem { Id = i, GroupId = 10, Name = $"Item{i}", Quantity = null, AddedByName = "User1" })
             .ToList();
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object);
+        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object, localizer.Object);
 
         var (pagedItems, totalItems, totalPages, actualPage) = await service.GetPagedItemsAsync(10, pageNumber: 1, pageSize: 10);
 
@@ -192,6 +201,14 @@ public class ShoppingListServiceTests
         var mock = new Mock<GroupRepository>("Data Source=file::memory:?cache=shared");
         mock.Setup(r => r.GetOrCreateAsync(chatId))
             .ReturnsAsync(new Group { Id = groupId, ChatId = chatId, ListMessageId = null });
+        return mock;
+    }
+
+    private static Mock<ILocalizer> CreateLocalizerMock()
+    {
+        var mock = new Mock<ILocalizer>();
+        mock.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
+            .Returns((long _, string key) => key);
         return mock;
     }
 }

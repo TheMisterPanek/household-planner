@@ -4,15 +4,18 @@ A .NET 9 AOT-compiled Telegram bot scaffold for household food inventory managem
 
 ## What this is
 
-This repository contains **Phase 1** of FamilyStockBot — a polling infrastructure foundation. The full bot will provide:
+FamilyStockBot — a Telegram bot for household food inventory and meal management with multi-language support.
 
-- Shopping list management (`/buy`, `/list`)
-- Inventory / stock tracking (`/stock`, `/addproduct`)
-- Meal planning (`/meal`)
-- Expiry notifications with snooze support
-- Russian-language interface for a Telegram group chat
+### Current features
 
-The current codebase has all infrastructure wired up (bot polling, DI, structured logging, .env config, Docker) with a stub `UpdateHandler` ready for commands to be added.
+- **Shopping list management** (`/buy`, `/list`) — Add items, paginate, mark as bought
+- **Meal planning** (`/meals`) — Create, view, and manage meals with ingredients and steps
+- **Purchase history** — Track what was bought and where
+- **Price capture** — Record prices when items are purchased
+- **Multi-language support** — English, Russian, and Polish with per-chat language preferences
+- **History tracking** — Record all user actions (items added, bought, removed)
+
+Infrastructure includes bot polling, full dependency injection, structured JSON logging, .env config, Docker AOT publishing, and comprehensive test coverage.
 
 ## Requirements
 
@@ -81,13 +84,20 @@ All configuration is via environment variables (or `.env` file loaded at startup
 
 ```
 ProductTrackerBot/
-├── Program.cs              # Entry point: DI wiring, host startup
-├── BotConfiguration.cs     # Typed config record (Token)
-├── BotHostedService.cs     # Background service: starts/stops long-polling
-├── UpdateHandler.cs        # Receives and dispatches Telegram updates
-├── Dockerfile              # Multi-stage AOT build
-├── .env.example            # Config template
-└── TrimmerRoots.xml        # AOT trimming hints
+├── Program.cs                  # Entry point: DI wiring, host startup
+├── BotConfiguration.cs         # Typed config record (Token)
+├── BotHostedService.cs         # Background service: starts/stops long-polling
+├── UpdateDispatcher.cs         # Routes updates to handlers
+├── UpdateHandler.cs            # Telegram update handling interface
+├── Handlers/                   # Command, callback, and dialog handlers
+├── Repositories/               # Data access (SQLite)
+├── Services/                   # Business logic (ShoppingListService, MealMergeService)
+├── Localization/               # Multi-language support (en, ru, pl)
+├── Models/                     # Data models and payloads
+├── Database/                   # Schema initialization
+├── Dockerfile                  # Multi-stage AOT build
+├── .env.example                # Config template
+└── TrimmerRoots.xml            # AOT trimming hints
 ```
 
 ## Tech stack
@@ -119,6 +129,10 @@ Logs are emitted as JSON to stdout. Example:
 
 Credentials (bot token) are never logged.
 
-## OpenSpec
+## Testing
 
-Implementation is tracked under `openspec/changes/create-dotnet-aot-telegram-bot/`. The change is complete. See `PREV-SPEC.md` for the full FamilyStockBot feature specification.
+```bash
+dotnet test
+```
+
+Comprehensive test suite covers handlers, services, repositories, and localization with proper mocking.
