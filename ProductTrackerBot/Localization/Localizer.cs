@@ -9,90 +9,103 @@ using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Repositories;
 
 /// <summary>
-/// Resolves localized strings from embedded JSON files based on user language preference.
+/// Loads translation files and resolves localized strings by chat language.
 /// </summary>
 public class Localizer : ILocalizer
 {
-    private readonly IPreferenceRepository preferenceRepository;
-    private readonly ILogger<Localizer> logger;
     private readonly Dictionary<string, Dictionary<string, string>> translations = new();
-    private readonly Dictionary<long, string> languageCache = new();
+    private readonly GroupRepository groupRepository;
+    private readonly ILogger<Localizer> logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Localizer"/> class.
     /// </summary>
-    /// <param name="preferenceRepository">The preference repository for language lookup.</param>
+    /// <param name="groupRepository">The group repository for looking up chat language.</param>
     /// <param name="logger">The logger.</param>
-    public Localizer(IPreferenceRepository preferenceRepository, ILogger<Localizer> logger)
+    public Localizer(GroupRepository groupRepository, ILogger<Localizer> logger)
     {
-        this.preferenceRepository = preferenceRepository;
+        this.groupRepository = groupRepository;
         this.logger = logger;
         this.LoadTranslations();
     }
 
     /// <inheritdoc/>
-    public async Task<string> GetAsync(long chatId, string key, CancellationToken ct)
+    public string Get(long chatId, string key)
     {
-        if (!this.languageCache.TryGetValue(chatId, out var language))
-        {
-            language = await this.preferenceRepository.GetLanguageAsync(chatId, ct) ?? SupportedLanguages.DefaultLanguage;
-            this.languageCache[chatId] = language;
-        }
+        // Get the language for this chat
+        var languageTask = this.groupRepository.GetOrCreateAsync(chatId);
+        languageTask.Wait();
+        var group = languageTask.Result;
+        var languageCode = group.LanguageCode ?? "en";
 
-        if (!this.translations.TryGetValue(language, out var languageDict))
+        // Try to find the translation in the chat's language
+        if (this.translations.TryGetValue(languageCode, out var langDict))
         {
-            language = SupportedLanguages.DefaultLanguage;
-            if (!this.translations.TryGetValue(language, out languageDict))
+            if (langDict.TryGetValue(key, out var value))
             {
-                this.logger.LogWarning("No translations loaded for default language {Language}", SupportedLanguages.DefaultLanguage);
-                return key;
+                return value;
             }
         }
 
-        if (languageDict.TryGetValue(key, out var value))
+        // Fall back to English
+        if (this.translations.TryGetValue("en", out var enDict))
         {
-            return value;
+            if (enDict.TryGetValue(key, out var value))
+            {
+                this.logger.LogWarning("Missing translation for key '{key}' in language '{language}', falling back to English", key, languageCode);
+                return value;
+            }
         }
 
-        this.logger.LogWarning("Missing localization key {Key} for language {Language}", key, language);
-        if (this.translations[SupportedLanguages.DefaultLanguage].TryGetValue(key, out var fallback))
-        {
-            return fallback;
-        }
-
+        // If still not found, return the key name and log warning
+        this.logger.LogWarning("Missing translation for key '{key}' in all languages", key);
         return key;
     }
 
     private void LoadTranslations()
     {
-        foreach (var languageCode in SupportedLanguages.Languages.Keys)
-        {
-            this.LoadLanguageFile(languageCode);
-        }
-    }
+        var assembly = typeof(Localizer).Assembly;
+        var resourceNames = assembly.GetManifestResourceNames();
+        var context = new StringsJsonSerializerContext();
+        var options = context.GetTypeInfo(typeof(Dictionary<string, string>)).Options;
 
-    private void LoadLanguageFile(string language)
-    {
-        try
+        foreach (var resourceName in resourceNames)
         {
-            var resourceName = $"ProductTrackerBot.Localization.Strings.{language}.json";
-            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            if (!resourceName.StartsWith("ProductTrackerBot.Resources.Strings.") || !resourceName.EndsWith(".json"))
+            {
+                continue;
+            }
+
+            // Extract language code from resource name (e.g., "ProductTrackerBot.Resources.Strings.en.json" -> "en")
+            var parts = resourceName.Split('.');
+            if (parts.Length < 2)
+            {
+                continue;
+            }
+
+            var languageCode = parts[^2]; // Second to last part before .json
+
             using var stream = assembly.GetManifestResourceStream(resourceName);
             if (stream == null)
             {
-                this.logger.LogWarning("Could not find embedded resource {ResourceName}", resourceName);
-                return;
+                this.logger.LogWarning("Could not load embedded resource '{resourceName}'", resourceName);
+                continue;
             }
 
-            using var reader = new StreamReader(stream);
-            var json = reader.ReadToEnd();
-            var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json)
-                ?? new Dictionary<string, string>();
-            this.translations[language] = dict;
-        }
-        catch (Exception ex)
-        {
-            this.logger.LogError(ex, "Failed to load translations for language {Language}", language);
+            try
+            {
+                var typeInfo = (System.Text.Json.JsonTypeInfo<Dictionary<string, string>>)context.GetTypeInfo(typeof(Dictionary<string, string>));
+                var translations = JsonSerializer.Deserialize(stream, typeInfo);
+                if (translations != null)
+                {
+                    this.translations[languageCode] = translations;
+                    this.logger.LogInformation("Loaded translations for language '{language}'", languageCode);
+                }
+            }
+            catch (Exception ex)
+            {
+                this.logger.LogError(ex, "Failed to load translations from resource '{resourceName}'", resourceName);
+            }
         }
     }
 }

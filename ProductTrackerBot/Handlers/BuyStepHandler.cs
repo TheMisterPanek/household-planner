@@ -6,6 +6,7 @@ namespace ProductTrackerBot.Handlers;
 
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -22,6 +23,7 @@ public class BuyStepHandler : IDialogMessageHandler
     private readonly PendingDialogService<BuyDialogState> dialogService;
     private readonly ShoppingItemRepository itemRepository;
     private readonly IHistoryRepository historyRepository;
+    private readonly ILocalizer localizer;
     private readonly ILogger<BuyStepHandler> logger;
 
     /// <summary>
@@ -31,18 +33,21 @@ public class BuyStepHandler : IDialogMessageHandler
     /// <param name="dialogService">The dialog state service.</param>
     /// <param name="itemRepository">The shopping item repository.</param>
     /// <param name="historyRepository">The history repository.</param>
+    /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="logger">The logger.</param>
     public BuyStepHandler(
         ITelegramBotClient botClient,
         PendingDialogService<BuyDialogState> dialogService,
         ShoppingItemRepository itemRepository,
         IHistoryRepository historyRepository,
+        ILocalizer localizer,
         ILogger<BuyStepHandler> logger)
     {
         this.botClient = botClient;
         this.dialogService = dialogService;
         this.itemRepository = itemRepository;
         this.historyRepository = historyRepository;
+        this.localizer = localizer;
         this.logger = logger;
     }
 
@@ -86,11 +91,13 @@ public class BuyStepHandler : IDialogMessageHandler
         state.Step = 2;
         this.dialogService.SetState(message.Chat.Id, message.From!.Id, state);
 
-        var skipButton = InlineKeyboardButton.WithCallbackData("Пропустить", "buy:skip_quantity");
+        var skipButton = InlineKeyboardButton.WithCallbackData(
+            this.localizer.Get(message.Chat.Id, "buy.skip"),
+            "buy:skip_quantity");
 
         await this.botClient.SendMessage(
             chatId: message.Chat.Id,
-            text: "Сколько?",
+            text: this.localizer.Get(message.Chat.Id, "buy.what-to-buy"),
             replyMarkup: new InlineKeyboardMarkup(new[] { new[] { skipButton } }),
             replyParameters: new ReplyParameters { MessageId = message.MessageId },
             cancellationToken: cancellationToken);
@@ -118,8 +125,10 @@ public class BuyStepHandler : IDialogMessageHandler
         this.dialogService.ClearState(chatId, userId);
 
         var confirmText = item.Quantity is not null
-            ? $"{state.AddedByName} добавил(а) {item.Name} {item.Quantity}"
-            : $"{state.AddedByName} добавил(а) {item.Name}";
+            ? this.localizer.Get(chatId, "buy.item-added-quantity")
+                .Replace("{name}", state.AddedByName).Replace("{item}", item.Name).Replace("{quantity}", item.Quantity)
+            : this.localizer.Get(chatId, "buy.item-added")
+                .Replace("{name}", state.AddedByName).Replace("{item}", item.Name);
 
         await this.botClient.SendMessage(
             chatId: chatId,

@@ -5,16 +5,15 @@
 namespace ProductTrackerBot.Localization;
 
 /// <summary>
-/// Resolves localized strings by key for a given chat.
+/// Provides localized strings by key and chat ID.
 /// </summary>
 public interface ILocalizer
 {
     /// <summary>
-    /// Gets a localized string for a chat and key.
+    /// Gets a localized string for the given chat ID and key.
     /// </summary>
-    /// <param name="chatId">The chat ID.</param>
-    /// <param name="key">The localization key.</param>
-    /// <param name="ct">Cancellation token.</param>
-    /// <returns>The localized string, or a fallback if not found.</returns>
-    Task<string> GetAsync(long chatId, string key, CancellationToken ct);
+    /// <param name="chatId">The Telegram chat ID.</param>
+    /// <param name="key">The message key (e.g., "buy.group-only").</param>
+    /// <returns>The localized string, or the key name if not found (with a warning logged).</returns>
+    string Get(long chatId, string key);
 }

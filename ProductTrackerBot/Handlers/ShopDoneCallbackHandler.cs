@@ -5,6 +5,7 @@
 namespace ProductTrackerBot.Handlers;
 
 using Microsoft.Extensions.Logging;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -23,6 +24,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
     private readonly GroupRepository groupRepository;
     private readonly IHistoryRepository historyRepository;
     private readonly PendingDialogService<PriceCaptureDialogState> priceDialogService;
+    private readonly ILocalizer localizer;
     private readonly ILogger<ShopDoneCallbackHandler> logger;
 
     /// <summary>
@@ -34,6 +36,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
     /// <param name="groupRepository">The group repository.</param>
     /// <param name="historyRepository">The history repository.</param>
     /// <param name="priceDialogService">The price-capture dialog state service.</param>
+    /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="logger">The logger.</param>
     public ShopDoneCallbackHandler(
         ITelegramBotClient botClient,
@@ -42,6 +45,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
         GroupRepository groupRepository,
         IHistoryRepository historyRepository,
         PendingDialogService<PriceCaptureDialogState> priceDialogService,
+        ILocalizer localizer,
         ILogger<ShopDoneCallbackHandler> logger)
     {
         this.botClient = botClient;
@@ -50,6 +54,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
         this.groupRepository = groupRepository;
         this.historyRepository = historyRepository;
         this.priceDialogService = priceDialogService;
+        this.localizer = localizer;
         this.logger = logger;
     }
 
@@ -94,9 +99,13 @@ public class ShopDoneCallbackHandler : ICallbackHandler
             ? $"{item.Name} {item.Quantity}"
             : item.Name;
 
+        var confirmText = this.localizer.Get(callbackQuery.Message.Chat.Id, "shop.done-confirmation")
+            .Replace("{name}", displayName ?? "Unknown")
+            .Replace("{item}", buttonText);
+
         await this.botClient.SendMessage(
             chatId: callbackQuery.Message.Chat.Id,
-            text: $"{displayName}: {buttonText} — отмечено ✓",
+            text: confirmText,
             cancellationToken: cancellationToken);
 
         try
@@ -106,7 +115,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
             await this.historyRepository.RecordAsync(
                 chatId: callbackQuery.Message.Chat.Id,
                 userId: callbackQuery.From.Id,
-                userName: displayName ?? "Неизвестный",
+                userName: displayName ?? "Unknown",
                 actionType: BotActionType.ItemBought,
                 payloadJson: payloadJson,
                 ct: cancellationToken);
@@ -125,7 +134,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
                 Step = 1,
                 ItemName = item.Name,
                 Quantity = item.Quantity,
-                BoughtByName = displayName ?? "Неизвестный",
+                BoughtByName = displayName ?? "Unknown",
             });
 
         var skipStoreButton = InlineKeyboardButton.WithCallbackData("Skip", "price:skip_store");

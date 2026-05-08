@@ -23,4 +23,9 @@ public record Group
     /// Gets or sets the message ID of the pinned shopping list message.
     /// </summary>
     public int? ListMessageId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the language code for this chat (e.g. 'en', 'ru'). Defaults to 'ru'.
+    /// </summary>
+    public string LanguageCode { get; set; } = "ru";
 }

@@ -1,0 +1,16 @@
+{
+  "buy.group-only": "This command only works in a group chat.",
+  "buy.what-to-buy": "What to buy?",
+  "buy.skip": "Skip",
+  "buy.item-added": "{name} added {item}",
+  "buy.item-added-quantity": "{name} added {item} {quantity}",
+  "list.empty": "Shopping list is empty",
+  "list.header": "Shopping list:",
+  "list.remove": "✗ Remove",
+  "shop.done-confirmation": "{name} bought {item}",
+  "shop.skip-confirmation": "{name} skipped buying {item}",
+  "language.select-prompt": "Select language:",
+  "language.english": "English",
+  "language.russian": "Русский",
+  "language.confirmation": "Language set to {language}"
+}

@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Localization;
@@ -5,79 +6,124 @@ using ProductTrackerBot.Repositories;
 
 namespace ProductTrackerBot.Tests.Localization;
 
-public class LocalizerTests
+[Collection("DatabaseTests")]
+public class LocalizerTests : IDisposable
 {
-    [Fact]
-    public async Task GetAsync_Caches_Language_Preference_Per_Chat()
+    private readonly SqliteConnection connection;
+    private readonly GroupRepository repository;
+    private readonly Mock<ILogger<Localizer>> loggerMock;
+
+    public LocalizerTests()
     {
-        var mockPrefRepo = new Mock<IPreferenceRepository>();
-        var mockLogger = new Mock<ILogger<Localizer>>();
+        this.connection = new SqliteConnection("Data Source=file::memory:?cache=shared");
+        this.connection.Open();
 
-        mockPrefRepo
-            .Setup(r => r.GetLanguageAsync(100L, It.IsAny<CancellationToken>()))
-            .ReturnsAsync("ru");
+        // Initialize schema
+        using var cmd = this.connection.CreateCommand();
+        cmd.CommandText = @"
+            CREATE TABLE IF NOT EXISTS Groups (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ChatId INTEGER NOT NULL UNIQUE,
+                ListMessageId INTEGER,
+                LanguageCode TEXT NOT NULL DEFAULT 'ru'
+            );";
+        cmd.ExecuteNonQuery();
 
-        var localizer = new Localizer(mockPrefRepo.Object, mockLogger.Object);
+        // Clean any leftover data
+        using var cleanCmd = this.connection.CreateCommand();
+        cleanCmd.CommandText = "DELETE FROM Groups; DELETE FROM sqlite_sequence WHERE name='Groups';";
+        cleanCmd.ExecuteNonQuery();
 
-        // First call should fetch from repository
-        await localizer.GetAsync(100L, "menu_prompt", CancellationToken.None);
+        this.repository = new GroupRepository("Data Source=file::memory:?cache=shared");
+        this.loggerMock = new Mock<ILogger<Localizer>>();
+    }
 
-        // Second call should use cache
-        await localizer.GetAsync(100L, "language_saved", CancellationToken.None);
+    [Fact]
+    public async Task Get_ReturnsCorrectString_For_Known_Locale_And_Key()
+    {
+        // Arrange
+        var localizer = new Localizer(this.repository, this.loggerMock.Object);
+        var chatId = 12345L;
+        var group = await this.repository.GetOrCreateAsync(chatId);
+        await this.repository.SetLanguageAsync(chatId, "en");
 
-        // Verify repository was only called once for this chat
-        mockPrefRepo.Verify(
-            r => r.GetLanguageAsync(100L, It.IsAny<CancellationToken>()),
+        // Act
+        var result = localizer.Get(chatId, "buy.what-to-buy");
+
+        // Assert
+        Assert.Equal("What to buy?", result);
+    }
+
+    [Fact]
+    public async Task Get_FallsBackToEnglish_For_Unknown_Locale()
+    {
+        // Arrange
+        var localizer = new Localizer(this.repository, this.loggerMock.Object);
+        var chatId = 12345L;
+        var group = await this.repository.GetOrCreateAsync(chatId);
+        await this.repository.SetLanguageAsync(chatId, "unknown");
+
+        // Act
+        var result = localizer.Get(chatId, "buy.what-to-buy");
+
+        // Assert
+        Assert.Equal("What to buy?", result);
+        this.loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Missing translation")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task GetAsync_Uses_Default_Language_When_No_Preference_Set()
+    public async Task Get_ReturnsKeyName_And_Logs_Warning_For_Missing_Key()
     {
-        var mockPrefRepo = new Mock<IPreferenceRepository>();
-        var mockLogger = new Mock<ILogger<Localizer>>();
+        // Arrange
+        var localizer = new Localizer(this.repository, this.loggerMock.Object);
+        var chatId = 12345L;
+        var group = await this.repository.GetOrCreateAsync(chatId);
+        await this.repository.SetLanguageAsync(chatId, "en");
 
-        mockPrefRepo
-            .Setup(r => r.GetLanguageAsync(It.IsAny<long>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string?)null);
+        // Act
+        var result = localizer.Get(chatId, "nonexistent.key");
 
-        var localizer = new Localizer(mockPrefRepo.Object, mockLogger.Object);
-
-        // Should not throw and should handle null gracefully
-        var result = await localizer.GetAsync(999L, "menu_prompt", CancellationToken.None);
-
-        // Result should be the key itself (fallback behavior when translations aren't loaded)
-        Assert.NotNull(result);
+        // Assert
+        Assert.Equal("nonexistent.key", result);
+        this.loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Missing translation")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            Times.Once);
     }
 
     [Fact]
-    public async Task GetAsync_Different_Chats_Have_Independent_Caches()
+    public async Task SetLanguageAsync_Persists_And_IsReadable()
     {
-        var mockPrefRepo = new Mock<IPreferenceRepository>();
-        var mockLogger = new Mock<ILogger<Localizer>>();
+        // Arrange
+        var chatId = 12345L;
+        await this.repository.GetOrCreateAsync(chatId);
 
-        mockPrefRepo
-            .Setup(r => r.GetLanguageAsync(100L, It.IsAny<CancellationToken>()))
-            .ReturnsAsync("en");
+        // Act
+        await this.repository.SetLanguageAsync(chatId, "en");
 
-        mockPrefRepo
-            .Setup(r => r.GetLanguageAsync(200L, It.IsAny<CancellationToken>()))
-            .ReturnsAsync("ru");
+        // Assert - Read it back
+        var localizer = new Localizer(this.repository, this.loggerMock.Object);
+        var result = localizer.Get(chatId, "buy.what-to-buy");
+        Assert.Equal("What to buy?", result);
 
-        var localizer = new Localizer(mockPrefRepo.Object, mockLogger.Object);
+        // Verify by reading directly from repository
+        var group = await this.repository.GetOrCreateAsync(chatId);
+        Assert.Equal("en", group.LanguageCode);
+    }
 
-        await localizer.GetAsync(100L, "menu_prompt", CancellationToken.None);
-        await localizer.GetAsync(200L, "menu_prompt", CancellationToken.None);
-        await localizer.GetAsync(100L, "language_saved", CancellationToken.None);
-        await localizer.GetAsync(200L, "language_saved", CancellationToken.None);
-
-        // Verify repository was called once for each chat (not twice for the same chat)
-        mockPrefRepo.Verify(
-            r => r.GetLanguageAsync(100L, It.IsAny<CancellationToken>()),
-            Times.Once);
-
-        mockPrefRepo.Verify(
-            r => r.GetLanguageAsync(200L, It.IsAny<CancellationToken>()),
-            Times.Once);
+    public void Dispose()
+    {
+        this.connection.Dispose();
     }
 }

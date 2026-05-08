@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Handlers;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -59,7 +60,7 @@ public class BuyStepAndSkipHandlerHistoryTests
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = new BuyStepHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, Mock.Of<ILogger<BuyStepHandler>>());
+        var handler = new BuyStepHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, Mock.Of<ILocalizer>(), Mock.Of<ILogger<BuyStepHandler>>());
         var message = DeserializeMessage("{\"message_id\":2,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100},\"text\":\"2л\"}");
         await handler.HandleAsync(message, CancellationToken.None);
 
@@ -83,7 +84,7 @@ public class BuyStepAndSkipHandlerHistoryTests
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB error"));
 
-        var handler = new BuyStepHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, Mock.Of<ILogger<BuyStepHandler>>());
+        var handler = new BuyStepHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, Mock.Of<ILocalizer>(), Mock.Of<ILogger<BuyStepHandler>>());
         var message = DeserializeMessage("{\"message_id\":2,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100},\"text\":\"1шт\"}");
 
         await handler.HandleAsync(message, CancellationToken.None);
