@@ -79,6 +79,7 @@ builder.Services.AddScoped<ShoppingListService>();
 builder.Services.AddScoped<ICommandHandler, BuyCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, ListCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, HistoryCommandHandler>();
+builder.Services.AddScoped<ICommandHandler, SearchCommandHandler>();
 
 // Register dialog message handlers
 builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();

@@ -33,7 +33,7 @@ public class ShoppingListService
     /// </summary>
     /// <param name="chatId">The Telegram chat ID.</param>
     /// <returns>A tuple of (messageText, inlineKeyboard, group).</returns>
-    public async Task<(string MessageText, InlineKeyboardMarkup? Keyboard, Group Group)> BuildListAsync(long chatId)
+    public virtual async Task<(string MessageText, InlineKeyboardMarkup? Keyboard, Group Group)> BuildListAsync(long chatId)
     {
         var group = await this.groupRepository.GetOrCreateAsync(chatId);
         var items = await this.itemRepository.GetAllAsync(group.Id);
