@@ -29,16 +29,53 @@ public class ShoppingListService
     }
 
     /// <summary>
+    /// Gets paginated items with pagination metadata for a group.
+    /// </summary>
+    /// <param name="groupId">The group ID.</param>
+    /// <param name="pageNumber">The page number (1-based; invalid numbers default to 1).</param>
+    /// <param name="pageSize">The number of items per page.</param>
+    /// <returns>A tuple of (items, totalItems, totalPages, actualPageNumber).</returns>
+    public virtual async Task<(IReadOnlyList<ShoppingItem> Items, int TotalItems, int TotalPages, int ActualPageNumber)> GetPagedItemsAsync(
+        int groupId,
+        int pageNumber,
+        int pageSize)
+    {
+        var items = await this.itemRepository.GetAllAsync(groupId);
+        var totalItems = items.Count;
+        var totalPages = (totalItems + pageSize - 1) / pageSize; // Ceiling division
+        if (totalPages == 0)
+        {
+            totalPages = 1;
+        }
+
+        var actualPageNumber = pageNumber;
+        if (actualPageNumber < 1 || actualPageNumber > totalPages)
+        {
+            actualPageNumber = 1;
+        }
+
+        var skip = (actualPageNumber - 1) * pageSize;
+        var pagedItems = items.Skip(skip).Take(pageSize).ToList();
+
+        return (pagedItems.AsReadOnly(), totalItems, totalPages, actualPageNumber);
+    }
+
+    /// <summary>
     /// Builds the shopping list message text and inline keyboard for a group chat.
     /// </summary>
     /// <param name="chatId">The Telegram chat ID.</param>
+    /// <param name="pageNumber">The page number for pagination (1-based; defaults to 1).</param>
     /// <returns>A tuple of (messageText, inlineKeyboard, group).</returns>
-    public virtual async Task<(string MessageText, InlineKeyboardMarkup? Keyboard, Group Group)> BuildListAsync(long chatId)
+    public virtual async Task<(string MessageText, InlineKeyboardMarkup? Keyboard, Group Group)> BuildListAsync(
+        long chatId,
+        int pageNumber = 1)
     {
+        const int pageSize = 10;
         var group = await this.groupRepository.GetOrCreateAsync(chatId);
-        var items = await this.itemRepository.GetAllAsync(group.Id);
 
-        if (items.Count == 0)
+        var (pagedItems, totalItems, totalPages, actualPageNumber) = await this.GetPagedItemsAsync(group.Id, pageNumber, pageSize);
+
+        if (totalItems == 0)
         {
             return ("Список покупок пуст", null, group);
         }
@@ -46,7 +83,7 @@ public class ShoppingListService
         var sb = new StringBuilder("🛒 Список покупок:\n\n");
         var buttons = new List<List<InlineKeyboardButton>>();
 
-        var groups = items.GroupBy(i => i.Name, StringComparer.OrdinalIgnoreCase);
+        var groups = pagedItems.GroupBy(i => i.Name, StringComparer.OrdinalIgnoreCase);
 
         foreach (var group2 in groups)
         {
@@ -71,6 +108,29 @@ public class ShoppingListService
                 ]);
             }
         }
+
+        // Add pagination buttons if there are multiple pages
+        if (totalPages > 1)
+        {
+            var paginationButtons = new List<InlineKeyboardButton>();
+            if (actualPageNumber > 1)
+            {
+                paginationButtons.Add(InlineKeyboardButton.WithCallbackData("← Previous", $"list_prev:{group.ChatId}:{actualPageNumber - 1}"));
+            }
+
+            if (actualPageNumber < totalPages)
+            {
+                paginationButtons.Add(InlineKeyboardButton.WithCallbackData("Next →", $"list_next:{group.ChatId}:{actualPageNumber + 1}"));
+            }
+
+            if (paginationButtons.Count > 0)
+            {
+                buttons.Add(paginationButtons);
+            }
+        }
+
+        // Add page footer
+        sb.AppendLine($"\nPage {actualPageNumber} of {totalPages} ({totalItems} total items)");
 
         return (sb.ToString(), new InlineKeyboardMarkup(buttons), group);
     }

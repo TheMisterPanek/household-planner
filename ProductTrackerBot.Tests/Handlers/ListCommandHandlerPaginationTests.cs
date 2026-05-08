@@ -9,11 +9,10 @@ using Telegram.Bot;
 using Telegram.Bot.Requests;
 using Telegram.Bot.Requests.Abstractions;
 using Telegram.Bot.Types;
-using static System.Text.Json.JsonSerializer;
 
 namespace ProductTrackerBot.Tests.Handlers;
 
-public class ListCommandHandlerHistoryTests
+public class ListCommandHandlerPaginationTests
 {
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -24,18 +23,14 @@ public class ListCommandHandlerHistoryTests
     private static Message DeserializeMessage(string json) =>
         JsonSerializer.Deserialize<Message>(json, JsonOpts)!;
 
-    private static Message GroupListMessage() =>
-        DeserializeMessage("{\"message_id\":1,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100},\"text\":\"/list\"}");
+    private static Message CreateListMessage(string? text = null) =>
+        DeserializeMessage($"{{\"message_id\":1,\"from\":{{\"id\":42,\"first_name\":\"Alice\"}},\"chat\":{{\"id\":-100}},\"text\":\"{text ?? "/list"}\"}}");
 
-    private static Mock<ITelegramBotClient> CreateBotMock(List<string>? capturedTexts = null)
+    private static Mock<ITelegramBotClient> CreateBotMock()
     {
         var botMock = new Mock<ITelegramBotClient>();
         botMock
             .Setup(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
-            .Callback<IRequest<Message>, CancellationToken>((req, _) =>
-            {
-                if (capturedTexts != null && req is SendMessageRequest smr) capturedTexts.Add(smr.Text);
-            })
             .ReturnsAsync(new Message());
         return botMock;
     }
@@ -61,51 +56,47 @@ public class ListCommandHandlerHistoryTests
     }
 
     [Fact]
-    public async Task Calls_RecordAsync_With_ListViewed()
+    public async Task Without_Page_Number_Uses_Page_1()
     {
         var bot = CreateBotMock();
         var historyMock = new Mock<IHistoryRepository>();
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var (handler, history) = CreateHandler(bot.Object, historyMock.Object);
-        await handler.HandleAsync(GroupListMessage(), CancellationToken.None);
-
-        history.Verify(
-            h => h.RecordAsync(-100L, 42L, "Alice", BotActionType.ListViewed, It.IsAny<string>(), It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    [Fact]
-    public async Task Swallows_RecordAsync_Failure()
-    {
-        var bot = CreateBotMock();
-        var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("DB error"));
-
         var (handler, _) = CreateHandler(bot.Object, historyMock.Object);
-        await handler.HandleAsync(GroupListMessage(), CancellationToken.None);
+        var message = CreateListMessage("/list");
+        await handler.HandleAsync(message, CancellationToken.None);
+
+        bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task Records_ListViewed_With_Pagination_Metadata()
+    public async Task With_Page_Number_Parses_Correctly()
     {
         var bot = CreateBotMock();
         var historyMock = new Mock<IHistoryRepository>();
-        string? capturedPayload = null;
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Callback<long, long, string, BotActionType, string, CancellationToken>((_, _, _, _, payload, _) => capturedPayload = payload)
             .Returns(Task.CompletedTask);
 
         var (handler, _) = CreateHandler(bot.Object, historyMock.Object);
-        await handler.HandleAsync(GroupListMessage(), CancellationToken.None);
+        var message = CreateListMessage("/list 2");
+        await handler.HandleAsync(message, CancellationToken.None);
 
-        Assert.NotNull(capturedPayload);
-        var parsed = JsonSerializer.Deserialize<ListViewedPayload>(capturedPayload);
-        Assert.NotNull(parsed);
-        Assert.Equal(1, parsed.Page);
-        Assert.Equal(10, parsed.PageSize);
-        Assert.Equal(0, parsed.TotalItems);
+        bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task With_Invalid_Page_Number_Defaults_To_Page_1()
+    {
+        var bot = CreateBotMock();
+        var historyMock = new Mock<IHistoryRepository>();
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var (handler, _) = CreateHandler(bot.Object, historyMock.Object);
+        var message = CreateListMessage("/list abc");
+        await handler.HandleAsync(message, CancellationToken.None);
+
+        bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

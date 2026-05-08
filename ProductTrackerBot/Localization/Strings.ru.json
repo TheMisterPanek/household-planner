@@ -5,5 +5,11 @@
   "language_saved": "Предпочтение языка сохранено",
   "language_english": "English",
   "language_russian": "Русский (Russian)",
-  "language_polish": "Polski"
+  "language_polish": "Polski",
+  "pagination_page_label": "Страница",
+  "pagination_of_label": "из",
+  "pagination_items_label": "товаров",
+  "pagination_previous_button": "← Назад",
+  "pagination_next_button": "Далее →",
+  "pagination_out_of_range": "отображение страницы 1 из {maxPage}"
 }
