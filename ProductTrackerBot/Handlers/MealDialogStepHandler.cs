@@ -17,6 +17,7 @@ using Telegram.Bot.Types;
 public class MealDialogStepHandler : IDialogMessageHandler
 {
     private readonly ITelegramBotClient botClient;
+    private readonly GroupRepository groupRepository;
     private readonly PendingDialogService<MealCreateDialogState> mealCreateDialogService;
     private readonly PendingDialogService<MealAddIngredientDialogState> mealIngredientDialogService;
     private readonly PendingDialogService<MealAddStepDialogState> mealStepDialogService;
@@ -30,6 +31,7 @@ public class MealDialogStepHandler : IDialogMessageHandler
     /// </summary>
     public MealDialogStepHandler(
         ITelegramBotClient botClient,
+        GroupRepository groupRepository,
         PendingDialogService<MealCreateDialogState> mealCreateDialogService,
         PendingDialogService<MealAddIngredientDialogState> mealIngredientDialogService,
         PendingDialogService<MealAddStepDialogState> mealStepDialogService,
@@ -39,6 +41,7 @@ public class MealDialogStepHandler : IDialogMessageHandler
         ILogger<MealDialogStepHandler> logger)
     {
         this.botClient = botClient;
+        this.groupRepository = groupRepository;
         this.mealCreateDialogService = mealCreateDialogService;
         this.mealIngredientDialogService = mealIngredientDialogService;
         this.mealStepDialogService = mealStepDialogService;
@@ -109,8 +112,8 @@ public class MealDialogStepHandler : IDialogMessageHandler
 
         this.mealCreateDialogService.ClearState(chatId, userId);
 
-        var groupId = 1; // Placeholder: should extract from context
-        var meal = await this.mealRepository.AddAsync(groupId, mealName);
+        var group = await this.groupRepository.GetOrCreateAsync(chatId);
+        var meal = await this.mealRepository.AddAsync(group.Id, mealName);
 
         await this.botClient.SendMessage(
             chatId,

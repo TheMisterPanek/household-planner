@@ -79,6 +79,7 @@ builder.Services.AddScoped<GroupRepository>();
 builder.Services.AddScoped<ShoppingItemRepository>();
 builder.Services.AddSingleton<IHistoryRepository, HistoryRepository>();
 builder.Services.AddScoped<PurchaseHistoryRepository>();
+builder.Services.AddScoped<PriceLogRepository>();
 builder.Services.AddScoped<MealRepository>();
 builder.Services.AddScoped<MealIngredientRepository>();
 builder.Services.AddScoped<MealStepRepository>();
@@ -86,7 +87,18 @@ builder.Services.AddScoped<MealStepRepository>();
 // Register services
 builder.Services.AddScoped<ShoppingListService>();
 builder.Services.AddScoped<MealMergeService>();
+builder.Services.AddScoped<ExpiryNotificationService>();
 builder.Services.AddSingleton<ILocalizer, Localizer>();
+
+// Register hosted services for background jobs
+var notifyTimeUtc = Environment.GetEnvironmentVariable("NOTIFY_TIME_UTC") ?? "09:00";
+builder.Services.AddSingleton(sp => new ExpiryNotificationJob(
+    sp.GetRequiredService<ITelegramBotClient>(),
+    sp.GetRequiredService<GroupRepository>(),
+    sp.GetRequiredService<ExpiryNotificationService>(),
+    sp.GetRequiredService<ILogger<ExpiryNotificationJob>>(),
+    notifyTimeUtc));
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ExpiryNotificationJob>());
 
 // Register command handlers
 builder.Services.AddScoped<ICommandHandler, BuyCommandHandler>();
@@ -95,14 +107,17 @@ builder.Services.AddScoped<ICommandHandler, HistoryCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, SearchCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, LanguageCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, MealsCommandHandler>();
+builder.Services.AddScoped<ICommandHandler, PricesCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, SettingsCommandHandler>();
 
 // Register dialog message handlers
 builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler, PriceCaptureStepHandler>();
+builder.Services.AddScoped<IDialogMessageHandler, MealDialogStepHandler>();
 
 // Register callback handlers
 builder.Services.AddScoped<ICallbackHandler, BuySkipCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, BuySkipExpiryCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopDoneCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopRemoveCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, PriceSkipCallbackHandler>();
