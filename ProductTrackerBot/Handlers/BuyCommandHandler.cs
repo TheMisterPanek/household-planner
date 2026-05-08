@@ -6,6 +6,7 @@ namespace ProductTrackerBot.Handlers;
 
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -24,6 +25,7 @@ public class BuyCommandHandler : ICommandHandler
     private readonly ShoppingItemRepository itemRepository;
     private readonly PendingDialogService<BuyDialogState> dialogService;
     private readonly IHistoryRepository historyRepository;
+    private readonly ILocalizer localizer;
     private readonly ILogger<BuyCommandHandler> logger;
 
     /// <summary>
@@ -34,6 +36,7 @@ public class BuyCommandHandler : ICommandHandler
     /// <param name="itemRepository">The shopping item repository.</param>
     /// <param name="dialogService">The dialog state service.</param>
     /// <param name="historyRepository">The history repository.</param>
+    /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="logger">The logger.</param>
     public BuyCommandHandler(
         ITelegramBotClient botClient,
@@ -41,6 +44,7 @@ public class BuyCommandHandler : ICommandHandler
         ShoppingItemRepository itemRepository,
         PendingDialogService<BuyDialogState> dialogService,
         IHistoryRepository historyRepository,
+        ILocalizer localizer,
         ILogger<BuyCommandHandler> logger)
     {
         this.botClient = botClient;
@@ -48,6 +52,7 @@ public class BuyCommandHandler : ICommandHandler
         this.itemRepository = itemRepository;
         this.dialogService = dialogService;
         this.historyRepository = historyRepository;
+        this.localizer = localizer;
         this.logger = logger;
     }
 
@@ -61,21 +66,23 @@ public class BuyCommandHandler : ICommandHandler
         {
             await this.botClient.SendMessage(
                 chatId: message.Chat.Id,
-                text: "Эта команда работает только в групповом чате.",
+                text: this.localizer.Get(message.Chat.Id, "buy.group-only"),
                 cancellationToken: cancellationToken);
             return;
         }
 
         var group = await this.groupRepository.GetOrCreateAsync(message.Chat.Id);
-        var displayName = message.From?.FirstName ?? message.From?.Username ?? "Неизвестный";
+        var displayName = message.From?.FirstName ?? message.From?.Username ?? "Unknown";
 
         var args = ParseArgs(message.Text);
         if (args.HasValue)
         {
             var item = await this.itemRepository.AddAsync(group.Id, args.Value.Name, args.Value.Quantity, displayName);
             var confirm = item.Quantity is not null
-                ? $"{displayName} добавил(а) {item.Name} {item.Quantity}"
-                : $"{displayName} добавил(а) {item.Name}";
+                ? this.localizer.Get(message.Chat.Id, "buy.item-added-quantity")
+                    .Replace("{name}", displayName).Replace("{item}", item.Name).Replace("{quantity}", item.Quantity)
+                : this.localizer.Get(message.Chat.Id, "buy.item-added")
+                    .Replace("{name}", displayName).Replace("{item}", item.Name);
             await this.botClient.SendMessage(
                 chatId: message.Chat.Id,
                 text: confirm,
@@ -112,7 +119,7 @@ public class BuyCommandHandler : ICommandHandler
 
         await this.botClient.SendMessage(
             chatId: message.Chat.Id,
-            text: "Что купить?",
+            text: this.localizer.Get(message.Chat.Id, "buy.what-to-buy"),
             replyParameters: new ReplyParameters { MessageId = message.MessageId },
             cancellationToken: cancellationToken);
     }

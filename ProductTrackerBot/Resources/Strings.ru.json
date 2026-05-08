@@ -1,0 +1,16 @@
+{
+  "buy.group-only": "Эта команда работает только в групповом чате.",
+  "buy.what-to-buy": "Что купить?",
+  "buy.skip": "Пропустить",
+  "buy.item-added": "{name} добавил(а) {item}",
+  "buy.item-added-quantity": "{name} добавил(а) {item} {quantity}",
+  "list.empty": "Список покупок пуст",
+  "list.header": "Список покупок:",
+  "list.remove": "✗ Убрать",
+  "shop.done-confirmation": "{name} купил(а) {item}",
+  "shop.skip-confirmation": "{name} пропустил(а) покупку {item}",
+  "language.select-prompt": "Выберите язык:",
+  "language.english": "English",
+  "language.russian": "Русский",
+  "language.confirmation": "Язык установлен на {language}"
+}

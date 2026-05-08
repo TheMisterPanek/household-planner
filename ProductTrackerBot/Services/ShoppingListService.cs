@@ -5,6 +5,7 @@
 namespace ProductTrackerBot.Services;
 
 using System.Text;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -16,16 +17,19 @@ public class ShoppingListService
 {
     private readonly GroupRepository groupRepository;
     private readonly ShoppingItemRepository itemRepository;
+    private readonly ILocalizer localizer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ShoppingListService"/> class.
     /// </summary>
     /// <param name="groupRepository">The group repository.</param>
     /// <param name="itemRepository">The shopping item repository.</param>
-    public ShoppingListService(GroupRepository groupRepository, ShoppingItemRepository itemRepository)
+    /// <param name="localizer">The localizer for retrieving localized messages.</param>
+    public ShoppingListService(GroupRepository groupRepository, ShoppingItemRepository itemRepository, ILocalizer localizer)
     {
         this.groupRepository = groupRepository;
         this.itemRepository = itemRepository;
+        this.localizer = localizer;
     }
 
     /// <summary>
@@ -40,10 +44,10 @@ public class ShoppingListService
 
         if (items.Count == 0)
         {
-            return ("Список покупок пуст", null, group);
+            return (this.localizer.Get(chatId, "list.empty"), null, group);
         }
 
-        var sb = new StringBuilder("🛒 Список покупок:\n\n");
+        var sb = new StringBuilder(this.localizer.Get(chatId, "list.header") + "\n\n");
         var buttons = new List<List<InlineKeyboardButton>>();
 
         var groups = items.GroupBy(i => i.Name, StringComparer.OrdinalIgnoreCase);
@@ -67,7 +71,7 @@ public class ShoppingListService
                 buttons.Add(
                 [
                     InlineKeyboardButton.WithCallbackData(btnLabel, $"shop:done:{item.Id}"),
-                    InlineKeyboardButton.WithCallbackData("✗ Убрать", $"shop:remove:{item.Id}"),
+                    InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "list.remove"), $"shop:remove:{item.Id}"),
                 ]);
             }
         }

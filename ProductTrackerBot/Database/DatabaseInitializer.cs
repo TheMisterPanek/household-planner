@@ -90,6 +90,20 @@ public class DatabaseInitializer : IHostedService
         cmd4.CommandText = createPurchaseHistory;
         await cmd4.ExecuteNonQueryAsync(cancellationToken);
 
+        // Migrate Groups table: add LanguageCode column if it doesn't exist
+        try
+        {
+            await using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE Groups ADD COLUMN LanguageCode TEXT NOT NULL DEFAULT 'ru'";
+            await alterCmd.ExecuteNonQueryAsync(cancellationToken);
+            this.logger.LogInformation("Added LanguageCode column to Groups table");
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 1)
+        {
+            // Column already exists, ignore
+            this.logger.LogInformation("LanguageCode column already exists on Groups table");
+        }
+
         this.logger.LogInformation("Database schema initialized successfully");
     }
 

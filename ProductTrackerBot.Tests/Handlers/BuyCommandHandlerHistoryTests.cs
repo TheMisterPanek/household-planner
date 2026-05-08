@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Handlers;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -48,6 +49,7 @@ public class BuyCommandHandlerHistoryTests
             itemRepo,
             new PendingDialogService<BuyDialogState>(),
             historyRepo,
+            Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<BuyCommandHandler>>());
     }
 

@@ -35,7 +35,7 @@ public class GroupRepository
 
         // Try to find existing group
         await using var selectCmd = connection.CreateCommand();
-        selectCmd.CommandText = "SELECT Id, ChatId, ListMessageId FROM Groups WHERE ChatId = @chatId";
+        selectCmd.CommandText = "SELECT Id, ChatId, ListMessageId, LanguageCode FROM Groups WHERE ChatId = @chatId";
         selectCmd.Parameters.AddWithValue("@chatId", chatId);
 
         await using var reader = await selectCmd.ExecuteReaderAsync();
@@ -46,6 +46,7 @@ public class GroupRepository
                 Id = reader.GetInt32(0),
                 ChatId = reader.GetInt64(1),
                 ListMessageId = reader.IsDBNull(2) ? null : reader.GetInt32(2),
+                LanguageCode = reader.IsDBNull(3) ? "ru" : reader.GetString(3),
             };
         }
 
@@ -53,7 +54,7 @@ public class GroupRepository
 
         // Insert new group
         await using var insertCmd = connection.CreateCommand();
-        insertCmd.CommandText = "INSERT INTO Groups (ChatId) VALUES (@chatId); SELECT last_insert_rowid();";
+        insertCmd.CommandText = "INSERT INTO Groups (ChatId, LanguageCode) VALUES (@chatId, 'ru'); SELECT last_insert_rowid();";
         insertCmd.Parameters.AddWithValue("@chatId", chatId);
 
         var newId = (long)(await insertCmd.ExecuteScalarAsync())!;
@@ -63,6 +64,7 @@ public class GroupRepository
             Id = (int)newId,
             ChatId = chatId,
             ListMessageId = null,
+            LanguageCode = "ru",
         };
     }
 
@@ -81,6 +83,25 @@ public class GroupRepository
         cmd.CommandText = "UPDATE Groups SET ListMessageId = @listMessageId WHERE Id = @groupId";
         cmd.Parameters.AddWithValue("@listMessageId", listMessageId);
         cmd.Parameters.AddWithValue("@groupId", groupId);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Sets the language code for a group.
+    /// </summary>
+    /// <param name="chatId">The Telegram chat ID.</param>
+    /// <param name="languageCode">The language code (e.g. 'en', 'ru').</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public virtual async Task SetLanguageAsync(long chatId, string languageCode)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "UPDATE Groups SET LanguageCode = @languageCode WHERE ChatId = @chatId";
+        cmd.Parameters.AddWithValue("@languageCode", languageCode);
+        cmd.Parameters.AddWithValue("@chatId", chatId);
 
         await cmd.ExecuteNonQueryAsync();
     }

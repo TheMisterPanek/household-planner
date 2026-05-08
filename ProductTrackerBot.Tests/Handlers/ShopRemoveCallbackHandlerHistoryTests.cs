@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Handlers;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -54,7 +55,7 @@ public class ShopRemoveCallbackHandlerHistoryTests
         itemRepo.Setup(r => r.DeleteAsync(7)).Returns(Task.CompletedTask);
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
 
         var historyMock = new Mock<IHistoryRepository>();
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -83,7 +84,7 @@ public class ShopRemoveCallbackHandlerHistoryTests
         itemRepo.Setup(r => r.DeleteAsync(7)).Returns(Task.CompletedTask);
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
 
         var historyMock = new Mock<IHistoryRepository>();
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))

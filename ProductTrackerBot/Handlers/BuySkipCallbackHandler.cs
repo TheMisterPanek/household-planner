@@ -6,6 +6,7 @@ namespace ProductTrackerBot.Handlers;
 
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -21,6 +22,7 @@ public class BuySkipCallbackHandler : ICallbackHandler
     private readonly PendingDialogService<BuyDialogState> dialogService;
     private readonly ShoppingItemRepository itemRepository;
     private readonly IHistoryRepository historyRepository;
+    private readonly ILocalizer localizer;
     private readonly ILogger<BuySkipCallbackHandler> logger;
 
     /// <summary>
@@ -30,18 +32,21 @@ public class BuySkipCallbackHandler : ICallbackHandler
     /// <param name="dialogService">The dialog state service.</param>
     /// <param name="itemRepository">The shopping item repository.</param>
     /// <param name="historyRepository">The history repository.</param>
+    /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="logger">The logger.</param>
     public BuySkipCallbackHandler(
         ITelegramBotClient botClient,
         PendingDialogService<BuyDialogState> dialogService,
         ShoppingItemRepository itemRepository,
         IHistoryRepository historyRepository,
+        ILocalizer localizer,
         ILogger<BuySkipCallbackHandler> logger)
     {
         this.botClient = botClient;
         this.dialogService = dialogService;
         this.itemRepository = itemRepository;
         this.historyRepository = historyRepository;
+        this.localizer = localizer;
         this.logger = logger;
     }
 
@@ -83,13 +88,15 @@ public class BuySkipCallbackHandler : ICallbackHandler
             callbackQueryId: callbackQuery.Id,
             cancellationToken: cancellationToken);
 
+        var confirmText = this.localizer.Get(chatId, "buy.item-added")
+            .Replace("{name}", state.AddedByName).Replace("{item}", state.Name);
+
         await this.botClient.EditMessageText(
             chatId: chatId,
             messageId: callbackQuery.Message.MessageId,
-            text: $"Сколько?\n\n{state.AddedByName} добавил(а) {state.Name}",
+            text: this.localizer.Get(chatId, "buy.what-to-buy") + $"\n\n{confirmText}",
             cancellationToken: cancellationToken);
 
-        var confirmText = $"{state.AddedByName} добавил(а) {state.Name}";
         await this.botClient.SendMessage(
             chatId: chatId,
             text: confirmText,
