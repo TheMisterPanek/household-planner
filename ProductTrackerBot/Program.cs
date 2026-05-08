@@ -62,12 +62,15 @@ builder.Services.AddHostedService<DatabaseInitializer>();
 builder.Services.AddSingleton<IUpdateHandler, UpdateDispatcher>();
 builder.Services.AddHostedService<BotHostedService>();
 
-// Register dialog state service
+// Register dialog state services
 builder.Services.AddSingleton<PendingDialogService<BuyDialogState>>();
+builder.Services.AddSingleton<PendingDialogService<PriceCaptureDialogState>>();
 
 // Register repositories
 builder.Services.AddScoped<GroupRepository>();
 builder.Services.AddScoped<ShoppingItemRepository>();
+builder.Services.AddSingleton<IHistoryRepository, HistoryRepository>();
+builder.Services.AddScoped<PurchaseHistoryRepository>();
 
 // Register services
 builder.Services.AddScoped<ShoppingListService>();
@@ -75,14 +78,17 @@ builder.Services.AddScoped<ShoppingListService>();
 // Register command handlers
 builder.Services.AddScoped<ICommandHandler, BuyCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, ListCommandHandler>();
+builder.Services.AddScoped<ICommandHandler, HistoryCommandHandler>();
 
 // Register dialog message handlers
 builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();
+builder.Services.AddScoped<IDialogMessageHandler, PriceCaptureStepHandler>();
 
 // Register callback handlers
 builder.Services.AddScoped<ICallbackHandler, BuySkipCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopDoneCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopRemoveCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, PriceSkipCallbackHandler>();
 
 var host = builder.Build();
 await host.RunAsync();

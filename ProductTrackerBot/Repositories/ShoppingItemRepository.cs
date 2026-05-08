@@ -90,6 +90,36 @@ public class ShoppingItemRepository
     }
 
     /// <summary>
+    /// Gets a shopping item by ID, or null if not found.
+    /// </summary>
+    /// <param name="itemId">The item ID.</param>
+    /// <returns>The item, or null.</returns>
+    public virtual async Task<ShoppingItem?> GetByIdAsync(int itemId)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT Id, GroupId, Name, Quantity, AddedByName FROM ShoppingItems WHERE Id = @id";
+        cmd.Parameters.AddWithValue("@id", itemId);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return new ShoppingItem
+            {
+                Id = reader.GetInt32(0),
+                GroupId = reader.GetInt32(1),
+                Name = reader.GetString(2),
+                Quantity = reader.IsDBNull(3) ? null : reader.GetString(3),
+                AddedByName = reader.GetString(4),
+            };
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Deletes a shopping item by ID.
     /// </summary>
     /// <param name="itemId">The item ID to delete.</param>

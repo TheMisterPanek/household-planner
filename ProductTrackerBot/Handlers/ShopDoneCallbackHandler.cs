@@ -4,14 +4,16 @@
 
 namespace ProductTrackerBot.Handlers;
 
+using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.ReplyMarkups;
 
 /// <summary>
-/// Handles the "✓" buy button — marks an item as bought, deletes it, and updates the list.
+/// Handles the "✓" buy button — marks an item as bought, deletes it, and optionally captures price info.
 /// </summary>
 public class ShopDoneCallbackHandler : ICallbackHandler
 {
@@ -19,6 +21,9 @@ public class ShopDoneCallbackHandler : ICallbackHandler
     private readonly ShoppingItemRepository itemRepository;
     private readonly ShoppingListService listService;
     private readonly GroupRepository groupRepository;
+    private readonly IHistoryRepository historyRepository;
+    private readonly PendingDialogService<PriceCaptureDialogState> priceDialogService;
+    private readonly ILogger<ShopDoneCallbackHandler> logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ShopDoneCallbackHandler"/> class.
@@ -27,16 +32,25 @@ public class ShopDoneCallbackHandler : ICallbackHandler
     /// <param name="itemRepository">The shopping item repository.</param>
     /// <param name="listService">The shopping list service.</param>
     /// <param name="groupRepository">The group repository.</param>
+    /// <param name="historyRepository">The history repository.</param>
+    /// <param name="priceDialogService">The price-capture dialog state service.</param>
+    /// <param name="logger">The logger.</param>
     public ShopDoneCallbackHandler(
         ITelegramBotClient botClient,
         ShoppingItemRepository itemRepository,
         ShoppingListService listService,
-        GroupRepository groupRepository)
+        GroupRepository groupRepository,
+        IHistoryRepository historyRepository,
+        PendingDialogService<PriceCaptureDialogState> priceDialogService,
+        ILogger<ShopDoneCallbackHandler> logger)
     {
         this.botClient = botClient;
         this.itemRepository = itemRepository;
         this.listService = listService;
         this.groupRepository = groupRepository;
+        this.historyRepository = historyRepository;
+        this.priceDialogService = priceDialogService;
+        this.logger = logger;
     }
 
     /// <inheritdoc/>
@@ -56,40 +70,70 @@ public class ShopDoneCallbackHandler : ICallbackHandler
             return;
         }
 
+        // Read item details before deleting
+        var item = await this.itemRepository.GetByIdAsync(itemId);
+        if (item is null)
+        {
+            return;
+        }
+
         // Delete the item
         await this.itemRepository.DeleteAsync(itemId);
 
         // Rebuild and update the list message
         await this.UpdateListMessageAsync(callbackQuery.Message.Chat.Id, callbackQuery.Message.MessageId, cancellationToken);
 
-        // Build confirmation text from callback button text
         var displayName = callbackQuery.From.FirstName;
-        var buttonText = "неизвестно";
-
-        // Extract item description from the button text (format: "✓ Name qty")
-        if (callbackQuery.Message.ReplyMarkup is Telegram.Bot.Types.ReplyMarkups.InlineKeyboardMarkup markup)
-        {
-            foreach (var row in markup.InlineKeyboard)
-            {
-                foreach (var btn in row)
-                {
-                    if (btn.CallbackData == callbackQuery.Data && btn.Text.StartsWith("✓ "))
-                    {
-                        buttonText = btn.Text[2..]; // Remove "✓ "
-                        break;
-                    }
-                }
-            }
-        }
 
         await this.botClient.AnswerCallbackQuery(
             callbackQueryId: callbackQuery.Id,
             cancellationToken: cancellationToken);
 
         // Send confirmation
+        var buttonText = item.Quantity is not null
+            ? $"{item.Name} {item.Quantity}"
+            : item.Name;
+
         await this.botClient.SendMessage(
             chatId: callbackQuery.Message.Chat.Id,
             text: $"{displayName}: {buttonText} — отмечено ✓",
+            cancellationToken: cancellationToken);
+
+        try
+        {
+            var payload = new ItemPayload(buttonText, null);
+            var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.ItemPayload);
+            await this.historyRepository.RecordAsync(
+                chatId: callbackQuery.Message.Chat.Id,
+                userId: callbackQuery.From.Id,
+                userName: displayName ?? "Неизвестный",
+                actionType: BotActionType.ItemBought,
+                payloadJson: payloadJson,
+                ct: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            this.logger.LogWarning(ex, "Failed to record history for ItemBought");
+        }
+
+        // Start price-capture dialog
+        this.priceDialogService.SetState(
+            callbackQuery.Message.Chat.Id,
+            callbackQuery.From.Id,
+            new PriceCaptureDialogState
+            {
+                Step = 1,
+                ItemName = item.Name,
+                Quantity = item.Quantity,
+                BoughtByName = displayName ?? "Неизвестный",
+            });
+
+        var skipStoreButton = InlineKeyboardButton.WithCallbackData("Skip", "price:skip_store");
+
+        await this.botClient.SendMessage(
+            chatId: callbackQuery.Message.Chat.Id,
+            text: $"📍 Where did you buy {item.Name}?",
+            replyMarkup: new InlineKeyboardMarkup(new[] { new[] { skipStoreButton } }),
             cancellationToken: cancellationToken);
     }
 

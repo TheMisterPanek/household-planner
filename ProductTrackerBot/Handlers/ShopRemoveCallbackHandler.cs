@@ -4,6 +4,8 @@
 
 namespace ProductTrackerBot.Handlers;
 
+using Microsoft.Extensions.Logging;
+using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
 using Telegram.Bot;
@@ -18,6 +20,8 @@ public class ShopRemoveCallbackHandler : ICallbackHandler
     private readonly ShoppingItemRepository itemRepository;
     private readonly ShoppingListService listService;
     private readonly GroupRepository groupRepository;
+    private readonly IHistoryRepository historyRepository;
+    private readonly ILogger<ShopRemoveCallbackHandler> logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ShopRemoveCallbackHandler"/> class.
@@ -26,16 +30,22 @@ public class ShopRemoveCallbackHandler : ICallbackHandler
     /// <param name="itemRepository">The shopping item repository.</param>
     /// <param name="listService">The shopping list service.</param>
     /// <param name="groupRepository">The group repository.</param>
+    /// <param name="historyRepository">The history repository.</param>
+    /// <param name="logger">The logger.</param>
     public ShopRemoveCallbackHandler(
         ITelegramBotClient botClient,
         ShoppingItemRepository itemRepository,
         ShoppingListService listService,
-        GroupRepository groupRepository)
+        GroupRepository groupRepository,
+        IHistoryRepository historyRepository,
+        ILogger<ShopRemoveCallbackHandler> logger)
     {
         this.botClient = botClient;
         this.itemRepository = itemRepository;
         this.listService = listService;
         this.groupRepository = groupRepository;
+        this.historyRepository = historyRepository;
+        this.logger = logger;
     }
 
     /// <inheritdoc/>
@@ -84,5 +94,22 @@ public class ShopRemoveCallbackHandler : ICallbackHandler
         await this.botClient.AnswerCallbackQuery(
             callbackQueryId: callbackQuery.Id,
             cancellationToken: cancellationToken);
+
+        try
+        {
+            var payload = new EmptyPayload();
+            var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.EmptyPayload);
+            await this.historyRepository.RecordAsync(
+                chatId: callbackQuery.Message.Chat.Id,
+                userId: callbackQuery.From.Id,
+                userName: callbackQuery.From.FirstName ?? callbackQuery.From.Username ?? "Неизвестный",
+                actionType: BotActionType.ItemRemoved,
+                payloadJson: payloadJson,
+                ct: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            this.logger.LogWarning(ex, "Failed to record history for ItemRemoved");
+        }
     }
 }

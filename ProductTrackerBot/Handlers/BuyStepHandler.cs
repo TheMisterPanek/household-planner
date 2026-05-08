@@ -4,6 +4,8 @@
 
 namespace ProductTrackerBot.Handlers;
 
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -19,6 +21,8 @@ public class BuyStepHandler : IDialogMessageHandler
     private readonly ITelegramBotClient botClient;
     private readonly PendingDialogService<BuyDialogState> dialogService;
     private readonly ShoppingItemRepository itemRepository;
+    private readonly IHistoryRepository historyRepository;
+    private readonly ILogger<BuyStepHandler> logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BuyStepHandler"/> class.
@@ -26,14 +30,20 @@ public class BuyStepHandler : IDialogMessageHandler
     /// <param name="botClient">The Telegram bot client.</param>
     /// <param name="dialogService">The dialog state service.</param>
     /// <param name="itemRepository">The shopping item repository.</param>
+    /// <param name="historyRepository">The history repository.</param>
+    /// <param name="logger">The logger.</param>
     public BuyStepHandler(
         ITelegramBotClient botClient,
         PendingDialogService<BuyDialogState> dialogService,
-        ShoppingItemRepository itemRepository)
+        ShoppingItemRepository itemRepository,
+        IHistoryRepository historyRepository,
+        ILogger<BuyStepHandler> logger)
     {
         this.botClient = botClient;
         this.dialogService = dialogService;
         this.itemRepository = itemRepository;
+        this.historyRepository = historyRepository;
+        this.logger = logger;
     }
 
     /// <inheritdoc/>
@@ -115,5 +125,22 @@ public class BuyStepHandler : IDialogMessageHandler
             chatId: chatId,
             text: confirmText,
             cancellationToken: cancellationToken);
+
+        try
+        {
+            var payload = new ItemPayload(item.Name, item.Quantity);
+            var payloadJson = JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.ItemPayload);
+            await this.historyRepository.RecordAsync(
+                chatId: chatId,
+                userId: userId,
+                userName: state.AddedByName,
+                actionType: BotActionType.ItemAdded,
+                payloadJson: payloadJson,
+                ct: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            this.logger.LogWarning(ex, "Failed to record history for ItemAdded");
+        }
     }
 }

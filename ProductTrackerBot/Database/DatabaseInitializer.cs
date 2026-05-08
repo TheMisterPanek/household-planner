@@ -59,6 +59,37 @@ public class DatabaseInitializer : IHostedService
         cmd2.CommandText = createItems;
         await cmd2.ExecuteNonQueryAsync(cancellationToken);
 
+        var createHistory = @"
+            CREATE TABLE IF NOT EXISTS BotActionHistory (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ChatId INTEGER NOT NULL,
+                UserId INTEGER NOT NULL,
+                UserName TEXT NOT NULL,
+                ActionType TEXT NOT NULL,
+                Payload TEXT NOT NULL,
+                RecordedAt TEXT NOT NULL DEFAULT (datetime('now'))
+            );";
+
+        await using var cmd3 = connection.CreateCommand();
+        cmd3.CommandText = createHistory;
+        await cmd3.ExecuteNonQueryAsync(cancellationToken);
+
+        var createPurchaseHistory = @"
+            CREATE TABLE IF NOT EXISTS PurchaseHistory (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                GroupId INTEGER NOT NULL REFERENCES Groups(Id),
+                ItemName TEXT NOT NULL,
+                Quantity TEXT,
+                StoreName TEXT,
+                Price REAL,
+                PurchasedAt TEXT NOT NULL,
+                BoughtByName TEXT NOT NULL
+            );";
+
+        await using var cmd4 = connection.CreateCommand();
+        cmd4.CommandText = createPurchaseHistory;
+        await cmd4.ExecuteNonQueryAsync(cancellationToken);
+
         this.logger.LogInformation("Database schema initialized successfully");
     }
 
