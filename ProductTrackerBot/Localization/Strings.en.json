@@ -1,0 +1,9 @@
+{
+  "menu_prompt": "Settings",
+  "button_language": "Language",
+  "button_back": "Back",
+  "language_saved": "Language preference saved",
+  "language_english": "English",
+  "language_russian": "Русский (Russian)",
+  "language_polish": "Polski"
+}

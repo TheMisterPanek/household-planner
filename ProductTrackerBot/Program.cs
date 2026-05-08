@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using ProductTrackerBot;
 using ProductTrackerBot.Database;
 using ProductTrackerBot.Handlers;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -71,15 +72,18 @@ builder.Services.AddScoped<GroupRepository>();
 builder.Services.AddScoped<ShoppingItemRepository>();
 builder.Services.AddSingleton<IHistoryRepository, HistoryRepository>();
 builder.Services.AddScoped<PurchaseHistoryRepository>();
+builder.Services.AddSingleton<IPreferenceRepository, PreferenceRepository>();
 
 // Register services
 builder.Services.AddScoped<ShoppingListService>();
+builder.Services.AddSingleton<ILocalizer, Localizer>();
 
 // Register command handlers
 builder.Services.AddScoped<ICommandHandler, BuyCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, ListCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, HistoryCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, SearchCommandHandler>();
+builder.Services.AddScoped<ICommandHandler, SettingsCommandHandler>();
 
 // Register dialog message handlers
 builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();
@@ -90,6 +94,7 @@ builder.Services.AddScoped<ICallbackHandler, BuySkipCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopDoneCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopRemoveCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, PriceSkipCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, LanguageSelectionHandler>();
 
 var host = builder.Build();
 await host.RunAsync();

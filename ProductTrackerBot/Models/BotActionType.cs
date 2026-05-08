@@ -23,4 +23,7 @@ public enum BotActionType
 
     /// <summary>The action history was viewed.</summary>
     HistoryViewed,
+
+    /// <summary>The language preference was changed.</summary>
+    LanguageChanged,
 }

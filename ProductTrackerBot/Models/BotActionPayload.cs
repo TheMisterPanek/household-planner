@@ -17,10 +17,16 @@ public record ItemPayload(string Name, string? Quantity);
 public record EmptyPayload();
 
 /// <summary>
+/// Payload for language preference change.
+/// </summary>
+public record LanguagePayload(string LanguageCode);
+
+/// <summary>
 /// Source-generated JSON serializer context covering all payload types.
 /// </summary>
 [JsonSerializable(typeof(ItemPayload))]
 [JsonSerializable(typeof(EmptyPayload))]
+[JsonSerializable(typeof(LanguagePayload))]
 public partial class BotActionPayloadContext : JsonSerializerContext
 {
 }

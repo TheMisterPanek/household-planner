@@ -90,6 +90,18 @@ public class DatabaseInitializer : IHostedService
         cmd4.CommandText = createPurchaseHistory;
         await cmd4.ExecuteNonQueryAsync(cancellationToken);
 
+        var createUserPreferences = @"
+            CREATE TABLE IF NOT EXISTS UserPreferences (
+                ChatId INTEGER PRIMARY KEY,
+                LanguageCode TEXT NOT NULL,
+                CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+            );";
+
+        await using var cmd5 = connection.CreateCommand();
+        cmd5.CommandText = createUserPreferences;
+        await cmd5.ExecuteNonQueryAsync(cancellationToken);
+
         this.logger.LogInformation("Database schema initialized successfully");
     }
 
