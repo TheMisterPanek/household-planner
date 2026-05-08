@@ -1,0 +1,13 @@
+name: fix-meal-creation
+title: "Bugfix: Meal Creation Not Working"
+status: archived
+archived_date: 2026-05-08
+type: bugfix
+commits:
+  - de50882
+  - 8347e2d
+description: |
+  Fixed meal creation feature by:
+  1. Adding missing Meals, MealIngredients, MealSteps database tables
+  2. Fixing meal creation to use actual group instead of hardcoded ID
+  3. Registering MealDialogStepHandler in DI container
