@@ -93,6 +93,7 @@ builder.Services.AddScoped<ICallbackHandler, BuySkipCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopDoneCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopRemoveCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, PriceSkipCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, PriceShopSuggestionCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, LanguageCallbackHandler>();
 
 var host = builder.Build();

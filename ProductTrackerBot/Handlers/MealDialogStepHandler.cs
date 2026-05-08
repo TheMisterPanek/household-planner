@@ -100,7 +100,7 @@ public class MealDialogStepHandler : IDialogMessageHandler
 
         if (string.IsNullOrWhiteSpace(mealName))
         {
-            await this.botClient.SendTextMessageAsync(
+            await this.botClient.SendMessage(
                 chatId,
                 "❌ Meal name cannot be empty. Please try again:",
                 cancellationToken: cancellationToken);
@@ -112,7 +112,7 @@ public class MealDialogStepHandler : IDialogMessageHandler
         var groupId = 1; // Placeholder: should extract from context
         var meal = await this.mealRepository.AddAsync(groupId, mealName);
 
-        await this.botClient.SendTextMessageAsync(
+        await this.botClient.SendMessage(
             chatId,
             $"✅ Meal '{mealName}' created!",
             cancellationToken: cancellationToken);
@@ -133,7 +133,7 @@ public class MealDialogStepHandler : IDialogMessageHandler
             state.Name = input;
             state.Step = 2;
 
-            await this.botClient.SendTextMessageAsync(
+            await this.botClient.SendMessage(
                 chatId,
                 $"Quantity for '{input}'? (or /skip to skip)",
                 cancellationToken: cancellationToken);
@@ -147,7 +147,7 @@ public class MealDialogStepHandler : IDialogMessageHandler
             this.mealIngredientDialogService.ClearState(chatId, userId);
 
             var quantityText = quantity is null ? "no quantity" : $"({quantity})";
-            await this.botClient.SendTextMessageAsync(
+            await this.botClient.SendMessage(
                 chatId,
                 $"✅ Added ingredient: {state.Name} {quantityText}",
                 cancellationToken: cancellationToken);
@@ -165,7 +165,7 @@ public class MealDialogStepHandler : IDialogMessageHandler
 
         if (string.IsNullOrWhiteSpace(stepText))
         {
-            await this.botClient.SendTextMessageAsync(
+            await this.botClient.SendMessage(
                 chatId,
                 "❌ Step text cannot be empty. Please try again:",
                 cancellationToken: cancellationToken);
@@ -175,7 +175,7 @@ public class MealDialogStepHandler : IDialogMessageHandler
         await this.stepRepository.AddAsync(state.MealId, stepText);
         this.mealStepDialogService.ClearState(chatId, userId);
 
-        await this.botClient.SendTextMessageAsync(
+        await this.botClient.SendMessage(
             chatId,
             $"✅ Added step: {stepText}",
             cancellationToken: cancellationToken);

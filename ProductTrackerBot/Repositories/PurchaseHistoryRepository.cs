@@ -35,10 +35,11 @@ public class PurchaseHistoryRepository
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = @"
-            INSERT INTO PurchaseHistory (GroupId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName)
-            VALUES (@groupId, @itemName, @quantity, @storeName, @price, @purchasedAt, @boughtByName);
+            INSERT INTO PurchaseHistory (GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName)
+            VALUES (@groupId, @userId, @itemName, @quantity, @storeName, @price, @purchasedAt, @boughtByName);
             SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("@groupId", record.GroupId);
+        cmd.Parameters.AddWithValue("@userId", record.UserId);
         cmd.Parameters.AddWithValue("@itemName", record.ItemName);
         cmd.Parameters.AddWithValue("@quantity", (object?)record.Quantity ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@storeName", (object?)record.StoreName ?? DBNull.Value);
@@ -49,6 +50,46 @@ public class PurchaseHistoryRepository
         var newId = (long)(await cmd.ExecuteScalarAsync())!;
         record.Id = (int)newId;
         return record;
+    }
+
+    /// <summary>
+    /// Retrieves the top shops for a user in a group, ranked by purchase frequency and recency.
+    /// </summary>
+    /// <param name="groupId">The group ID to filter by.</param>
+    /// <param name="userId">The user ID to filter by.</param>
+    /// <param name="limit">The maximum number of shops to return.</param>
+    /// <returns>A read-only list of top shop names, ordered by frequency (descending) and most recent purchase date (descending).</returns>
+    public virtual async Task<IReadOnlyList<string>> GetTopShopsAsync(int groupId, long userId, int limit)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT StoreName
+            FROM PurchaseHistory
+            WHERE GroupId = @groupId AND UserId = @userId AND StoreName IS NOT NULL
+            GROUP BY StoreName
+            ORDER BY COUNT(*) DESC, MAX(PurchasedAt) DESC
+            LIMIT @limit";
+        cmd.Parameters.AddWithValue("@groupId", groupId);
+        cmd.Parameters.AddWithValue("@userId", userId);
+        cmd.Parameters.AddWithValue("@limit", limit);
+
+        var shops = new List<string>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var shopName = reader.GetString(0);
+            if (shopName.Length > 30)
+            {
+                shopName = shopName.Substring(0, 30) + "…";
+            }
+
+            shops.Add(shopName);
+        }
+
+        return shops.AsReadOnly();
     }
 
     /// <summary>
@@ -64,7 +105,7 @@ public class PurchaseHistoryRepository
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = @"
-            SELECT Id, GroupId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName
+            SELECT Id, GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName
             FROM PurchaseHistory
             WHERE GroupId = @groupId AND lower(ItemName) LIKE lower(@query)
             ORDER BY PurchasedAt DESC";
@@ -79,12 +120,13 @@ public class PurchaseHistoryRepository
             {
                 Id = reader.GetInt32(0),
                 GroupId = reader.GetInt32(1),
-                ItemName = reader.GetString(2),
-                Quantity = reader.IsDBNull(3) ? null : reader.GetString(3),
-                StoreName = reader.IsDBNull(4) ? null : reader.GetString(4),
-                Price = reader.IsDBNull(5) ? null : reader.GetDecimal(5),
-                PurchasedAt = DateTime.Parse(reader.GetString(6), null, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal),
-                BoughtByName = reader.GetString(7),
+                UserId = reader.GetInt64(2),
+                ItemName = reader.GetString(3),
+                Quantity = reader.IsDBNull(4) ? null : reader.GetString(4),
+                StoreName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                Price = reader.IsDBNull(6) ? null : reader.GetDecimal(6),
+                PurchasedAt = DateTime.Parse(reader.GetString(7), null, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal),
+                BoughtByName = reader.GetString(8),
             });
         }
 

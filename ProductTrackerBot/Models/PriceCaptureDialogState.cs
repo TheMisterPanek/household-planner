@@ -34,4 +34,9 @@ public class PriceCaptureDialogState
     /// Gets or sets the optional store name (filled at step 1).
     /// </summary>
     public string? StoreName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the top shops suggested from purchase history for step 1.
+    /// </summary>
+    public List<string>? TopShops { get; set; }
 }

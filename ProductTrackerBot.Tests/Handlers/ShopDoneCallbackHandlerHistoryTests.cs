@@ -1,3 +1,4 @@
+using ProductTrackerBot.Localization;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -51,7 +52,7 @@ public class ShopDoneCallbackHandlerHistoryTests
         itemRepo.Setup(r => r.DeleteAsync(item.Id)).Returns(Task.CompletedTask);
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
 
         var historyMock = new Mock<IHistoryRepository>();
         var setup = historyMock.Setup(h => h.RecordAsync(
@@ -63,9 +64,21 @@ public class ShopDoneCallbackHandlerHistoryTests
         else
             setup.Returns(Task.CompletedTask);
 
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file:test");
+        purchaseRepo.Setup(r => r.GetTopShopsAsync(It.IsAny<int>(), It.IsAny<long>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<string>());
+
+        var priceDialogService = new PendingDialogService<PriceCaptureDialogState>();
+
         var handler = new ShopDoneCallbackHandler(
-            bot.Object, itemRepo.Object, listService, groupRepo.Object, historyMock.Object,
-            new PendingDialogService<PriceCaptureDialogState>(),
+            bot.Object,
+            itemRepo.Object,
+            listService,
+            groupRepo.Object,
+            historyMock.Object,
+            priceDialogService,
+            purchaseRepo.Object,
+            Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<ShopDoneCallbackHandler>>());
 
         return (handler, historyMock, bot);

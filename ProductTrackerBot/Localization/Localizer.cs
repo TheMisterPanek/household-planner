@@ -67,7 +67,6 @@ public class Localizer : ILocalizer
         var assembly = typeof(Localizer).Assembly;
         var resourceNames = assembly.GetManifestResourceNames();
         var context = new StringsJsonSerializerContext();
-        var options = context.GetTypeInfo(typeof(Dictionary<string, string>)).Options;
 
         foreach (var resourceName in resourceNames)
         {
@@ -94,8 +93,8 @@ public class Localizer : ILocalizer
 
             try
             {
-                var typeInfo = (System.Text.Json.JsonTypeInfo<Dictionary<string, string>>)context.GetTypeInfo(typeof(Dictionary<string, string>));
-                var translations = JsonSerializer.Deserialize(stream, typeInfo);
+                var options = new JsonSerializerOptions { TypeInfoResolver = context };
+                var translations = JsonSerializer.Deserialize<Dictionary<string, string>>(stream, options);
                 if (translations != null)
                 {
                     this.translations[languageCode] = translations;

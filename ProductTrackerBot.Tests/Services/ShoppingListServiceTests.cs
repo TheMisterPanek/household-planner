@@ -1,3 +1,4 @@
+using ProductTrackerBot.Localization;
 using Moq;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
@@ -14,7 +15,7 @@ public class ShoppingListServiceTests
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
 
         var (text, keyboard, group) = await service.BuildListAsync(1);
 
@@ -34,7 +35,7 @@ public class ShoppingListServiceTests
         };
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
 
         var (text, keyboard, group) = await service.BuildListAsync(1);
 
@@ -63,7 +64,7 @@ public class ShoppingListServiceTests
         };
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
 
         var (text, keyboard, _) = await service.BuildListAsync(1);
 
@@ -93,7 +94,7 @@ public class ShoppingListServiceTests
         };
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
 
         var (text, keyboard, _) = await service.BuildListAsync(1);
 

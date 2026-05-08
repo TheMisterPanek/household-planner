@@ -1,3 +1,4 @@
+using ProductTrackerBot.Localization;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -48,7 +49,7 @@ public class ListCommandHandlerPaginationTests
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object);
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
 
         var historyMock = Mock.Get(historyRepo);
         var handler = new ListCommandHandler(bot, listService, groupRepo.Object, historyRepo, Mock.Of<ILogger<ListCommandHandler>>());

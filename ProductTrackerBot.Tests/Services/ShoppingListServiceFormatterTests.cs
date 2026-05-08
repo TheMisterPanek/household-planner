@@ -1,3 +1,4 @@
+using ProductTrackerBot.Localization;
 using Moq;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;

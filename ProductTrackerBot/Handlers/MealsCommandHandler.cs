@@ -45,7 +45,7 @@ public class MealsCommandHandler : ICommandHandler
     {
         if (message.Chat.Type != ChatType.Group && message.Chat.Type != ChatType.Supergroup)
         {
-            await this.botClient.SendTextMessageAsync(
+            await this.botClient.SendMessage(
                 message.Chat.Id,
                 "❌ The /meals command only works in group chats.",
                 cancellationToken: cancellationToken);
@@ -76,7 +76,7 @@ public class MealsCommandHandler : ICommandHandler
             ? "📋 No meals yet. Create one with [➕ New Meal]!"
             : $"📋 Meals ({meals.Count}):";
 
-        await this.botClient.SendTextMessageAsync(
+        await this.botClient.SendMessage(
             message.Chat.Id,
             text,
             replyMarkup: markup,

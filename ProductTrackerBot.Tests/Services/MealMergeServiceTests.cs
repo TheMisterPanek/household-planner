@@ -1,3 +1,4 @@
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Services;
 

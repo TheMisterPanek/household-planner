@@ -24,6 +24,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
     private readonly GroupRepository groupRepository;
     private readonly IHistoryRepository historyRepository;
     private readonly PendingDialogService<PriceCaptureDialogState> priceDialogService;
+    private readonly PurchaseHistoryRepository purchaseRepository;
     private readonly ILocalizer localizer;
     private readonly ILogger<ShopDoneCallbackHandler> logger;
 
@@ -36,6 +37,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
     /// <param name="groupRepository">The group repository.</param>
     /// <param name="historyRepository">The history repository.</param>
     /// <param name="priceDialogService">The price-capture dialog state service.</param>
+    /// <param name="purchaseRepository">The purchase history repository.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="logger">The logger.</param>
     public ShopDoneCallbackHandler(
@@ -45,6 +47,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
         GroupRepository groupRepository,
         IHistoryRepository historyRepository,
         PendingDialogService<PriceCaptureDialogState> priceDialogService,
+        PurchaseHistoryRepository purchaseRepository,
         ILocalizer localizer,
         ILogger<ShopDoneCallbackHandler> logger)
     {
@@ -54,6 +57,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
         this.groupRepository = groupRepository;
         this.historyRepository = historyRepository;
         this.priceDialogService = priceDialogService;
+        this.purchaseRepository = purchaseRepository;
         this.localizer = localizer;
         this.logger = logger;
     }
@@ -125,25 +129,43 @@ public class ShopDoneCallbackHandler : ICallbackHandler
             this.logger.LogWarning(ex, "Failed to record history for ItemBought");
         }
 
-        // Start price-capture dialog
-        this.priceDialogService.SetState(
-            callbackQuery.Message.Chat.Id,
-            callbackQuery.From.Id,
-            new PriceCaptureDialogState
-            {
-                Step = 1,
-                ItemName = item.Name,
-                Quantity = item.Quantity,
-                BoughtByName = displayName ?? "Unknown",
-            });
+        // Fetch top shops for suggestions
+        var group = await this.groupRepository.GetOrCreateAsync(callbackQuery.Message.Chat.Id);
+        var topShops = await this.purchaseRepository.GetTopShopsAsync(group.Id, callbackQuery.From.Id, 5);
 
-        var skipStoreButton = InlineKeyboardButton.WithCallbackData("Skip", "price:skip_store");
+        // Start price-capture dialog
+        var state = new PriceCaptureDialogState
+        {
+            Step = 1,
+            ItemName = item.Name,
+            Quantity = item.Quantity,
+            BoughtByName = displayName ?? "Unknown",
+            TopShops = topShops.Count > 0 ? new List<string>(topShops) : null,
+        };
+        this.priceDialogService.SetState(callbackQuery.Message.Chat.Id, callbackQuery.From.Id, state);
+
+        // Build keyboard with shop suggestion buttons and Skip button
+        var keyboard = BuildShopKeyboard(topShops);
 
         await this.botClient.SendMessage(
             chatId: callbackQuery.Message.Chat.Id,
             text: $"📍 Where did you buy {item.Name}?",
-            replyMarkup: new InlineKeyboardMarkup(new[] { new[] { skipStoreButton } }),
+            replyMarkup: keyboard,
             cancellationToken: cancellationToken);
+    }
+
+    private static InlineKeyboardMarkup BuildShopKeyboard(IReadOnlyList<string> topShops)
+    {
+        var rows = new List<InlineKeyboardButton[]>();
+
+        for (int i = 0; i < topShops.Count; i++)
+        {
+            rows.Add(new[] { InlineKeyboardButton.WithCallbackData(topShops[i], $"price:shop:{i}") });
+        }
+
+        rows.Add(new[] { InlineKeyboardButton.WithCallbackData("Skip", "price:skip_store") });
+
+        return new InlineKeyboardMarkup(rows);
     }
 
     private async Task UpdateListMessageAsync(long chatId, int messageId, CancellationToken cancellationToken)

@@ -56,7 +56,7 @@ public class LanguageSelectionHandlerTests
         var mockLogger = new Mock<ILogger<LanguageSelectionHandler>>();
 
         mockLocalizer
-            .Setup(l => l.GetAsync(200L, "language_saved", It.IsAny<CancellationToken>()))
+            .Setup(l => l.Get(200L, "language_saved"))
             .ReturnsAsync("Language saved");
 
         var handler = new LanguageSelectionHandler(
@@ -83,7 +83,7 @@ public class LanguageSelectionHandlerTests
         var mockLogger = new Mock<ILogger<LanguageSelectionHandler>>();
 
         mockLocalizer
-            .Setup(l => l.GetAsync(200L, "language_saved", It.IsAny<CancellationToken>()))
+            .Setup(l => l.Get(200L, "language_saved"))
             .ReturnsAsync("Language saved");
 
         var handler = new LanguageSelectionHandler(
@@ -118,7 +118,7 @@ public class LanguageSelectionHandlerTests
         var mockLogger = new Mock<ILogger<LanguageSelectionHandler>>();
 
         mockLocalizer
-            .Setup(l => l.GetAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Preference saved");
 
         var handler = new LanguageSelectionHandler(

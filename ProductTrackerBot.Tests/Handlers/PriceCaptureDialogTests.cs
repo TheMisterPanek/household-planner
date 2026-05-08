@@ -1,3 +1,4 @@
+using ProductTrackerBot.Localization;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -86,6 +87,10 @@ public class PriceCaptureDialogTests
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file:test");
+        purchaseRepo.Setup(r => r.GetTopShopsAsync(It.IsAny<int>(), It.IsAny<long>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<string>());
+
         var priceDialogService = new PendingDialogService<PriceCaptureDialogState>();
 
         var handler = new ShopDoneCallbackHandler(
@@ -95,6 +100,8 @@ public class PriceCaptureDialogTests
             groupRepo.Object,
             historyMock.Object,
             priceDialogService,
+            purchaseRepo.Object,
+            Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<ShopDoneCallbackHandler>>());
 
         var callback = CreateCallback("shop:done:1");
@@ -337,5 +344,305 @@ public class PriceCaptureDialogTests
         bot.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r => r.Text!.Contains("✓ Milk recorded")),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ShopDoneCallbackHandler_Fetches_Top_Shops_And_Stores_In_State()
+    {
+        // Arrange
+        var bot = CreateBotMock();
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file:test");
+        itemRepo.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Milk", Quantity = "2л", AddedByName = "Alice" });
+        itemRepo.Setup(r => r.DeleteAsync(1)).Returns(Task.CompletedTask);
+
+        var listService = new Mock<ShoppingListService>(
+            CreateGroupRepoMock().Object,
+            new Mock<ShoppingItemRepository>("Data Source=file:test").Object);
+        listService.Setup(s => s.BuildListAsync(-100L))
+            .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
+
+        var groupRepo = CreateGroupRepoMock();
+        groupRepo.Setup(r => r.UpdateListMessageIdAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .Returns(Task.CompletedTask);
+
+        var historyMock = new Mock<IHistoryRepository>();
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file:test");
+        purchaseRepo.Setup(r => r.GetTopShopsAsync(10, 42, 5))
+            .ReturnsAsync(new List<string> { "Carrefour", "Stokrotka" });
+
+        var priceDialogService = new PendingDialogService<PriceCaptureDialogState>();
+
+        var handler = new ShopDoneCallbackHandler(
+            bot.Object,
+            itemRepo.Object,
+            listService.Object,
+            groupRepo.Object,
+            historyMock.Object,
+            priceDialogService,
+            purchaseRepo.Object,
+            Mock.Of<ILocalizer>(),
+            Mock.Of<ILogger<ShopDoneCallbackHandler>>());
+
+        var callback = CreateCallback("shop:done:1");
+
+        // Act
+        await handler.HandleAsync(callback, CancellationToken.None);
+
+        // Assert - top shops fetched and stored in state
+        var state = priceDialogService.GetState(-100L, 42L);
+        Assert.NotNull(state);
+        Assert.NotNull(state!.TopShops);
+        Assert.Equal(2, state.TopShops.Count);
+        Assert.Equal("Carrefour", state.TopShops[0]);
+        Assert.Equal("Stokrotka", state.TopShops[1]);
+    }
+
+    [Fact]
+    public async Task ShopDoneCallbackHandler_Creates_Shop_Buttons_From_TopShops()
+    {
+        // Arrange
+        var bot = CreateBotMock();
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file:test");
+        itemRepo.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Milk", Quantity = "2л", AddedByName = "Alice" });
+        itemRepo.Setup(r => r.DeleteAsync(1)).Returns(Task.CompletedTask);
+
+        var listService = new Mock<ShoppingListService>(
+            CreateGroupRepoMock().Object,
+            new Mock<ShoppingItemRepository>("Data Source=file:test").Object);
+        listService.Setup(s => s.BuildListAsync(-100L))
+            .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
+
+        var groupRepo = CreateGroupRepoMock();
+        groupRepo.Setup(r => r.UpdateListMessageIdAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .Returns(Task.CompletedTask);
+
+        var historyMock = new Mock<IHistoryRepository>();
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file:test");
+        purchaseRepo.Setup(r => r.GetTopShopsAsync(10, 42, 5))
+            .ReturnsAsync(new List<string> { "Carrefour", "Stokrotka" });
+
+        var priceDialogService = new PendingDialogService<PriceCaptureDialogState>();
+
+        var handler = new ShopDoneCallbackHandler(
+            bot.Object,
+            itemRepo.Object,
+            listService.Object,
+            groupRepo.Object,
+            historyMock.Object,
+            priceDialogService,
+            purchaseRepo.Object,
+            Mock.Of<ILocalizer>(),
+            Mock.Of<ILogger<ShopDoneCallbackHandler>>());
+
+        var callback = CreateCallback("shop:done:1");
+
+        // Act
+        await handler.HandleAsync(callback, CancellationToken.None);
+
+        // Assert - message with shop buttons was sent
+        bot.Verify(b => b.SendRequest(
+            It.Is<SendMessageRequest>(r =>
+                r.Text!.Contains("📍 Where did you buy Milk") &&
+                r.ReplyMarkup != null &&
+                ((InlineKeyboardMarkup?)r.ReplyMarkup)!.InlineKeyboard.Count == 3), // 2 shops + skip button
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ShopDoneCallbackHandler_With_No_Top_Shops_Shows_Only_Skip_Button()
+    {
+        // Arrange
+        var bot = CreateBotMock();
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file:test");
+        itemRepo.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Milk", Quantity = "2л", AddedByName = "Alice" });
+        itemRepo.Setup(r => r.DeleteAsync(1)).Returns(Task.CompletedTask);
+
+        var listService = new Mock<ShoppingListService>(
+            CreateGroupRepoMock().Object,
+            new Mock<ShoppingItemRepository>("Data Source=file:test").Object);
+        listService.Setup(s => s.BuildListAsync(-100L))
+            .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
+
+        var groupRepo = CreateGroupRepoMock();
+        groupRepo.Setup(r => r.UpdateListMessageIdAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .Returns(Task.CompletedTask);
+
+        var historyMock = new Mock<IHistoryRepository>();
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file:test");
+        purchaseRepo.Setup(r => r.GetTopShopsAsync(10, 42, 5))
+            .ReturnsAsync(new List<string>());
+
+        var priceDialogService = new PendingDialogService<PriceCaptureDialogState>();
+
+        var handler = new ShopDoneCallbackHandler(
+            bot.Object,
+            itemRepo.Object,
+            listService.Object,
+            groupRepo.Object,
+            historyMock.Object,
+            priceDialogService,
+            purchaseRepo.Object,
+            Mock.Of<ILocalizer>(),
+            Mock.Of<ILogger<ShopDoneCallbackHandler>>());
+
+        var callback = CreateCallback("shop:done:1");
+
+        // Act
+        await handler.HandleAsync(callback, CancellationToken.None);
+
+        // Assert - message with only skip button was sent
+        bot.Verify(b => b.SendRequest(
+            It.Is<SendMessageRequest>(r =>
+                r.Text!.Contains("📍 Where did you buy Milk") &&
+                r.ReplyMarkup != null &&
+                ((InlineKeyboardMarkup?)r.ReplyMarkup)!.InlineKeyboard.Count == 1), // only skip button
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PriceShopSuggestionCallbackHandler_Tapping_Shop_Button_Sets_StoreName_And_Advances_To_Step2()
+    {
+        // Arrange
+        var bot = CreateBotMock();
+        var dialogService = new PendingDialogService<PriceCaptureDialogState>();
+        dialogService.SetState(-100L, 42L, new PriceCaptureDialogState
+        {
+            Step = 1,
+            ItemName = "Milk",
+            Quantity = "2л",
+            BoughtByName = "Alice",
+            TopShops = new List<string> { "Carrefour", "Stokrotka" },
+        });
+
+        var handler = new PriceShopSuggestionCallbackHandler(
+            bot.Object,
+            dialogService,
+            Mock.Of<ILogger<PriceShopSuggestionCallbackHandler>>());
+
+        var callback = CreateCallback("price:shop:0");
+
+        // Act
+        await handler.HandleAsync(callback, CancellationToken.None);
+
+        // Assert - store name set and advanced to step 2
+        var state = dialogService.GetState(-100L, 42L);
+        Assert.NotNull(state);
+        Assert.Equal(2, state!.Step);
+        Assert.Equal("Carrefour", state.StoreName);
+
+        // Assert - price prompt sent
+        bot.Verify(b => b.SendRequest(
+            It.Is<SendMessageRequest>(r =>
+                r.Text!.Contains("💰 Price for Milk") &&
+                r.ReplyMarkup != null),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PriceCaptureStepHandler_Fallback_To_Custom_Shop_Name_When_User_Types_Text()
+    {
+        // Arrange
+        var bot = CreateBotMock();
+        var dialogService = new PendingDialogService<PriceCaptureDialogState>();
+        dialogService.SetState(-100L, 42L, new PriceCaptureDialogState
+        {
+            Step = 1,
+            ItemName = "Milk",
+            Quantity = "2л",
+            BoughtByName = "Alice",
+            TopShops = new List<string> { "Carrefour", "Stokrotka" },
+        });
+
+        var handler = new PriceCaptureStepHandler(
+            bot.Object,
+            dialogService,
+            CreatePurchaseRepoMock().Object,
+            CreateGroupRepoMock().Object,
+            Mock.Of<ILogger<PriceCaptureStepHandler>>());
+
+        var message = DeserializeMessage(
+            "{\"message_id\":10,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100,\"type\":\"supergroup\"},\"text\":\"MyCustomShop\"}");
+
+        // Act
+        await handler.HandleAsync(message, CancellationToken.None);
+
+        // Assert - custom shop name saved, suggestions ignored
+        var state = dialogService.GetState(-100L, 42L);
+        Assert.NotNull(state);
+        Assert.Equal(2, state!.Step);
+        Assert.Equal("MyCustomShop", state.StoreName);
+
+        // Assert - price prompt sent
+        bot.Verify(b => b.SendRequest(
+            It.Is<SendMessageRequest>(r => r.Text!.Contains("💰 Price for Milk")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ShopDoneCallbackHandler_Handles_Long_Shop_Names_With_Truncation()
+    {
+        // Arrange
+        var bot = CreateBotMock();
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file:test");
+        itemRepo.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Milk", Quantity = "2л", AddedByName = "Alice" });
+        itemRepo.Setup(r => r.DeleteAsync(1)).Returns(Task.CompletedTask);
+
+        var listService = new Mock<ShoppingListService>(
+            CreateGroupRepoMock().Object,
+            new Mock<ShoppingItemRepository>("Data Source=file:test").Object);
+        listService.Setup(s => s.BuildListAsync(-100L))
+            .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
+
+        var groupRepo = CreateGroupRepoMock();
+        groupRepo.Setup(r => r.UpdateListMessageIdAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .Returns(Task.CompletedTask);
+
+        var historyMock = new Mock<IHistoryRepository>();
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var longShopName = new string('A', 40);
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file:test");
+        purchaseRepo.Setup(r => r.GetTopShopsAsync(10, 42, 5))
+            .ReturnsAsync(new List<string> { longShopName, "Short" });
+
+        var priceDialogService = new PendingDialogService<PriceCaptureDialogState>();
+
+        var handler = new ShopDoneCallbackHandler(
+            bot.Object,
+            itemRepo.Object,
+            listService.Object,
+            groupRepo.Object,
+            historyMock.Object,
+            priceDialogService,
+            purchaseRepo.Object,
+            Mock.Of<ILocalizer>(),
+            Mock.Of<ILogger<ShopDoneCallbackHandler>>());
+
+        var callback = CreateCallback("shop:done:1");
+
+        // Act
+        await handler.HandleAsync(callback, CancellationToken.None);
+
+        // Assert - long shop name truncated in state
+        var state = priceDialogService.GetState(-100L, 42L);
+        Assert.NotNull(state);
+        Assert.NotNull(state!.TopShops);
+        Assert.Equal(2, state.TopShops.Count);
+        Assert.True(state.TopShops[0].Length <= 31); // 30 chars + ellipsis
+        Assert.EndsWith("…", state.TopShops[0]);
     }
 }

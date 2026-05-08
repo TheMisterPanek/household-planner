@@ -29,6 +29,7 @@ public class PurchaseHistoryRepositoryTests : IDisposable
             CREATE TABLE IF NOT EXISTS PurchaseHistory (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 GroupId INTEGER NOT NULL REFERENCES Groups(Id),
+                UserId INTEGER NOT NULL,
                 ItemName TEXT NOT NULL,
                 Quantity TEXT,
                 StoreName TEXT,
@@ -161,14 +162,117 @@ public class PurchaseHistoryRepositoryTests : IDisposable
         Assert.Empty(results);
     }
 
-    private async Task InsertRecordAsync(int groupId, string itemName, string boughtByName, DateTime? purchasedAt = null)
+    [Fact]
+    public async Task GetTopShopsAsync_Returns_Shops_Ordered_By_Frequency()
+    {
+        await InsertRecordWithShopAsync(1, "Milk", "Alice", "Carrefour", userId: 10);
+        await InsertRecordWithShopAsync(1, "Bread", "Alice", "Carrefour", userId: 10);
+        await InsertRecordWithShopAsync(1, "Butter", "Alice", "Stokrotka", userId: 10);
+        await InsertRecordWithShopAsync(1, "Cheese", "Alice", "Decathlon", userId: 10);
+
+        var shops = await this.repository.GetTopShopsAsync(1, 10, 5);
+
+        Assert.Equal(3, shops.Count);
+        Assert.Equal("Carrefour", shops[0]);
+        Assert.Equal("Stokrotka", shops[1]);
+        Assert.Equal("Decathlon", shops[2]);
+    }
+
+    [Fact]
+    public async Task GetTopShopsAsync_Breaks_Frequency_Ties_By_Most_Recent_PurchasedAt()
+    {
+        var date1 = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
+        var date2 = new DateTime(2026, 5, 2, 12, 0, 0, DateTimeKind.Utc);
+        var date3 = new DateTime(2026, 5, 3, 12, 0, 0, DateTimeKind.Utc);
+        var date4 = new DateTime(2026, 5, 4, 12, 0, 0, DateTimeKind.Utc);
+
+        await InsertRecordWithShopAsync(1, "Milk", "Alice", "Shop A", date1, userId: 10);
+        await InsertRecordWithShopAsync(1, "Bread", "Alice", "Shop A", date2, userId: 10);
+        await InsertRecordWithShopAsync(1, "Butter", "Alice", "Shop B", date3, userId: 10);
+        await InsertRecordWithShopAsync(1, "Cheese", "Alice", "Shop B", date4, userId: 10);
+
+        var shops = await this.repository.GetTopShopsAsync(1, 10, 5);
+
+        Assert.Equal(2, shops.Count);
+        Assert.Equal("Shop B", shops[0]);
+        Assert.Equal("Shop A", shops[1]);
+    }
+
+    [Fact]
+    public async Task GetTopShopsAsync_Excludes_Null_StoreName_Values()
+    {
+        await InsertRecordAsync(1, "Milk", "Alice", userId: 10);
+        await InsertRecordWithShopAsync(1, "Bread", "Alice", "Carrefour", userId: 10);
+
+        var shops = await this.repository.GetTopShopsAsync(1, 10, 5);
+
+        Assert.Single(shops);
+        Assert.Equal("Carrefour", shops[0]);
+    }
+
+    [Fact]
+    public async Task GetTopShopsAsync_Respects_Limit_Parameter()
+    {
+        await InsertRecordWithShopAsync(1, "Milk", "Alice", "Shop A", userId: 10);
+        await InsertRecordWithShopAsync(1, "Bread", "Alice", "Shop B", userId: 10);
+        await InsertRecordWithShopAsync(1, "Butter", "Alice", "Shop C", userId: 10);
+        await InsertRecordWithShopAsync(1, "Cheese", "Alice", "Shop D", userId: 10);
+        await InsertRecordWithShopAsync(1, "Eggs", "Alice", "Shop E", userId: 10);
+
+        var shops = await this.repository.GetTopShopsAsync(1, 10, 3);
+
+        Assert.Equal(3, shops.Count);
+    }
+
+    [Fact]
+    public async Task GetTopShopsAsync_Returns_Empty_List_When_User_Has_No_Purchases_In_Group()
+    {
+        await InsertRecordWithShopAsync(1, "Milk", "Alice", "Carrefour", userId: 10);
+
+        var shops = await this.repository.GetTopShopsAsync(1, 999, 5);
+
+        Assert.Empty(shops);
+    }
+
+    [Fact]
+    public async Task GetTopShopsAsync_Is_Scoped_To_GroupId_And_UserId()
+    {
+        await InsertRecordWithShopAsync(1, "Milk", "Alice", "Carrefour", userId: 10);
+        await InsertRecordWithShopAsync(2, "Bread", "Bob", "Stokrotka", userId: 20);
+
+        var shops1 = await this.repository.GetTopShopsAsync(1, 10, 5);
+        var shops2 = await this.repository.GetTopShopsAsync(2, 20, 5);
+
+        Assert.Single(shops1);
+        Assert.Equal("Carrefour", shops1[0]);
+        Assert.Single(shops2);
+        Assert.Equal("Stokrotka", shops2[0]);
+    }
+
+    private async Task InsertRecordAsync(int groupId, string itemName, string boughtByName, DateTime? purchasedAt = null, long userId = 123)
     {
         await using var cmd = this.connection.CreateCommand();
         cmd.CommandText = @"
-            INSERT INTO PurchaseHistory (GroupId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName)
-            VALUES (@groupId, @itemName, NULL, NULL, NULL, @purchasedAt, @boughtByName)";
+            INSERT INTO PurchaseHistory (GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName)
+            VALUES (@groupId, @userId, @itemName, NULL, NULL, NULL, @purchasedAt, @boughtByName)";
         cmd.Parameters.AddWithValue("@groupId", groupId);
+        cmd.Parameters.AddWithValue("@userId", userId);
         cmd.Parameters.AddWithValue("@itemName", itemName);
+        cmd.Parameters.AddWithValue("@purchasedAt", (purchasedAt ?? DateTime.UtcNow).ToString("O"));
+        cmd.Parameters.AddWithValue("@boughtByName", boughtByName);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    private async Task InsertRecordWithShopAsync(int groupId, string itemName, string boughtByName, string storeName, DateTime? purchasedAt = null, long userId = 123)
+    {
+        await using var cmd = this.connection.CreateCommand();
+        cmd.CommandText = @"
+            INSERT INTO PurchaseHistory (GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName)
+            VALUES (@groupId, @userId, @itemName, NULL, @storeName, NULL, @purchasedAt, @boughtByName)";
+        cmd.Parameters.AddWithValue("@groupId", groupId);
+        cmd.Parameters.AddWithValue("@userId", userId);
+        cmd.Parameters.AddWithValue("@itemName", itemName);
+        cmd.Parameters.AddWithValue("@storeName", storeName);
         cmd.Parameters.AddWithValue("@purchasedAt", (purchasedAt ?? DateTime.UtcNow).ToString("O"));
         cmd.Parameters.AddWithValue("@boughtByName", boughtByName);
         await cmd.ExecuteNonQueryAsync();

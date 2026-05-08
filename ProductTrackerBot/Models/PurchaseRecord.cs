@@ -20,6 +20,11 @@ public class PurchaseRecord
     public int GroupId { get; set; }
 
     /// <summary>
+    /// Gets or sets the Telegram user ID.
+    /// </summary>
+    public long UserId { get; set; }
+
+    /// <summary>
     /// Gets or sets the item name.
     /// </summary>
     public string ItemName { get; set; } = string.Empty;

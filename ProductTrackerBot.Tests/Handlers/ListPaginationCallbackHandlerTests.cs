@@ -1,3 +1,4 @@
+using ProductTrackerBot.Localization;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -53,8 +54,8 @@ public class ListPaginationCallbackHandlerTests
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object);
-        var handler = new ListPrevCallbackHandler(bot, listService, groupRepo.Object, Mock.Of<ILogger<ListPrevCallbackHandler>>());
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
+        var handler = new ListPrevCallbackHandler(bot, listService, groupRepo.Object, Mock.Of<IHistoryRepository>(), Mock.Of<ILogger<ListPrevCallbackHandler>>());
         return (handler, null);
     }
 
@@ -69,8 +70,8 @@ public class ListPaginationCallbackHandlerTests
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object);
-        return new ListNextCallbackHandler(bot, listService, groupRepo.Object, Mock.Of<ILogger<ListNextCallbackHandler>>());
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
+        return new ListNextCallbackHandler(bot, listService, groupRepo.Object, Mock.Of<IHistoryRepository>(), Mock.Of<ILogger<ListNextCallbackHandler>>());
     }
 
     [Fact]

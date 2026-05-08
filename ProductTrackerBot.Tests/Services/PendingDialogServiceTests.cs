@@ -1,3 +1,4 @@
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Services;
 
 namespace ProductTrackerBot.Tests.Services;
