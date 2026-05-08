@@ -1,4 +1,6 @@
-.PHONY: run build test up down logs restart
+.PHONY: run build test up down logs restart deploy
+
+COMPOSE := $(shell which podman > /dev/null 2>&1 && echo "podman compose" || echo "docker compose")
 
 run:
 	dotnet run --project ProductTrackerBot
@@ -10,13 +12,16 @@ test:
 	dotnet test
 
 up:
-	docker compose up --build -d
+	$(COMPOSE) up --build -d
 
 down:
-	docker compose down
+	$(COMPOSE) down
 
 logs:
-	docker compose logs -f
+	$(COMPOSE) logs -f
 
 restart:
-	docker compose up --build -d --force-recreate
+	$(COMPOSE) up --build -d --force-recreate
+
+deploy:
+	git push

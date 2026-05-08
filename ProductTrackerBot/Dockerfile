@@ -9,19 +9,12 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /src
 
-# Copy the project file
+# Restore packages (separate layer for cache)
 COPY ProductTrackerBot.csproj .
-COPY TrimmerRoots.xml .
-COPY .editorconfig .
-
-# Restore packages
 RUN dotnet restore ProductTrackerBot.csproj
 
-# Copy source code
-COPY Program.cs .
-COPY BotConfiguration.cs .
-COPY BotHostedService.cs .
-COPY UpdateHandler.cs .
+# Copy all source files
+COPY . .
 
 # Publish as AOT binary
 RUN dotnet publish -c Release -r linux-x64 --self-contained /p:PublishAot=true
