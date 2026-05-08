@@ -31,7 +31,7 @@ When one or more conflicts exist, the system SHALL send a conflict-resolution me
 ---
 
 ### Requirement: Each conflict is resolved independently via inline buttons
-Tapping [✓ Skip] for a conflict marks that ingredient as skipped (not added). Tapping [+ Add anyway] inserts the ingredient into `ShoppingItems`. After each button tap the conflict message is edited to remove the resolved row from the keyboard.
+The system SHALL allow each conflict to be resolved independently via inline buttons. Tapping [✓ Skip] for a conflict marks that ingredient as skipped (not added). Tapping [+ Add anyway] inserts the ingredient into `ShoppingItems`. After each button tap the conflict message is edited to remove the resolved row from the keyboard.
 
 #### Scenario: User skips a conflict
 - **WHEN** a user taps [✓ Skip] for "Milk"

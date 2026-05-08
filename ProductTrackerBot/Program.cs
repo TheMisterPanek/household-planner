@@ -66,6 +66,9 @@ builder.Services.AddHostedService<BotHostedService>();
 // Register dialog state services
 builder.Services.AddSingleton<PendingDialogService<BuyDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<PriceCaptureDialogState>>();
+builder.Services.AddSingleton<PendingDialogService<MealCreateDialogState>>();
+builder.Services.AddSingleton<PendingDialogService<MealAddIngredientDialogState>>();
+builder.Services.AddSingleton<PendingDialogService<MealAddStepDialogState>>();
 
 // Register repositories
 builder.Services.AddScoped<GroupRepository>();
@@ -73,10 +76,14 @@ builder.Services.AddScoped<ShoppingItemRepository>();
 builder.Services.AddSingleton<IHistoryRepository, HistoryRepository>();
 builder.Services.AddScoped<PurchaseHistoryRepository>();
 builder.Services.AddSingleton<IPreferenceRepository, PreferenceRepository>();
+builder.Services.AddScoped<MealRepository>();
+builder.Services.AddScoped<MealIngredientRepository>();
+builder.Services.AddScoped<MealStepRepository>();
 
 // Register services
 builder.Services.AddScoped<ShoppingListService>();
 builder.Services.AddSingleton<ILocalizer, Localizer>();
+builder.Services.AddSingleton<MealMergeService>();
 
 // Register command handlers
 builder.Services.AddScoped<ICommandHandler, BuyCommandHandler>();
@@ -84,10 +91,12 @@ builder.Services.AddScoped<ICommandHandler, ListCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, HistoryCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, SearchCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, SettingsCommandHandler>();
+builder.Services.AddScoped<ICommandHandler, MealsCommandHandler>();
 
 // Register dialog message handlers
 builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler, PriceCaptureStepHandler>();
+builder.Services.AddScoped<IDialogMessageHandler, MealDialogStepHandler>();
 
 // Register callback handlers
 builder.Services.AddScoped<ICallbackHandler, BuySkipCallbackHandler>();
@@ -95,6 +104,7 @@ builder.Services.AddScoped<ICallbackHandler, ShopDoneCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopRemoveCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, PriceSkipCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, LanguageSelectionHandler>();
+builder.Services.AddScoped<ICallbackHandler, MealCallbackHandler>();
 
 var host = builder.Build();
 await host.RunAsync();

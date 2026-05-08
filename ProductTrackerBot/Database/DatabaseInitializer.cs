@@ -102,6 +102,41 @@ public class DatabaseInitializer : IHostedService
         cmd5.CommandText = createUserPreferences;
         await cmd5.ExecuteNonQueryAsync(cancellationToken);
 
+        var createMeals = @"
+            CREATE TABLE IF NOT EXISTS Meals (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                GroupId INTEGER NOT NULL REFERENCES Groups(Id),
+                Name TEXT NOT NULL
+            );";
+
+        await using var cmd6 = connection.CreateCommand();
+        cmd6.CommandText = createMeals;
+        await cmd6.ExecuteNonQueryAsync(cancellationToken);
+
+        var createMealIngredients = @"
+            CREATE TABLE IF NOT EXISTS MealIngredients (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                MealId INTEGER NOT NULL REFERENCES Meals(Id) ON DELETE CASCADE,
+                Name TEXT NOT NULL,
+                Quantity TEXT
+            );";
+
+        await using var cmd7 = connection.CreateCommand();
+        cmd7.CommandText = createMealIngredients;
+        await cmd7.ExecuteNonQueryAsync(cancellationToken);
+
+        var createMealSteps = @"
+            CREATE TABLE IF NOT EXISTS MealSteps (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                MealId INTEGER NOT NULL REFERENCES Meals(Id) ON DELETE CASCADE,
+                StepNumber INTEGER NOT NULL,
+                Text TEXT NOT NULL
+            );";
+
+        await using var cmd8 = connection.CreateCommand();
+        cmd8.CommandText = createMealSteps;
+        await cmd8.ExecuteNonQueryAsync(cancellationToken);
+
         this.logger.LogInformation("Database schema initialized successfully");
     }
 
