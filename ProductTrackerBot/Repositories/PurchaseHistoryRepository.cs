@@ -35,8 +35,8 @@ public class PurchaseHistoryRepository
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = @"
-            INSERT INTO PurchaseHistory (GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName)
-            VALUES (@groupId, @userId, @itemName, @quantity, @storeName, @price, @purchasedAt, @boughtByName);
+            INSERT INTO PurchaseHistory (GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName, exp_date)
+            VALUES (@groupId, @userId, @itemName, @quantity, @storeName, @price, @purchasedAt, @boughtByName, @expDate);
             SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("@groupId", record.GroupId);
         cmd.Parameters.AddWithValue("@userId", record.UserId);
@@ -46,6 +46,7 @@ public class PurchaseHistoryRepository
         cmd.Parameters.AddWithValue("@price", (object?)record.Price ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@purchasedAt", record.PurchasedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@boughtByName", record.BoughtByName);
+        cmd.Parameters.AddWithValue("@expDate", record.ExpDate.HasValue ? record.ExpDate.Value.ToString("yyyy-MM-dd") : (object?)DBNull.Value);
 
         var newId = (long)(await cmd.ExecuteScalarAsync())!;
         record.Id = (int)newId;
@@ -133,5 +134,36 @@ public class PurchaseHistoryRepository
             .Where(r => r.ItemName.Contains(query, StringComparison.OrdinalIgnoreCase))
             .ToList()
             .AsReadOnly();
+    }
+
+    /// <summary>
+    /// Retrieves all bought items with non-null expiry dates for a group.
+    /// </summary>
+    /// <param name="groupId">The group ID to filter by.</param>
+    /// <returns>A read-only list of tuples (ItemName, Quantity, ExpDate) for items with expiry dates.</returns>
+    public virtual async Task<IReadOnlyList<(string ItemName, string? Quantity, DateOnly ExpDate)>> GetItemsWithExpiryAsync(int groupId)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT ItemName, Quantity, exp_date
+            FROM PurchaseHistory
+            WHERE GroupId = @groupId AND exp_date IS NOT NULL
+            ORDER BY exp_date ASC";
+        cmd.Parameters.AddWithValue("@groupId", groupId);
+
+        var items = new List<(string, string?, DateOnly)>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var itemName = reader.GetString(0);
+            var quantity = reader.IsDBNull(1) ? null : reader.GetString(1);
+            var expDate = DateOnly.ParseExact(reader.GetString(2), "yyyy-MM-dd");
+            items.Add((itemName, quantity, expDate));
+        }
+
+        return items.AsReadOnly();
     }
 }

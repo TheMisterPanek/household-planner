@@ -181,6 +181,20 @@ public class DatabaseInitializer : IHostedService
             this.logger.LogInformation("exp_date column already exists on ShoppingItems table");
         }
 
+        // Migrate PurchaseHistory table: add exp_date column if it doesn't exist
+        try
+        {
+            await using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE PurchaseHistory ADD COLUMN exp_date TEXT NULL";
+            await alterCmd.ExecuteNonQueryAsync(cancellationToken);
+            this.logger.LogInformation("Added exp_date column to PurchaseHistory table");
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 1)
+        {
+            // Column already exists or duplicate column name, ignore
+            this.logger.LogInformation("exp_date column already exists on PurchaseHistory table");
+        }
+
         this.logger.LogInformation("Database schema initialized successfully");
     }
 

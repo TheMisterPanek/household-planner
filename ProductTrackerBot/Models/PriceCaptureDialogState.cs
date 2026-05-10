@@ -11,7 +11,7 @@ public class PriceCaptureDialogState
 {
     /// <summary>
     /// Gets or sets the current dialog step.
-    /// 1 = awaiting store name, 2 = awaiting price.
+    /// 1 = awaiting store name, 2 = awaiting price, 3 = awaiting expiry date.
     /// </summary>
     public int Step { get; set; }
 
@@ -39,4 +39,14 @@ public class PriceCaptureDialogState
     /// Gets or sets the top shops suggested from purchase history for step 1.
     /// </summary>
     public List<string>? TopShops { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional price (filled at step 2).
+    /// </summary>
+    public decimal? Price { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional expiry date of the purchased item (filled at step 3).
+    /// </summary>
+    public DateOnly? ExpDate { get; set; }
 }

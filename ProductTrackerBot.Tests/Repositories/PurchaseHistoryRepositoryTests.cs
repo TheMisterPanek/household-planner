@@ -36,7 +36,8 @@ public class PurchaseHistoryRepositoryTests : IDisposable
                 StoreName TEXT,
                 Price REAL,
                 PurchasedAt TEXT NOT NULL,
-                BoughtByName TEXT NOT NULL
+                BoughtByName TEXT NOT NULL,
+                exp_date TEXT NULL
             );";
         cmd.ExecuteNonQuery();
 
@@ -276,6 +277,120 @@ public class PurchaseHistoryRepositoryTests : IDisposable
         Assert.Equal("Żółty", results[0].ItemName);
     }
 
+    [Fact]
+    public async Task AddAsync_Saves_ExpDate_When_Set()
+    {
+        var expDate = new DateOnly(2026, 6, 15);
+        var record = new PurchaseRecord
+        {
+            GroupId = 1,
+            ItemName = "Yogurt",
+            Quantity = "400g",
+            StoreName = "Carrefour",
+            Price = 45.50m,
+            PurchasedAt = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc),
+            BoughtByName = "Alice",
+            ExpDate = expDate,
+        };
+
+        var saved = await this.repository.AddAsync(record);
+
+        Assert.NotEqual(0, saved.Id);
+        Assert.Equal(expDate, saved.ExpDate);
+    }
+
+    [Fact]
+    public async Task AddAsync_Saves_ExpDate_As_Null_When_Not_Set()
+    {
+        var record = new PurchaseRecord
+        {
+            GroupId = 1,
+            ItemName = "Bread",
+            Quantity = null,
+            StoreName = "Carrefour",
+            Price = 25.00m,
+            PurchasedAt = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc),
+            BoughtByName = "Bob",
+            ExpDate = null,
+        };
+
+        var saved = await this.repository.AddAsync(record);
+
+        Assert.Null(saved.ExpDate);
+    }
+
+    [Fact]
+    public async Task GetItemsWithExpiryAsync_Returns_Only_Records_With_NonNull_ExpDate()
+    {
+        var expDate = new DateOnly(2026, 6, 15);
+        await InsertRecordWithExpiryAsync(1, "Yogurt", "400g", expDate);
+        await InsertRecordAsync(1, "Bread", "Alice");
+
+        var items = await this.repository.GetItemsWithExpiryAsync(1);
+
+        Assert.Single(items);
+        Assert.Equal("Yogurt", items[0].ItemName);
+        Assert.Equal("400g", items[0].Quantity);
+        Assert.Equal(expDate, items[0].ExpDate);
+    }
+
+    [Fact]
+    public async Task GetItemsWithExpiryAsync_Returns_Empty_When_No_Items_With_Expiry()
+    {
+        await InsertRecordAsync(1, "Bread", "Alice");
+        await InsertRecordAsync(1, "Milk", "Bob");
+
+        var items = await this.repository.GetItemsWithExpiryAsync(1);
+
+        Assert.Empty(items);
+    }
+
+    [Fact]
+    public async Task GetItemsWithExpiryAsync_Is_Scoped_To_GroupId()
+    {
+        var expDate = new DateOnly(2026, 6, 15);
+        await InsertRecordWithExpiryAsync(1, "Yogurt", "400g", expDate);
+        await InsertRecordWithExpiryAsync(2, "Cheese", "200g", expDate);
+
+        var items1 = await this.repository.GetItemsWithExpiryAsync(1);
+        var items2 = await this.repository.GetItemsWithExpiryAsync(2);
+
+        Assert.Single(items1);
+        Assert.Equal("Yogurt", items1[0].ItemName);
+        Assert.Single(items2);
+        Assert.Equal("Cheese", items2[0].ItemName);
+    }
+
+    [Fact]
+    public async Task GetItemsWithExpiryAsync_Returns_Items_Ordered_By_ExpDate_Ascending()
+    {
+        var date1 = new DateOnly(2026, 6, 15);
+        var date2 = new DateOnly(2026, 6, 20);
+        var date3 = new DateOnly(2026, 6, 10);
+        await InsertRecordWithExpiryAsync(1, "Yogurt", "400g", date1);
+        await InsertRecordWithExpiryAsync(1, "Cheese", "200g", date2);
+        await InsertRecordWithExpiryAsync(1, "Milk", "1L", date3);
+
+        var items = await this.repository.GetItemsWithExpiryAsync(1);
+
+        Assert.Equal(3, items.Count);
+        Assert.Equal(date3, items[0].ExpDate);
+        Assert.Equal(date1, items[1].ExpDate);
+        Assert.Equal(date2, items[2].ExpDate);
+    }
+
+    [Fact]
+    public async Task GetItemsWithExpiryAsync_Handles_Null_Quantity()
+    {
+        var expDate = new DateOnly(2026, 6, 15);
+        await InsertRecordWithExpiryAsync(1, "Yogurt", null, expDate);
+
+        var items = await this.repository.GetItemsWithExpiryAsync(1);
+
+        Assert.Single(items);
+        Assert.Null(items[0].Quantity);
+    }
+
     private async Task InsertRecordAsync(int groupId, string itemName, string boughtByName, DateTime? purchasedAt = null, long userId = 123)
     {
         await using var cmd = this.connection.CreateCommand();
@@ -302,6 +417,21 @@ public class PurchaseHistoryRepositoryTests : IDisposable
         cmd.Parameters.AddWithValue("@storeName", storeName);
         cmd.Parameters.AddWithValue("@purchasedAt", (purchasedAt ?? DateTime.UtcNow).ToString("O"));
         cmd.Parameters.AddWithValue("@boughtByName", boughtByName);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    private async Task InsertRecordWithExpiryAsync(int groupId, string itemName, string? quantity, DateOnly expDate, DateTime? purchasedAt = null, long userId = 123)
+    {
+        await using var cmd = this.connection.CreateCommand();
+        cmd.CommandText = @"
+            INSERT INTO PurchaseHistory (GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName, exp_date)
+            VALUES (@groupId, @userId, @itemName, @quantity, NULL, NULL, @purchasedAt, 'TestUser', @expDate)";
+        cmd.Parameters.AddWithValue("@groupId", groupId);
+        cmd.Parameters.AddWithValue("@userId", userId);
+        cmd.Parameters.AddWithValue("@itemName", itemName);
+        cmd.Parameters.AddWithValue("@quantity", quantity ?? (object?)DBNull.Value);
+        cmd.Parameters.AddWithValue("@purchasedAt", (purchasedAt ?? DateTime.UtcNow).ToString("O"));
+        cmd.Parameters.AddWithValue("@expDate", expDate.ToString("yyyy-MM-dd"));
         await cmd.ExecuteNonQueryAsync();
     }
 

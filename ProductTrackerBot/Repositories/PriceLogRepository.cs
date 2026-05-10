@@ -33,7 +33,7 @@ public class PriceLogRepository
     /// <param name="storeName">The store name (optional).</param>
     /// <param name="loggedAt">The date and time the price was logged.</param>
     /// <returns>The created PriceLogEntry with its assigned Id.</returns>
-    public async Task<PriceLogEntry> AddAsync(int groupId, string itemName, decimal price, string? storeName, DateTime loggedAt)
+    public virtual async Task<PriceLogEntry> AddAsync(int groupId, string itemName, decimal price, string? storeName, DateTime loggedAt)
     {
         await using var connection = new SqliteConnection(this.connectionString);
         await connection.OpenAsync();
@@ -67,7 +67,7 @@ public class PriceLogRepository
     /// <param name="groupId">The group to search within.</param>
     /// <param name="itemName">The item name to search for (case-insensitive exact match).</param>
     /// <returns>PriceStats if matching records exist, null otherwise.</returns>
-    public async Task<PriceStats?> GetStatsAsync(int groupId, string itemName)
+    public virtual async Task<PriceStats?> GetStatsAsync(int groupId, string itemName)
     {
         await using var connection = new SqliteConnection(this.connectionString);
         await connection.OpenAsync();

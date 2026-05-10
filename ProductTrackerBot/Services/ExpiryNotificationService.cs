@@ -13,16 +13,19 @@ using ProductTrackerBot.Repositories;
 public class ExpiryNotificationService
 {
     private readonly ShoppingItemRepository itemRepository;
+    private readonly PurchaseHistoryRepository purchaseRepository;
     private readonly ILocalizer localizer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ExpiryNotificationService"/> class.
     /// </summary>
     /// <param name="itemRepository">The shopping item repository.</param>
+    /// <param name="purchaseRepository">The purchase history repository.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
-    public ExpiryNotificationService(ShoppingItemRepository itemRepository, ILocalizer localizer)
+    public ExpiryNotificationService(ShoppingItemRepository itemRepository, PurchaseHistoryRepository purchaseRepository, ILocalizer localizer)
     {
         this.itemRepository = itemRepository;
+        this.purchaseRepository = purchaseRepository;
         this.localizer = localizer;
     }
 
@@ -35,12 +38,17 @@ public class ExpiryNotificationService
     /// <returns>The formatted summary message or null if no items need reporting.</returns>
     public virtual async Task<string?> BuildSummaryAsync(long chatId, int groupId, DateOnly today)
     {
-        var items = await this.itemRepository.GetItemsWithExpiryAsync(groupId);
+        var plannedItems = await this.itemRepository.GetItemsWithExpiryAsync(groupId);
+        var boughtItems = await this.purchaseRepository.GetItemsWithExpiryAsync(groupId);
 
-        var expired = items.Where(i => i.ExpDate < today).ToList();
-        var expiringToday = items.Where(i => i.ExpDate == today).ToList();
-        var expiringSoon = items.Where(i => today < i.ExpDate && i.ExpDate <= today.AddDays(3)).ToList();
-        var expiringThisWeek = items.Where(i => today.AddDays(3) < i.ExpDate && i.ExpDate <= today.AddDays(7)).ToList();
+        var mergedItems = new List<(string Name, string? Quantity, DateOnly ExpDate)>();
+        mergedItems.AddRange(plannedItems.Select(p => (Name: p.Name, Quantity: p.Quantity, ExpDate: p.ExpDate!.Value)));
+        mergedItems.AddRange(boughtItems.Select(b => (Name: b.ItemName, Quantity: b.Quantity, ExpDate: b.ExpDate)));
+
+        var expired = mergedItems.Where(i => i.ExpDate < today).ToList();
+        var expiringToday = mergedItems.Where(i => i.ExpDate == today).ToList();
+        var expiringSoon = mergedItems.Where(i => today < i.ExpDate && i.ExpDate <= today.AddDays(3)).ToList();
+        var expiringThisWeek = mergedItems.Where(i => today.AddDays(3) < i.ExpDate && i.ExpDate <= today.AddDays(7)).ToList();
 
         if (expired.Count == 0 && expiringToday.Count == 0 && expiringSoon.Count == 0 && expiringThisWeek.Count == 0)
         {
@@ -64,7 +72,7 @@ public class ExpiryNotificationService
             sb.AppendLine("\n🟡 Истекает сегодня:");
             foreach (var item in expiringToday)
             {
-                sb.AppendLine($"• {item.Name}{(item.Quantity is not null ? $" {item.Quantity}" : string.Empty)} ({item.ExpDate!.Value:dd.MM.yyyy})");
+                sb.AppendLine($"• {item.Name}{(item.Quantity is not null ? $" {item.Quantity}" : string.Empty)} ({item.ExpDate:dd.MM.yyyy})");
             }
         }
 
@@ -73,7 +81,7 @@ public class ExpiryNotificationService
             sb.AppendLine("\n🟠 Истекает скоро (до 3 дней):");
             foreach (var item in expiringSoon)
             {
-                sb.AppendLine($"• {item.Name}{(item.Quantity is not null ? $" {item.Quantity}" : string.Empty)} ({item.ExpDate!.Value:dd.MM.yyyy})");
+                sb.AppendLine($"• {item.Name}{(item.Quantity is not null ? $" {item.Quantity}" : string.Empty)} ({item.ExpDate:dd.MM.yyyy})");
             }
         }
 
@@ -82,7 +90,7 @@ public class ExpiryNotificationService
             sb.AppendLine("\n📅 Истекает на этой неделе (4–7 дней):");
             foreach (var item in expiringThisWeek)
             {
-                sb.AppendLine($"• {item.Name}{(item.Quantity is not null ? $" {item.Quantity}" : string.Empty)} ({item.ExpDate!.Value:dd.MM.yyyy})");
+                sb.AppendLine($"• {item.Name}{(item.Quantity is not null ? $" {item.Quantity}" : string.Empty)} ({item.ExpDate:dd.MM.yyyy})");
             }
         }
 

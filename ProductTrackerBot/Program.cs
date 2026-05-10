@@ -3,6 +3,7 @@
 // </copyright>
 
 using DotNetEnv;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -19,11 +20,20 @@ using Telegram.Bot;
 using Telegram.Bot.Polling;
 
 // Load environment variables from .env file before creating the host
-// AppContext.BaseDirectory is bin/Debug/netX.X/ so ../../../ is the project root
-var envFile = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../.env"));
-Env.Load(envFile);
+var envFile = Path.Combine(Environment.CurrentDirectory, ".env");
+if (!File.Exists(envFile))
+{
+    envFile = Path.Combine(AppContext.BaseDirectory, "../../../../.env");
+}
+if (File.Exists(envFile))
+{
+    Env.Load(envFile);
+}
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Ensure environment variables are added to configuration (may already be done by default)
+builder.Configuration.AddEnvironmentVariables();
 
 // Configure BotConfiguration from environment variables
 builder.Services.AddOptions<BotConfiguration>()
@@ -126,7 +136,6 @@ builder.Services.AddScoped<IDialogMessageHandler, MealDialogStepHandler>();
 
 // Register callback handlers
 builder.Services.AddScoped<ICallbackHandler, BuySkipCallbackHandler>();
-builder.Services.AddScoped<ICallbackHandler, BuySkipExpiryCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopDoneCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopRemoveCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, PriceSkipCallbackHandler>();

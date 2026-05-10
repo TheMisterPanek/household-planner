@@ -5,6 +5,7 @@
 namespace ProductTrackerBot.Handlers;
 
 using Microsoft.Extensions.Logging;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -14,7 +15,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 
 /// <summary>
 /// Processes dialog steps for the optional price-capture dialog after marking an item as bought.
-/// Step 1 = store name, Step 2 = price.
+/// Step 1 = store name, Step 2 = price, Step 3 = expiry date.
 /// </summary>
 public class PriceCaptureStepHandler : IDialogMessageHandler
 {
@@ -23,6 +24,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
     private readonly PurchaseHistoryRepository purchaseRepository;
     private readonly PriceLogRepository priceLogRepository;
     private readonly GroupRepository groupRepository;
+    private readonly ILocalizer localizer;
     private readonly ILogger<PriceCaptureStepHandler> logger;
 
     /// <summary>
@@ -33,6 +35,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
     /// <param name="purchaseRepository">The purchase history repository.</param>
     /// <param name="priceLogRepository">The price log repository.</param>
     /// <param name="groupRepository">The group repository.</param>
+    /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="logger">The logger.</param>
     public PriceCaptureStepHandler(
         ITelegramBotClient botClient,
@@ -40,6 +43,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
         PurchaseHistoryRepository purchaseRepository,
         PriceLogRepository priceLogRepository,
         GroupRepository groupRepository,
+        ILocalizer localizer,
         ILogger<PriceCaptureStepHandler> logger)
     {
         this.botClient = botClient;
@@ -47,6 +51,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
         this.purchaseRepository = purchaseRepository;
         this.priceLogRepository = priceLogRepository;
         this.groupRepository = groupRepository;
+        this.localizer = localizer;
         this.logger = logger;
     }
 
@@ -79,6 +84,9 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
             case 2:
                 await this.HandleStep2Async(message, state, cancellationToken);
                 break;
+            case 3:
+                await this.HandleStep3Async(message, state, cancellationToken);
+                break;
         }
     }
 
@@ -110,14 +118,48 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
             return;
         }
 
-        await this.FinishDialogAsync(message.Chat.Id, message.From!.Id, state, price, cancellationToken);
+        state.Price = price;
+        state.Step = 3;
+        this.dialogService.SetState(message.Chat.Id, message.From!.Id, state);
+
+        var skipExpiryButton = InlineKeyboardButton.WithCallbackData(
+            this.localizer.Get(message.Chat.Id, "shop.skip"),
+            "price:skip_expiry");
+
+        var expiryPrompt = this.localizer.Get(message.Chat.Id, "shop.expiry-prompt")
+            .Replace("{item}", state.ItemName);
+
+        await this.botClient.SendMessage(
+            chatId: message.Chat.Id,
+            text: expiryPrompt,
+            replyMarkup: new InlineKeyboardMarkup(new[] { new[] { skipExpiryButton } }),
+            replyParameters: new ReplyParameters { MessageId = message.MessageId },
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleStep3Async(Message message, PriceCaptureDialogState state, CancellationToken cancellationToken)
+    {
+        var input = message.Text!.Trim();
+        var expDate = this.ParseExpiryInput(input);
+
+        if (expDate is null)
+        {
+            await this.botClient.SendMessage(
+                chatId: message.Chat.Id,
+                text: this.localizer.Get(message.Chat.Id, "shop.invalid-date"),
+                replyParameters: new ReplyParameters { MessageId = message.MessageId },
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        await this.FinishDialogAsync(message.Chat.Id, message.From!.Id, state, expDate, cancellationToken);
     }
 
     private async Task FinishDialogAsync(
         long chatId,
         long userId,
         PriceCaptureDialogState state,
-        decimal? price,
+        DateOnly? expDate,
         CancellationToken cancellationToken)
     {
         var group = await this.groupRepository.GetOrCreateAsync(chatId);
@@ -129,9 +171,10 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
             ItemName = state.ItemName,
             Quantity = state.Quantity,
             StoreName = state.StoreName,
-            Price = price,
+            Price = state.Price,
             PurchasedAt = DateTime.UtcNow,
             BoughtByName = state.BoughtByName,
+            ExpDate = expDate,
         };
 
         await this.purchaseRepository.AddAsync(record);
@@ -166,9 +209,44 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
             details += $" for {record.Price.Value:F2}";
         }
 
+        if (record.ExpDate.HasValue)
+        {
+            var expirySuffix = this.localizer.Get(chatId, "shop.done-with-expiry")
+                .Replace("{expiry}", record.ExpDate.Value.ToString("dd.MM.yyyy"));
+            details += expirySuffix;
+        }
+
         await this.botClient.SendMessage(
             chatId: chatId,
             text: $"✓ {record.ItemName} recorded{details}",
             cancellationToken: cancellationToken);
+    }
+
+    private DateOnly? ParseExpiryInput(string input)
+    {
+        var normalized = input.Trim().ToLowerInvariant();
+
+        if (int.TryParse(normalized, out var days) && days > 0 && days <= 365)
+        {
+            return DateOnly.FromDateTime(DateTime.Now).AddDays(days);
+        }
+
+        var parts = normalized.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+        {
+            if (int.TryParse(parts[0], out var count) && count > 0)
+            {
+                var unit = parts[1];
+                return unit switch
+                {
+                    "день" or "дня" or "дней" or "day" or "days" => DateOnly.FromDateTime(DateTime.Now).AddDays(count),
+                    "неделя" or "недели" or "недель" or "week" or "weeks" => DateOnly.FromDateTime(DateTime.Now).AddDays(count * 7),
+                    "месяц" or "месяца" or "месяцев" or "month" or "months" => DateOnly.FromDateTime(DateTime.Now).AddMonths(count),
+                    _ => null,
+                };
+            }
+        }
+
+        return null;
     }
 }

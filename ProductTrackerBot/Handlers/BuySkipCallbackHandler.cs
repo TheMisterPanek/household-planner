@@ -74,24 +74,47 @@ public class BuySkipCallbackHandler : ICallbackHandler
             return;
         }
 
-        // Set quantity to null and advance to step 3
+        // Set quantity to null and finish the dialog
         state.Quantity = null;
-        state.Step = 3;
-        this.dialogService.SetState(chatId, userId, state);
 
         // Answer the callback
         await this.botClient.AnswerCallbackQuery(
             callbackQueryId: callbackQuery.Id,
             cancellationToken: cancellationToken);
 
-        var skipButton = Telegram.Bot.Types.ReplyMarkups.InlineKeyboardButton.WithCallbackData(
-            this.localizer.Get(chatId, "buy.skip"),
-            "buy:skip_expiry");
+        // Save item without quantity or expiry date
+        var item = await this.itemRepository.AddAsync(
+            groupId: state.GroupId,
+            name: state.Name,
+            quantity: null,
+            addedByName: state.AddedByName,
+            expDate: null);
+
+        this.dialogService.ClearState(chatId, userId);
+
+        var confirmText = this.localizer.Get(chatId, "buy.item-added")
+            .Replace("{name}", state.AddedByName).Replace("{item}", item.Name);
 
         await this.botClient.SendMessage(
             chatId: chatId,
-            text: this.localizer.Get(chatId, "buy.expiry-date"),
-            replyMarkup: new Telegram.Bot.Types.ReplyMarkups.InlineKeyboardMarkup(new[] { new[] { skipButton } }),
+            text: confirmText,
             cancellationToken: cancellationToken);
+
+        try
+        {
+            var payload = new ItemPayload(state.Name, null);
+            var payloadJson = JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.ItemPayload);
+            await this.historyRepository.RecordAsync(
+                chatId: chatId,
+                userId: userId,
+                userName: state.AddedByName,
+                actionType: BotActionType.ItemAdded,
+                payloadJson: payloadJson,
+                ct: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            this.logger.LogWarning(ex, "Failed to record history for ItemAdded");
+        }
     }
 }

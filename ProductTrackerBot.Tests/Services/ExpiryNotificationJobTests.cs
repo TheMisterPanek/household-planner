@@ -59,7 +59,8 @@ public class ExpiryNotificationJobTests
                 new() { Id = 2, GroupId = 2, Name = "Item2", Quantity = null, ExpDate = today.AddDays(-1), AddedByName = "User2" },
             }.AsReadOnly());
 
-        var notificationService = new ExpiryNotificationService(itemRepo.Object, Mock.Of<ILocalizer>());
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=:memory:");
+        var notificationService = new ExpiryNotificationService(itemRepo.Object, purchaseRepo.Object, Mock.Of<ILocalizer>());
 
         var job = new ExpiryNotificationJob(
             botClient.Object,
@@ -106,7 +107,8 @@ public class ExpiryNotificationJobTests
                 new() { Id = 1, GroupId = 1, Name = "Item1", Quantity = "1л", ExpDate = today.AddDays(30), AddedByName = "User1" },
             }.AsReadOnly());
 
-        var notificationService = new ExpiryNotificationService(itemRepo.Object, Mock.Of<ILocalizer>());
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=:memory:");
+        var notificationService = new ExpiryNotificationService(itemRepo.Object, purchaseRepo.Object, Mock.Of<ILocalizer>());
 
         var job = new ExpiryNotificationJob(
             botClient.Object,
@@ -158,7 +160,8 @@ public class ExpiryNotificationJobTests
                 new() { Id = 1, GroupId = 1, Name = "Item1", Quantity = "1л", ExpDate = today.AddDays(-1), AddedByName = "User1" },
             }.AsReadOnly());
 
-        var notificationService = new ExpiryNotificationService(itemRepo.Object, Mock.Of<ILocalizer>());
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=:memory:");
+        var notificationService = new ExpiryNotificationService(itemRepo.Object, purchaseRepo.Object, Mock.Of<ILocalizer>());
 
         var job = new ExpiryNotificationJob(
             botClient.Object,

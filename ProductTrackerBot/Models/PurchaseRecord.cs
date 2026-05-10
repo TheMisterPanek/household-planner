@@ -53,4 +53,9 @@ public class PurchaseRecord
     /// Gets or sets the display name of the buyer.
     /// </summary>
     public string BoughtByName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the optional expiry date of the purchased item (ISO-8601 yyyy-MM-dd).
+    /// </summary>
+    public DateOnly? ExpDate { get; set; }
 }
