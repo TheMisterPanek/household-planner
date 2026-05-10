@@ -72,76 +72,54 @@ public class PriceLogRepository
         await using var connection = new SqliteConnection(this.connectionString);
         await connection.OpenAsync();
 
-        // First, get overall statistics
-        await using var cmd = connection.CreateCommand();
-        cmd.CommandText = @"
-            SELECT
-                MIN(Price) as MinPrice,
-                AVG(Price) as AvgPrice,
-                MAX(Price) as MaxPrice,
-                COUNT(*) as Count
-            FROM PriceLog
-            WHERE GroupId = @groupId AND LOWER(ItemName) = LOWER(@itemName);";
+        // Fetch all rows for this group, filter case-insensitively in C#
+        // (SQLite LOWER() does not handle Unicode/Cyrillic without ICU)
+        await using var fetchCmd = connection.CreateCommand();
+        fetchCmd.CommandText = "SELECT Price, StoreName, ItemName FROM PriceLog WHERE GroupId = @groupId";
+        fetchCmd.Parameters.AddWithValue("@groupId", groupId);
 
-        cmd.Parameters.AddWithValue("@groupId", groupId);
-        cmd.Parameters.AddWithValue("@itemName", itemName);
-
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        var allRows = new List<(decimal Price, string? StoreName, string ItemName)>();
+        await using (var fetchReader = await fetchCmd.ExecuteReaderAsync())
         {
-            return null;
-        }
-
-        var minPrice = reader.GetDouble(0);
-        var avgPrice = reader.GetDouble(1);
-        var maxPrice = reader.GetDouble(2);
-        var count = reader.GetInt32(3);
-
-        if (count == 0)
-        {
-            return null;
-        }
-
-        // Get per-store statistics
-        await using var storeCmd = connection.CreateCommand();
-        storeCmd.CommandText = @"
-            SELECT
-                StoreName,
-                MIN(Price) as MinPrice,
-                AVG(Price) as AvgPrice,
-                MAX(Price) as MaxPrice,
-                COUNT(*) as Count
-            FROM PriceLog
-            WHERE GroupId = @groupId AND LOWER(ItemName) = LOWER(@itemName)
-            GROUP BY CASE WHEN StoreName IS NULL THEN '__NULL__' ELSE StoreName END
-            ORDER BY Count DESC
-            LIMIT 10;";
-
-        storeCmd.Parameters.AddWithValue("@groupId", groupId);
-        storeCmd.Parameters.AddWithValue("@itemName", itemName);
-
-        var storeStats = new List<StoreStats>();
-        await using var storeReader = await storeCmd.ExecuteReaderAsync();
-        while (await storeReader.ReadAsync())
-        {
-            var storeName = storeReader.IsDBNull(0) ? null : storeReader.GetString(0);
-            if (storeName == "__NULL__")
+            while (await fetchReader.ReadAsync())
             {
-                storeName = null;
+                allRows.Add((
+                    (decimal)fetchReader.GetDouble(0),
+                    fetchReader.IsDBNull(1) ? null : fetchReader.GetString(1),
+                    fetchReader.GetString(2)));
             }
-
-            var min = (decimal)storeReader.GetDouble(1);
-            var avg = (decimal)storeReader.GetDouble(2);
-            var max = (decimal)storeReader.GetDouble(3);
-            var storeCount = storeReader.GetInt32(4);
-
-            storeStats.Add(new StoreStats(storeName, min, avg, max, storeCount));
         }
+
+        var filtered = allRows
+            .Where(r => r.ItemName.Equals(itemName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (filtered.Count == 0)
+        {
+            return null;
+        }
+
+        var minPrice = filtered.Min(r => r.Price);
+        var avgPrice = filtered.Average(r => (double)r.Price);
+        var maxPrice = filtered.Max(r => r.Price);
+        var count = filtered.Count;
+
+        var storeStats = filtered
+            .GroupBy(r => r.StoreName)
+            .OrderByDescending(g => g.Count())
+            .Take(10)
+            .Select(g => new StoreStats(
+                g.Key,
+                g.Min(r => r.Price),
+                (decimal)g.Average(r => (double)r.Price),
+                g.Max(r => r.Price),
+                g.Count()))
+            .ToList();
 
         return new PriceStats(
-            (decimal)minPrice,
+            minPrice,
             (decimal)avgPrice,
-            (decimal)maxPrice,
+            maxPrice,
             count,
             new ReadOnlyCollection<StoreStats>(storeStats));
     }

@@ -40,28 +40,34 @@ public class BuyStepAndSkipHandlerHistoryTests
     }
 
     [Fact]
-    public async Task BuyStepHandler_Calls_RecordAsync_ItemAdded_After_Step2()
+    public async Task BuyStepHandler_Calls_RecordAsync_ItemAdded_After_Step3()
     {
         var bot = CreateBotMock();
         var dialogService = new PendingDialogService<BuyDialogState>();
         dialogService.SetState(-100L, 42L, new BuyDialogState
         {
-            Step = 2,
+            Step = 3,
             GroupId = 10,
             Name = "Молоко",
+            Quantity = "2л",
             AddedByName = "Alice",
         });
 
+        var expDate = DateOnly.FromDateTime(DateTime.Now).AddDays(5);
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(10, "Молоко", "2л", "Alice", It.IsAny<DateOnly?>()))
-            .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Молоко", Quantity = "2л", AddedByName = "Alice" });
+        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
+            .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Молоко", Quantity = "2л", ExpDate = expDate, AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = new BuyStepHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, Mock.Of<ILocalizer>(), Mock.Of<ILogger<BuyStepHandler>>());
-        var message = DeserializeMessage("{\"message_id\":2,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100},\"text\":\"2л\"}");
+        var localizer = new Mock<ILocalizer>();
+        localizer.Setup(l => l.Get(It.IsAny<long>(), "buy.item-added-quantity-expiry"))
+            .Returns("{name} added {item} ({quantity}, until {expiry})");
+
+        var handler = new BuyStepHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, localizer.Object, Mock.Of<ILogger<BuyStepHandler>>());
+        var message = DeserializeMessage("{\"message_id\":3,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100},\"text\":\"5\"}");
         await handler.HandleAsync(message, CancellationToken.None);
 
         historyMock.Verify(
@@ -74,39 +80,48 @@ public class BuyStepAndSkipHandlerHistoryTests
     {
         var bot = CreateBotMock();
         var dialogService = new PendingDialogService<BuyDialogState>();
-        dialogService.SetState(-100L, 42L, new BuyDialogState { Step = 2, GroupId = 10, Name = "Хлеб", AddedByName = "Alice" });
+        dialogService.SetState(-100L, 42L, new BuyDialogState { Step = 3, GroupId = 10, Name = "Хлеб", Quantity = "1шт", AddedByName = "Alice" });
 
+        var expDate = DateOnly.FromDateTime(DateTime.Now).AddDays(3);
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(10, "Хлеб", "1шт", "Alice"))
-            .ReturnsAsync(new ShoppingItem { Id = 2, GroupId = 10, Name = "Хлеб", Quantity = "1шт", AddedByName = "Alice" });
+        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
+            .ReturnsAsync(new ShoppingItem { Id = 2, GroupId = 10, Name = "Хлеб", Quantity = "1шт", ExpDate = expDate, AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB error"));
 
-        var handler = new BuyStepHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, Mock.Of<ILocalizer>(), Mock.Of<ILogger<BuyStepHandler>>());
-        var message = DeserializeMessage("{\"message_id\":2,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100},\"text\":\"1шт\"}");
+        var localizer = new Mock<ILocalizer>();
+        localizer.Setup(l => l.Get(It.IsAny<long>(), "buy.item-added-quantity-expiry"))
+            .Returns("{name} added {item} ({quantity}, until {expiry})");
+
+        var handler = new BuyStepHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, localizer.Object, Mock.Of<ILogger<BuyStepHandler>>());
+        var message = DeserializeMessage("{\"message_id\":3,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100},\"text\":\"3\"}");
 
         await handler.HandleAsync(message, CancellationToken.None);
     }
 
     [Fact]
-    public async Task BuySkipCallbackHandler_Calls_RecordAsync_ItemAdded()
+    public async Task BuySkipExpiryCallbackHandler_Calls_RecordAsync_ItemAdded()
     {
         var bot = CreateBotMock();
         var dialogService = new PendingDialogService<BuyDialogState>();
-        dialogService.SetState(-100L, 42L, new BuyDialogState { Step = 2, GroupId = 10, Name = "Яйца", AddedByName = "Alice" });
+        dialogService.SetState(-100L, 42L, new BuyDialogState { Step = 3, GroupId = 10, Name = "Яйца", Quantity = "10шт", AddedByName = "Alice" });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(10, "Яйца", null, "Alice"))
-            .ReturnsAsync(new ShoppingItem { Id = 3, GroupId = 10, Name = "Яйца", AddedByName = "Alice" });
+        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
+            .ReturnsAsync(new ShoppingItem { Id = 3, GroupId = 10, Name = "Яйца", Quantity = "10шт", AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = new BuySkipCallbackHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, Mock.Of<ILocalizer>(), Mock.Of<ILogger<BuySkipCallbackHandler>>());
-        var callbackQuery = DeserializeCallbackQuery("{\"id\":\"cb1\",\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"message\":{\"message_id\":5,\"chat\":{\"id\":-100},\"text\":\"Сколько?\"},\"data\":\"buy:skip_quantity\"}");
+        var localizer = new Mock<ILocalizer>();
+        localizer.Setup(l => l.Get(It.IsAny<long>(), "buy.item-added-quantity"))
+            .Returns("{name} added {item} ({quantity})");
+
+        var handler = new BuySkipExpiryCallbackHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, localizer.Object, Mock.Of<ILogger<BuySkipExpiryCallbackHandler>>());
+        var callbackQuery = DeserializeCallbackQuery("{\"id\":\"cb1\",\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"message\":{\"message_id\":5,\"chat\":{\"id\":-100},\"text\":\"Дата?\"},\"data\":\"buy:skip_expiry\"}");
 
         await handler.HandleAsync(callbackQuery, CancellationToken.None);
 
@@ -116,22 +131,26 @@ public class BuyStepAndSkipHandlerHistoryTests
     }
 
     [Fact]
-    public async Task BuySkipCallbackHandler_Swallows_RecordAsync_Failure()
+    public async Task BuySkipExpiryCallbackHandler_Swallows_RecordAsync_Failure()
     {
         var bot = CreateBotMock();
         var dialogService = new PendingDialogService<BuyDialogState>();
-        dialogService.SetState(-100L, 42L, new BuyDialogState { Step = 2, GroupId = 10, Name = "Чай", AddedByName = "Bob" });
+        dialogService.SetState(-100L, 42L, new BuyDialogState { Step = 3, GroupId = 10, Name = "Чай", Quantity = null, AddedByName = "Bob" });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(10, "Чай", null, "Bob"))
+        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
             .ReturnsAsync(new ShoppingItem { Id = 4, GroupId = 10, Name = "Чай", AddedByName = "Bob" });
 
         var historyMock = new Mock<IHistoryRepository>();
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB error"));
 
-        var handler = new BuySkipCallbackHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, Mock.Of<ILocalizer>(), Mock.Of<ILogger<BuySkipCallbackHandler>>());
-        var callbackQuery = DeserializeCallbackQuery("{\"id\":\"cb2\",\"from\":{\"id\":42,\"first_name\":\"Bob\"},\"message\":{\"message_id\":6,\"chat\":{\"id\":-100},\"text\":\"Сколько?\"},\"data\":\"buy:skip_quantity\"}");
+        var localizer = new Mock<ILocalizer>();
+        localizer.Setup(l => l.Get(It.IsAny<long>(), "buy.item-added"))
+            .Returns("{name} added {item}");
+
+        var handler = new BuySkipExpiryCallbackHandler(bot.Object, dialogService, itemRepo.Object, historyMock.Object, localizer.Object, Mock.Of<ILogger<BuySkipExpiryCallbackHandler>>());
+        var callbackQuery = DeserializeCallbackQuery("{\"id\":\"cb2\",\"from\":{\"id\":42,\"first_name\":\"Bob\"},\"message\":{\"message_id\":6,\"chat\":{\"id\":-100},\"text\":\"Дата?\"},\"data\":\"buy:skip_expiry\"}");
 
         await handler.HandleAsync(callbackQuery, CancellationToken.None);
     }

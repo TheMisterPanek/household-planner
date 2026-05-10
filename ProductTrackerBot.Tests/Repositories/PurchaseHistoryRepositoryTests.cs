@@ -20,7 +20,8 @@ public class PurchaseHistoryRepositoryTests : IDisposable
             CREATE TABLE IF NOT EXISTS Groups (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ChatId INTEGER NOT NULL UNIQUE,
-                ListMessageId INTEGER
+                ListMessageId INTEGER,
+                LanguageCode TEXT NOT NULL DEFAULT 'ru'
             );";
         createGroup.ExecuteNonQuery();
 
@@ -165,10 +166,14 @@ public class PurchaseHistoryRepositoryTests : IDisposable
     [Fact]
     public async Task GetTopShopsAsync_Returns_Shops_Ordered_By_Frequency()
     {
-        await InsertRecordWithShopAsync(1, "Milk", "Alice", "Carrefour", userId: 10);
-        await InsertRecordWithShopAsync(1, "Bread", "Alice", "Carrefour", userId: 10);
-        await InsertRecordWithShopAsync(1, "Butter", "Alice", "Stokrotka", userId: 10);
-        await InsertRecordWithShopAsync(1, "Cheese", "Alice", "Decathlon", userId: 10);
+        var t1 = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var t2 = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc);
+        var t3 = new DateTime(2026, 1, 3, 0, 0, 0, DateTimeKind.Utc);
+        var t4 = new DateTime(2026, 1, 4, 0, 0, 0, DateTimeKind.Utc);
+        await InsertRecordWithShopAsync(1, "Milk", "Alice", "Carrefour", purchasedAt: t1, userId: 10);
+        await InsertRecordWithShopAsync(1, "Bread", "Alice", "Carrefour", purchasedAt: t2, userId: 10);
+        await InsertRecordWithShopAsync(1, "Butter", "Alice", "Stokrotka", purchasedAt: t4, userId: 10);
+        await InsertRecordWithShopAsync(1, "Cheese", "Alice", "Decathlon", purchasedAt: t3, userId: 10);
 
         var shops = await this.repository.GetTopShopsAsync(1, 10, 5);
 

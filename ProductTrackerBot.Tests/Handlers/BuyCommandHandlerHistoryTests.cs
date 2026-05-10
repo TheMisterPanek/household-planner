@@ -43,13 +43,19 @@ public class BuyCommandHandlerHistoryTests
         ShoppingItemRepository itemRepo,
         IHistoryRepository historyRepo)
     {
+        var localizer = new Mock<ILocalizer>();
+        localizer.Setup(l => l.Get(It.IsAny<long>(), "buy.item-added-quantity"))
+            .Returns("{name} added {item} ({quantity})");
+        localizer.Setup(l => l.Get(It.IsAny<long>(), "buy.item-added"))
+            .Returns("{name} added {item}");
+
         return new BuyCommandHandler(
             bot,
             groupRepo,
             itemRepo,
             new PendingDialogService<BuyDialogState>(),
             historyRepo,
-            Mock.Of<ILocalizer>(),
+            localizer.Object,
             Mock.Of<ILogger<BuyCommandHandler>>());
     }
 
@@ -62,7 +68,7 @@ public class BuyCommandHandlerHistoryTests
             .ReturnsAsync(new Group { Id = 10, ChatId = -100L });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(10, "Молоко", "2л", "Alice"))
+        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
             .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Молоко", Quantity = "2л", AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();
@@ -94,7 +100,7 @@ public class BuyCommandHandlerHistoryTests
             .ReturnsAsync(new Group { Id = 10, ChatId = -100L });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(10, "Хлеб", null, "Alice"))
+        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
             .ReturnsAsync(new ShoppingItem { Id = 2, GroupId = 10, Name = "Хлеб", Quantity = null, AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();

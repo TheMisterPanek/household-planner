@@ -28,6 +28,11 @@ public class ShoppingListServiceFormatterTests
         var mock = new Mock<ILocalizer>();
         mock.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
             .Returns((long _, string key) => key);
+        mock.Setup(l => l.Get(It.IsAny<long>(), "pagination_next_button")).Returns("Next");
+        mock.Setup(l => l.Get(It.IsAny<long>(), "pagination_previous_button")).Returns("Previous");
+        mock.Setup(l => l.Get(It.IsAny<long>(), "pagination_page_label")).Returns("Page");
+        mock.Setup(l => l.Get(It.IsAny<long>(), "pagination_of_label")).Returns("of");
+        mock.Setup(l => l.Get(It.IsAny<long>(), "pagination_items_label")).Returns("total items");
         return mock;
     }
 
@@ -40,15 +45,13 @@ public class ShoppingListServiceFormatterTests
         };
         var service = CreateService(items);
 
-        var (text, keyboard, _) = await service.BuildListAsync(1, pageNumber: 1);
+        var (_, keyboard, _) = await service.BuildListAsync(1, pageNumber: 1);
 
         Assert.NotNull(keyboard);
         var buttonRows = keyboard!.InlineKeyboard.ToList();
-        // Should have 1 row for the item (2 buttons: done + remove)
-        // Should NOT have pagination buttons
+        // Should have 1 row for the item (2 buttons: done + remove), no pagination row
         Assert.Single(buttonRows);
-        Assert.DoesNotContain("Previous", text);
-        Assert.DoesNotContain("Next", text);
+        Assert.DoesNotContain(buttonRows, row => row.Any(b => b.Text == "Next" || b.Text == "Previous"));
     }
 
     [Fact]
@@ -59,11 +62,12 @@ public class ShoppingListServiceFormatterTests
             .ToList();
         var service = CreateService(items);
 
-        var (text, keyboard, _) = await service.BuildListAsync(1, pageNumber: 1);
+        var (_, keyboard, _) = await service.BuildListAsync(1, pageNumber: 1);
 
         Assert.NotNull(keyboard);
-        Assert.Contains("Next", text);
-        Assert.DoesNotContain("Previous", text);
+        var allButtons = keyboard!.InlineKeyboard.SelectMany(row => row).ToList();
+        Assert.Contains(allButtons, b => b.Text == "Next");
+        Assert.DoesNotContain(allButtons, b => b.Text == "Previous");
     }
 
     [Fact]
@@ -74,11 +78,12 @@ public class ShoppingListServiceFormatterTests
             .ToList();
         var service = CreateService(items);
 
-        var (text, keyboard, _) = await service.BuildListAsync(1, pageNumber: 2);
+        var (_, keyboard, _) = await service.BuildListAsync(1, pageNumber: 2);
 
         Assert.NotNull(keyboard);
-        Assert.Contains("Previous", text);
-        Assert.Contains("Next", text);
+        var allButtons = keyboard!.InlineKeyboard.SelectMany(row => row).ToList();
+        Assert.Contains(allButtons, b => b.Text == "Previous");
+        Assert.Contains(allButtons, b => b.Text == "Next");
     }
 
     [Fact]
@@ -89,11 +94,12 @@ public class ShoppingListServiceFormatterTests
             .ToList();
         var service = CreateService(items);
 
-        var (text, keyboard, _) = await service.BuildListAsync(1, pageNumber: 2);
+        var (_, keyboard, _) = await service.BuildListAsync(1, pageNumber: 2);
 
         Assert.NotNull(keyboard);
-        Assert.Contains("Previous", text);
-        Assert.DoesNotContain("Next", text);
+        var allButtons = keyboard!.InlineKeyboard.SelectMany(row => row).ToList();
+        Assert.Contains(allButtons, b => b.Text == "Previous");
+        Assert.DoesNotContain(allButtons, b => b.Text == "Next");
     }
 
     [Fact]
@@ -126,5 +132,87 @@ public class ShoppingListServiceFormatterTests
         Assert.NotNull(nextButton.CallbackData);
         // Format should be list_next:chatId:pageNumber
         Assert.StartsWith("list_next:1:", nextButton.CallbackData);
+    }
+
+    [Fact]
+    public async Task BulletList_SinglePage_AllItemsAppearInMessageText()
+    {
+        var items = new List<ShoppingItem>
+        {
+            new() { Id = 1, GroupId = 10, Name = "Milk", Quantity = null, AddedByName = "User1" },
+            new() { Id = 2, GroupId = 10, Name = "Bread", Quantity = null, AddedByName = "User1" },
+            new() { Id = 3, GroupId = 10, Name = "Eggs", Quantity = null, AddedByName = "User1" },
+        };
+        var service = CreateService(items);
+
+        var (text, _, _) = await service.BuildListAsync(1, pageNumber: 1);
+
+        Assert.Contains("• Milk", text);
+        Assert.Contains("• Bread", text);
+        Assert.Contains("• Eggs", text);
+    }
+
+    [Fact]
+    public async Task BulletList_ItemWithQuantity_ShowsQuantityInParentheses()
+    {
+        var items = new List<ShoppingItem>
+        {
+            new() { Id = 1, GroupId = 10, Name = "Milk", Quantity = "2L", AddedByName = "User1" },
+        };
+        var service = CreateService(items);
+
+        var (text, _, _) = await service.BuildListAsync(1, pageNumber: 1);
+
+        Assert.Contains("• Milk (2L)", text);
+    }
+
+    [Fact]
+    public async Task BulletList_Paginated_ShowsAllItemsInText()
+    {
+        var items = Enumerable.Range(1, 15)
+            .Select(i => new ShoppingItem { Id = i, GroupId = 10, Name = $"Item{i:D2}", Quantity = null, AddedByName = "User1" })
+            .ToList();
+        var service = CreateService(items);
+
+        var (text, _, _) = await service.BuildListAsync(1, pageNumber: 2);
+
+        // Text should show ALL items regardless of pagination
+        Assert.Contains("• Item01", text);
+        Assert.Contains("• Item10", text);
+        Assert.Contains("• Item11", text);
+        Assert.Contains("• Item15", text);
+    }
+
+    [Fact]
+    public async Task BulletList_LargeList_MessageStaysUnder4096Chars()
+    {
+        var items = Enumerable.Range(1, 10)
+            .Select(i => new ShoppingItem { Id = i, GroupId = 10, Name = $"LongItemName{i}", Quantity = "500g", AddedByName = "User1" })
+            .ToList();
+        var service = CreateService(items);
+
+        var (text, keyboard, _) = await service.BuildListAsync(1, pageNumber: 1);
+
+        var keyboardText = keyboard?.InlineKeyboard
+            .SelectMany(row => row.Select(b => b.Text + b.CallbackData))
+            .Aggregate("", (acc, s) => acc + s) ?? string.Empty;
+        Assert.True(text.Length + keyboardText.Length < 4096);
+    }
+
+    [Fact]
+    public async Task BulletList_KeyboardStillPresent_AfterBulletListInText()
+    {
+        var items = new List<ShoppingItem>
+        {
+            new() { Id = 1, GroupId = 10, Name = "Apple", Quantity = null, AddedByName = "User1" },
+        };
+        var service = CreateService(items);
+
+        var (text, keyboard, _) = await service.BuildListAsync(1, pageNumber: 1);
+
+        Assert.Contains("• Apple", text);
+        Assert.NotNull(keyboard);
+        Assert.Single(keyboard!.InlineKeyboard);
+        Assert.Equal("shop:done:1", keyboard.InlineKeyboard.First().First().CallbackData);
     }
 }

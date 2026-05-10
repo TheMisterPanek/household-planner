@@ -467,7 +467,7 @@ public class PriceCaptureDialogTests
             It.Is<SendMessageRequest>(r =>
                 r.Text!.Contains("📍 Where did you buy Milk") &&
                 r.ReplyMarkup != null &&
-                ((InlineKeyboardMarkup?)r.ReplyMarkup)!.InlineKeyboard.Count == 3), // 2 shops + skip button
+                ((InlineKeyboardMarkup?)r.ReplyMarkup)!.InlineKeyboard.Count() == 3), // 2 shops + skip button
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -522,7 +522,7 @@ public class PriceCaptureDialogTests
             It.Is<SendMessageRequest>(r =>
                 r.Text!.Contains("📍 Where did you buy Milk") &&
                 r.ReplyMarkup != null &&
-                ((InlineKeyboardMarkup?)r.ReplyMarkup)!.InlineKeyboard.Count == 1), // only skip button
+                ((InlineKeyboardMarkup?)r.ReplyMarkup)!.InlineKeyboard.Count() == 1), // only skip button
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

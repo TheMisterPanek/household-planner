@@ -47,7 +47,7 @@ public class SettingsCommandHandlerTests
         await this.handler.HandleAsync(message, CancellationToken.None);
 
         this.mockLocalizer.Verify(
-            l => l.GetAsync(chatId, "menu_prompt", It.IsAny<CancellationToken>()),
+            l => l.Get(chatId, "menu_prompt"),
             Times.Once);
     }
 
@@ -71,7 +71,7 @@ public class SettingsCommandHandlerTests
 
         // Verify that settings menu is shown for the group
         this.mockLocalizer.Verify(
-            l => l.GetAsync(chatId, "menu_prompt", It.IsAny<CancellationToken>()),
+            l => l.Get(chatId, "menu_prompt"),
             Times.Once);
     }
 }

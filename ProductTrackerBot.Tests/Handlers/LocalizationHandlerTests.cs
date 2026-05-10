@@ -144,8 +144,8 @@ public class LocalizationHandlerTests
         var handler = new BuyCommandHandler(
             bot.Object,
             groupRepo.Object,
-            Mock.Of<ShoppingItemRepository>(),
-            Mock.Of<PendingDialogService<BuyDialogState>>(),
+            new Mock<ShoppingItemRepository>("Data Source=:memory:").Object,
+            new PendingDialogService<BuyDialogState>(),
             Mock.Of<IHistoryRepository>(),
             localizer.Object,
             Mock.Of<ILogger<BuyCommandHandler>>());
@@ -168,14 +168,11 @@ public class LocalizationHandlerTests
         var (bot, sentTexts) = CreateBotMock();
         var localizer = CreateLocalizerMock();
         var groupRepo = CreateGroupRepoMock();
-        var dialogService = new Mock<PendingDialogService<BuyDialogState>>();
-        dialogService.Setup(d => d.SetState(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<BuyDialogState>()));
-
         var handler = new BuyCommandHandler(
             bot.Object,
             groupRepo.Object,
-            Mock.Of<ShoppingItemRepository>(),
-            dialogService.Object,
+            new Mock<ShoppingItemRepository>("Data Source=:memory:").Object,
+            new PendingDialogService<BuyDialogState>(),
             Mock.Of<IHistoryRepository>(),
             localizer.Object,
             Mock.Of<ILogger<BuyCommandHandler>>());

@@ -118,8 +118,8 @@ public class LanguageSelectionHandlerTests
         var mockLogger = new Mock<ILogger<LanguageSelectionHandler>>();
 
         mockLocalizer
-            .Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("Preference saved");
+            .Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
+            .Returns("Preference saved");
 
         var handler = new LanguageSelectionHandler(
             mockBotClient.Object,

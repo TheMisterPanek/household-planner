@@ -84,38 +84,14 @@ public class ShoppingListService
             return (this.localizer.Get(chatId, "list.empty"), null, group);
         }
 
+        var allItems = await this.itemRepository.GetAllAsync(group.Id);
         var sb = new StringBuilder(this.localizer.Get(chatId, "list.header") + "\n\n");
+        sb.Append(FormatItemsAsText(allItems));
+
         var buttons = new List<List<InlineKeyboardButton>>();
-
-        var groups = pagedItems.GroupBy(i => i.Name, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var group2 in groups)
+        foreach (var itemGroup in pagedItems.GroupBy(i => i.Name, StringComparer.OrdinalIgnoreCase))
         {
-            var groupItems = group2.ToList();
-            var quantities = groupItems
-                .Where(i => i.Quantity is not null)
-                .Select(i => i.Quantity!);
-            var label = groupItems[0].Name;
-            if (quantities.Any())
-            {
-                label += " " + string.Join(", ", quantities);
-            }
-
-            var firstItem = groupItems[0];
-            if (firstItem.ExpDate.HasValue)
-            {
-                label += $" (до {firstItem.ExpDate.Value:dd.MM})";
-            }
-
-            var isExpired = firstItem.ExpDate.HasValue && firstItem.ExpDate.Value <= DateOnly.FromDateTime(DateTime.Now);
-            if (isExpired)
-            {
-                sb.Append("⚠️ ");
-            }
-
-            sb.AppendLine($"• {label}");
-
-            foreach (var item in groupItems)
+            foreach (var item in itemGroup)
             {
                 var btnLabel = item.Quantity is not null
                     ? $"✓ {item.Name} {item.Quantity}"
@@ -165,5 +141,37 @@ public class ShoppingListService
         sb.AppendLine($"\n{pageLabel} {actualPageNumber} {ofLabel} {totalPages} ({totalItems} {itemsLabel})");
 
         return (sb.ToString(), new InlineKeyboardMarkup(buttons), group);
+    }
+
+    private static string FormatItemsAsText(IReadOnlyList<ShoppingItem> items)
+    {
+        var sb = new StringBuilder();
+        foreach (var itemGroup in items.GroupBy(i => i.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var groupItems = itemGroup.ToList();
+            var quantities = groupItems
+                .Where(i => i.Quantity is not null)
+                .Select(i => i.Quantity!);
+            var label = groupItems[0].Name;
+            if (quantities.Any())
+            {
+                label += $" ({string.Join(", ", quantities)})";
+            }
+
+            var firstItem = groupItems[0];
+            if (firstItem.ExpDate.HasValue)
+            {
+                label += $" (до {firstItem.ExpDate.Value:dd.MM})";
+            }
+
+            if (firstItem.ExpDate.HasValue && firstItem.ExpDate.Value <= DateOnly.FromDateTime(DateTime.Now))
+            {
+                sb.Append("⚠️ ");
+            }
+
+            sb.AppendLine($"• {label}");
+        }
+
+        return sb.ToString();
     }
 }

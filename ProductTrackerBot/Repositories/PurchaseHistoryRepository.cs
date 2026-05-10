@@ -107,10 +107,9 @@ public class PurchaseHistoryRepository
         cmd.CommandText = @"
             SELECT Id, GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName
             FROM PurchaseHistory
-            WHERE GroupId = @groupId AND LOWER(ItemName) LIKE '%' || LOWER(@query) || '%'
+            WHERE GroupId = @groupId
             ORDER BY PurchasedAt DESC";
         cmd.Parameters.AddWithValue("@groupId", groupId);
-        cmd.Parameters.AddWithValue("@query", query);
 
         var records = new List<PurchaseRecord>();
         await using var reader = await cmd.ExecuteReaderAsync();
@@ -130,6 +129,9 @@ public class PurchaseHistoryRepository
             });
         }
 
-        return records.AsReadOnly();
+        return records
+            .Where(r => r.ItemName.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .ToList()
+            .AsReadOnly();
     }
 }

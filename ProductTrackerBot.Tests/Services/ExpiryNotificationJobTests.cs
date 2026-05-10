@@ -1,14 +1,35 @@
 using Microsoft.Extensions.Logging;
 using Moq;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
 using Telegram.Bot;
+using Telegram.Bot.Requests;
+using Telegram.Bot.Requests.Abstractions;
+using Telegram.Bot.Types;
 
 namespace ProductTrackerBot.Tests.Services;
 
 public class ExpiryNotificationJobTests
 {
+    private static (Mock<ITelegramBotClient> Bot, List<long> SentChatIds) CreateBotMock()
+    {
+        var botMock = new Mock<ITelegramBotClient>();
+        var sentChatIds = new List<long>();
+
+        botMock
+            .Setup(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<Message>, CancellationToken>((req, _) =>
+            {
+                if (req is SendMessageRequest smr && smr.ChatId.Identifier.HasValue)
+                    sentChatIds.Add(smr.ChatId.Identifier.Value);
+            })
+            .ReturnsAsync(new Message());
+
+        return (botMock, sentChatIds);
+    }
+
     [Fact]
     public async Task ExecuteNotification_SendsMessageForEachGroupWithReportableItems()
     {
@@ -23,9 +44,7 @@ public class ExpiryNotificationJobTests
         groupRepo.Setup(r => r.GetAllAsync())
             .ReturnsAsync(groups.AsReadOnly());
 
-        var botClient = new Mock<ITelegramBotClient>();
-        botClient.Setup(b => b.SendMessage(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Telegram.Bot.Types.Message());
+        var (botClient, _) = CreateBotMock();
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
         itemRepo.Setup(r => r.GetItemsWithExpiryAsync(1))
@@ -49,8 +68,6 @@ public class ExpiryNotificationJobTests
             Mock.Of<ILogger<ExpiryNotificationJob>>(),
             "09:00");
 
-        // Simulate executing the job by calling the private method via reflection
-        // For now, we'll test through StartAsync
         var cts = new CancellationTokenSource();
         cts.CancelAfter(100);
 
@@ -60,12 +77,10 @@ public class ExpiryNotificationJobTests
         }
         catch (OperationCanceledException)
         {
-            // Expected
         }
 
         await job.StopAsync(CancellationToken.None);
 
-        // Verify that the groups repository was called
         groupRepo.Verify(r => r.GetAllAsync(), Times.AtLeastOnce);
     }
 
@@ -82,7 +97,7 @@ public class ExpiryNotificationJobTests
         groupRepo.Setup(r => r.GetAllAsync())
             .ReturnsAsync(groups.AsReadOnly());
 
-        var botClient = new Mock<ITelegramBotClient>();
+        var (botClient, sentChatIds) = CreateBotMock();
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
         itemRepo.Setup(r => r.GetItemsWithExpiryAsync(1))
@@ -103,8 +118,7 @@ public class ExpiryNotificationJobTests
         await job.StartAsync(CancellationToken.None);
         await job.StopAsync(CancellationToken.None);
 
-        // Bot client should not be called since items are not reportable
-        botClient.Verify(b => b.SendMessage(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Empty(sentChatIds);
     }
 
     [Fact]
@@ -122,11 +136,20 @@ public class ExpiryNotificationJobTests
             .ReturnsAsync(groups.AsReadOnly());
 
         var botClient = new Mock<ITelegramBotClient>();
-        botClient.Setup(b => b.SendMessage(100L, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        var sentChatIds = new List<long>();
+
+        botClient
+            .Setup(b => b.SendRequest(It.Is<SendMessageRequest>(r => r.ChatId.Identifier == 100L), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Send failed"));
 
-        botClient.Setup(b => b.SendMessage(200L, It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Telegram.Bot.Types.Message());
+        botClient
+            .Setup(b => b.SendRequest(It.Is<SendMessageRequest>(r => r.ChatId.Identifier == 200L), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<Message>, CancellationToken>((req, _) =>
+            {
+                if (req is SendMessageRequest smr && smr.ChatId.Identifier.HasValue)
+                    sentChatIds.Add(smr.ChatId.Identifier.Value);
+            })
+            .ReturnsAsync(new Message());
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
         itemRepo.Setup(r => r.GetItemsWithExpiryAsync(It.IsAny<int>()))
@@ -147,8 +170,6 @@ public class ExpiryNotificationJobTests
         await job.StartAsync(CancellationToken.None);
         await job.StopAsync(CancellationToken.None);
 
-        // Both groups should be attempted despite the first one failing
-        botClient.Verify(b => b.SendMessage(100L, It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
-        botClient.Verify(b => b.SendMessage(200L, It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+        Assert.Contains(200L, sentChatIds);
     }
 }

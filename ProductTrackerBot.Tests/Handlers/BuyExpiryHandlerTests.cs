@@ -52,7 +52,7 @@ public class BuyExpiryHandlerTests
 
         var expDate = DateOnly.FromDateTime(DateTime.Now).AddDays(5);
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(10, "Молоко", "2л", "Alice", It.IsAny<DateOnly?>()))
+        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
             .ReturnsAsync(new ShoppingItem
             {
                 Id = 1,
@@ -95,14 +95,16 @@ public class BuyExpiryHandlerTests
             AddedByName = "Alice",
         });
 
+        var weekExpDate = DateOnly.FromDateTime(DateTime.Now).AddDays(14);
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(10, "Молоко", "2л", "Alice", It.IsAny<DateOnly?>()))
+        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
             .ReturnsAsync(new ShoppingItem
             {
                 Id = 1,
                 GroupId = 10,
                 Name = "Молоко",
                 Quantity = "2л",
+                ExpDate = weekExpDate,
                 AddedByName = "Alice",
             });
 
@@ -175,7 +177,7 @@ public class BuyExpiryHandlerTests
             AddedByName = "Alice",
         });
 
-        var itemRepo = Mock.Of<ShoppingItemRepository>("Data Source=file::memory:");
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:").Object;
         var localizer = new Mock<ILocalizer>();
         localizer.Setup(l => l.Get(-100L, "buy.skip"))
             .Returns("Skip");

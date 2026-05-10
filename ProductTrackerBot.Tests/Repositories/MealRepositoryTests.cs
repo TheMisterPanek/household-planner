@@ -11,7 +11,7 @@ public class MealRepositoryTests : IDisposable
 
     public MealRepositoryTests()
     {
-        this.connection = new SqliteConnection("Data Source=file::memory:?cache=shared");
+        this.connection = new SqliteConnection("Data Source=file:MealRepoTests?mode=memory&cache=shared");
         this.connection.Open();
 
         // Initialize schema
@@ -20,7 +20,8 @@ public class MealRepositoryTests : IDisposable
             CREATE TABLE IF NOT EXISTS Groups (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ChatId INTEGER NOT NULL UNIQUE,
-                ListMessageId INTEGER
+                ListMessageId INTEGER,
+                LanguageCode TEXT NOT NULL DEFAULT 'ru'
             );
             CREATE TABLE IF NOT EXISTS Meals (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,12 +42,22 @@ public class MealRepositoryTests : IDisposable
             );";
         cmd.ExecuteNonQuery();
 
+        // Clean any leftover data
+        using var cleanCmd = this.connection.CreateCommand();
+        cleanCmd.CommandText = @"
+            DELETE FROM MealSteps;
+            DELETE FROM MealIngredients;
+            DELETE FROM Meals;
+            DELETE FROM Groups;
+            DELETE FROM sqlite_sequence WHERE name IN ('Groups', 'Meals', 'MealIngredients', 'MealSteps');";
+        cleanCmd.ExecuteNonQuery();
+
         // Insert test group
         using var insertCmd = this.connection.CreateCommand();
         insertCmd.CommandText = "INSERT INTO Groups (ChatId) VALUES (12345);";
         insertCmd.ExecuteNonQuery();
 
-        this.repository = new MealRepository("Data Source=file::memory:?cache=shared");
+        this.repository = new MealRepository("Data Source=file:MealRepoTests?mode=memory&cache=shared");
     }
 
     public void Dispose()
@@ -91,8 +102,8 @@ public class MealRepositoryTests : IDisposable
     {
         var meal = await this.repository.AddAsync(groupId: 1, name: "Pasta");
         
-        var ingredientRepo = new MealIngredientRepository("Data Source=file::memory:?cache=shared");
-        var stepRepo = new MealStepRepository("Data Source=file::memory:?cache=shared");
+        var ingredientRepo = new MealIngredientRepository("Data Source=file:MealRepoTests?mode=memory&cache=shared");
+        var stepRepo = new MealStepRepository("Data Source=file:MealRepoTests?mode=memory&cache=shared");
 
         await ingredientRepo.AddAsync(meal.Id, "Flour", "200g");
         await ingredientRepo.AddAsync(meal.Id, "Water", null);

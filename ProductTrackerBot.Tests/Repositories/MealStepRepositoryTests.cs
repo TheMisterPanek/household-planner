@@ -11,7 +11,7 @@ public class MealStepRepositoryTests : IDisposable
 
     public MealStepRepositoryTests()
     {
-        this.connection = new SqliteConnection("Data Source=file::memory:?cache=shared");
+        this.connection = new SqliteConnection("Data Source=file:MealStepRepoTests?mode=memory&cache=shared");
         this.connection.Open();
 
         // Initialize schema
@@ -20,7 +20,8 @@ public class MealStepRepositoryTests : IDisposable
             CREATE TABLE IF NOT EXISTS Groups (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ChatId INTEGER NOT NULL UNIQUE,
-                ListMessageId INTEGER
+                ListMessageId INTEGER,
+                LanguageCode TEXT NOT NULL DEFAULT 'ru'
             );
             CREATE TABLE IF NOT EXISTS Meals (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,12 +36,21 @@ public class MealStepRepositoryTests : IDisposable
             );";
         cmd.ExecuteNonQuery();
 
+        // Clean any leftover data
+        using var cleanCmd = this.connection.CreateCommand();
+        cleanCmd.CommandText = @"
+            DELETE FROM MealSteps;
+            DELETE FROM Meals;
+            DELETE FROM Groups;
+            DELETE FROM sqlite_sequence WHERE name IN ('Groups', 'Meals', 'MealSteps');";
+        cleanCmd.ExecuteNonQuery();
+
         // Insert test group and meal
         using var insertCmd = this.connection.CreateCommand();
         insertCmd.CommandText = "INSERT INTO Groups (ChatId) VALUES (12345); INSERT INTO Meals (GroupId, Name) VALUES (1, 'Pasta');";
         insertCmd.ExecuteNonQuery();
 
-        this.repository = new MealStepRepository("Data Source=file::memory:?cache=shared");
+        this.repository = new MealStepRepository("Data Source=file:MealStepRepoTests?mode=memory&cache=shared");
     }
 
     public void Dispose()

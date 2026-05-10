@@ -11,7 +11,7 @@ public class GroupRepositoryTests : IDisposable
 
     public GroupRepositoryTests()
     {
-        this.connection = new SqliteConnection("Data Source=file::memory:?cache=shared");
+        this.connection = new SqliteConnection("Data Source=file:GroupRepoTests?mode=memory&cache=shared");
         this.connection.Open();
 
         // Initialize schema
@@ -20,7 +20,8 @@ public class GroupRepositoryTests : IDisposable
             CREATE TABLE IF NOT EXISTS Groups (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ChatId INTEGER NOT NULL UNIQUE,
-                ListMessageId INTEGER
+                ListMessageId INTEGER,
+                LanguageCode TEXT NOT NULL DEFAULT 'ru'
             );";
         cmd.ExecuteNonQuery();
 
@@ -29,7 +30,7 @@ public class GroupRepositoryTests : IDisposable
         cleanCmd.CommandText = "DELETE FROM Groups; DELETE FROM sqlite_sequence WHERE name='Groups';";
         cleanCmd.ExecuteNonQuery();
 
-        this.repository = new GroupRepository("Data Source=file::memory:?cache=shared");
+        this.repository = new GroupRepository("Data Source=file:GroupRepoTests?mode=memory&cache=shared");
     }
 
     [Fact]

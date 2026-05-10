@@ -13,7 +13,7 @@ public class ShoppingItemRepositoryTests : IDisposable
 
     public ShoppingItemRepositoryTests()
     {
-        this.connection = new SqliteConnection("Data Source=file::memory:?cache=shared");
+        this.connection = new SqliteConnection("Data Source=file:ShoppingItemRepoTests?mode=memory&cache=shared");
         this.connection.Open();
 
         // Initialize schema
@@ -22,7 +22,8 @@ public class ShoppingItemRepositoryTests : IDisposable
             CREATE TABLE IF NOT EXISTS Groups (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ChatId INTEGER NOT NULL UNIQUE,
-                ListMessageId INTEGER
+                ListMessageId INTEGER,
+                LanguageCode TEXT NOT NULL DEFAULT 'ru'
             );
             CREATE TABLE IF NOT EXISTS ShoppingItems (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,7 +48,7 @@ public class ShoppingItemRepositoryTests : IDisposable
         insertCmd.CommandText = "INSERT INTO Groups (ChatId) VALUES (12345); SELECT last_insert_rowid();";
         this.groupId = (int)(long)insertCmd.ExecuteScalar()!;
 
-        this.repository = new ShoppingItemRepository("Data Source=file::memory:?cache=shared");
+        this.repository = new ShoppingItemRepository("Data Source=file:ShoppingItemRepoTests?mode=memory&cache=shared");
     }
 
     [Fact]

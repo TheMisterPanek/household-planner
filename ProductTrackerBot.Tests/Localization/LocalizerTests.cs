@@ -15,7 +15,7 @@ public class LocalizerTests : IDisposable
 
     public LocalizerTests()
     {
-        this.connection = new SqliteConnection("Data Source=file::memory:?cache=shared");
+        this.connection = new SqliteConnection("Data Source=file:LocalizerTests?mode=memory&cache=shared");
         this.connection.Open();
 
         // Initialize schema
@@ -34,7 +34,7 @@ public class LocalizerTests : IDisposable
         cleanCmd.CommandText = "DELETE FROM Groups; DELETE FROM sqlite_sequence WHERE name='Groups';";
         cleanCmd.ExecuteNonQuery();
 
-        this.repository = new GroupRepository("Data Source=file::memory:?cache=shared");
+        this.repository = new GroupRepository("Data Source=file:LocalizerTests?mode=memory&cache=shared");
         this.loggerMock = new Mock<ILogger<Localizer>>();
     }
 
@@ -51,7 +51,7 @@ public class LocalizerTests : IDisposable
         var result = localizer.Get(chatId, "buy.what-to-buy");
 
         // Assert
-        Assert.Equal("What to buy?", result);
+        Assert.Equal("What do you want to buy?", result);
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class LocalizerTests : IDisposable
         var result = localizer.Get(chatId, "buy.what-to-buy");
 
         // Assert
-        Assert.Equal("What to buy?", result);
+        Assert.Equal("What do you want to buy?", result);
         this.loggerMock.Verify(
             x => x.Log(
                 LogLevel.Warning,
@@ -115,7 +115,7 @@ public class LocalizerTests : IDisposable
         // Assert - Read it back
         var localizer = new Localizer(this.repository, this.loggerMock.Object);
         var result = localizer.Get(chatId, "buy.what-to-buy");
-        Assert.Equal("What to buy?", result);
+        Assert.Equal("What do you want to buy?", result);
 
         // Verify by reading directly from repository
         var group = await this.repository.GetOrCreateAsync(chatId);

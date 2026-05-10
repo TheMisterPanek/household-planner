@@ -21,7 +21,7 @@ public class ShoppingListServiceTests
 
         var (text, keyboard, group) = await service.BuildListAsync(1);
 
-        Assert.Equal("Список покупок пуст", text);
+        Assert.Equal("list.empty", text);
         Assert.Null(keyboard);
         Assert.Equal(10, group.Id);
     }
@@ -42,8 +42,8 @@ public class ShoppingListServiceTests
 
         var (text, keyboard, group) = await service.BuildListAsync(1);
 
-        Assert.Contains("🛒 Список покупок:", text);
-        Assert.Contains("Молоко 2л", text);
+        Assert.Contains("list.header", text);
+        Assert.Contains("Молоко (2л)", text);
         Assert.NotNull(keyboard);
         Assert.Single(keyboard!.InlineKeyboard);
 
@@ -51,7 +51,7 @@ public class ShoppingListServiceTests
         Assert.Equal(2, row.Count());
         Assert.StartsWith("✓", row.First().Text);
         Assert.Equal("shop:done:1", row.First().CallbackData);
-        Assert.Equal("✗ Убрать", row.Last().Text);
+        Assert.Equal("list.remove", row.Last().Text);
         Assert.Equal("shop:remove:1", row.Last().CallbackData);
     }
 
@@ -72,7 +72,7 @@ public class ShoppingListServiceTests
 
         var (text, keyboard, _) = await service.BuildListAsync(1);
 
-        Assert.Contains("Молоко 2л", text);
+        Assert.Contains("Молоко (2л)", text);
         Assert.Contains("Хлеб", text);
         Assert.NotNull(keyboard);
         Assert.Equal(2, keyboard!.InlineKeyboard.Count());
