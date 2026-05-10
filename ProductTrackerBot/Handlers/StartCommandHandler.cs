@@ -4,6 +4,7 @@
 
 namespace ProductTrackerBot.Handlers;
 
+using Microsoft.Extensions.DependencyInjection;
 using ProductTrackerBot.Localization;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -13,22 +14,22 @@ using Telegram.Bot.Types;
 /// </summary>
 public class StartCommandHandler : ICommandHandler
 {
-    private readonly IEnumerable<ICommandHandler> commandHandlers;
+    private readonly IServiceScopeFactory scopeFactory;
     private readonly ITelegramBotClient botClient;
     private readonly ILocalizer localizer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="StartCommandHandler"/> class.
     /// </summary>
-    /// <param name="commandHandlers">The collection of command handlers.</param>
+    /// <param name="scopeFactory">Used to resolve the handler list without a circular dependency.</param>
     /// <param name="botClient">The Telegram bot client.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
     public StartCommandHandler(
-        IEnumerable<ICommandHandler> commandHandlers,
+        IServiceScopeFactory scopeFactory,
         ITelegramBotClient botClient,
         ILocalizer localizer)
     {
-        this.commandHandlers = commandHandlers;
+        this.scopeFactory = scopeFactory;
         this.botClient = botClient;
         this.localizer = localizer;
     }
@@ -42,7 +43,10 @@ public class StartCommandHandler : ICommandHandler
     /// <inheritdoc/>
     public async Task HandleAsync(Message message, CancellationToken cancellationToken)
     {
-        var publicCommands = this.commandHandlers
+        using var scope = this.scopeFactory.CreateScope();
+        var handlers = scope.ServiceProvider.GetRequiredService<IEnumerable<ICommandHandler>>();
+
+        var publicCommands = handlers
             .Where(h => h.Description is not null)
             .ToList();
 

@@ -5,6 +5,7 @@
 namespace ProductTrackerBot.Tests.Handlers;
 
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using ProductTrackerBot.Handlers;
 using ProductTrackerBot.Localization;
@@ -36,6 +37,22 @@ public class StartCommandHandlerTests
             .ReturnsAsync(new Message());
 
         return (botMock, sentTexts);
+    }
+
+    private static IServiceScopeFactory CreateScopeFactory(IEnumerable<ICommandHandler> handlers)
+    {
+        var spMock = new Mock<IServiceProvider>();
+        spMock
+            .Setup(p => p.GetService(typeof(IEnumerable<ICommandHandler>)))
+            .Returns(handlers);
+
+        var scopeMock = new Mock<IServiceScope>();
+        scopeMock.Setup(s => s.ServiceProvider).Returns(spMock.Object);
+
+        var factoryMock = new Mock<IServiceScopeFactory>();
+        factoryMock.Setup(f => f.CreateScope()).Returns(scopeMock.Object);
+
+        return factoryMock.Object;
     }
 
     private static Message CreateMessage(string text, long chatId = 123L)
@@ -70,7 +87,7 @@ public class StartCommandHandlerTests
                 h.Description == null),
         };
 
-        var handler = new StartCommandHandler(handlers, bot.Object, localizerMock);
+        var handler = new StartCommandHandler(CreateScopeFactory(handlers), bot.Object, localizerMock);
 
         await handler.HandleAsync(CreateMessage("/start"), CancellationToken.None);
 
@@ -95,7 +112,7 @@ public class StartCommandHandlerTests
                 h.Description == null),
         };
 
-        var handler = new StartCommandHandler(handlers, bot.Object, localizerMock);
+        var handler = new StartCommandHandler(CreateScopeFactory(handlers), bot.Object, localizerMock);
 
         await handler.HandleAsync(CreateMessage("/start"), CancellationToken.None);
 
@@ -108,9 +125,10 @@ public class StartCommandHandlerTests
     {
         var botMock = new Mock<ITelegramBotClient>();
         var localizerMock = new Mock<ILocalizer>();
+        var factoryMock = new Mock<IServiceScopeFactory>();
 
         var handler = new StartCommandHandler(
-            new List<ICommandHandler>(),
+            factoryMock.Object,
             botMock.Object,
             localizerMock.Object);
 
