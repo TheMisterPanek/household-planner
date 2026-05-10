@@ -35,5 +35,7 @@
   "prices.header": "📊 Statystyka cen dla {item}",
   "prices.stats-line": "Ogółem: min {min}, śr {avg}, maks {max} ({count} obserwacji)",
   "prices.store-line": "  🏪 {store}: min {min}, śr {avg}, maks {max} ({count})",
-  "prices.unknown-store": "Nieznany sklep"
+  "prices.unknown-store": "Nieznany sklep",
+  "start.welcome": "Witaj w ProductTrackerBot! Oto dostępne polecenia:",
+  "start.no-commands": "Witaj w ProductTrackerBot! Polecenia nie są dostępne."
 }

@@ -41,6 +41,9 @@ public class MealsCommandHandler : ICommandHandler
     public string Command => "/meals";
 
     /// <inheritdoc/>
+    public string? Description => "Manage meal plans";
+
+    /// <inheritdoc/>
     public async Task HandleAsync(Message message, CancellationToken cancellationToken)
     {
         if (message.Chat.Type != ChatType.Group && message.Chat.Type != ChatType.Supergroup)

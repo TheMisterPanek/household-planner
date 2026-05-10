@@ -32,6 +32,9 @@ public class LanguageCommandHandler : ICommandHandler
     public string Command => "/language";
 
     /// <inheritdoc/>
+    public string? Description => "Change bot language";
+
+    /// <inheritdoc/>
     public async Task HandleAsync(Message message, CancellationToken cancellationToken)
     {
         var buttons = new[]

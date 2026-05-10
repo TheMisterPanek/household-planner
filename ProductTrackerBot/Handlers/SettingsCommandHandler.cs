@@ -39,6 +39,9 @@ public class SettingsCommandHandler : ICommandHandler
     public string Command => "/settings";
 
     /// <inheritdoc/>
+    public string? Description => "Bot settings";
+
+    /// <inheritdoc/>
     public async Task HandleAsync(Message message, CancellationToken cancellationToken)
     {
         var chatId = message.Chat.Id;

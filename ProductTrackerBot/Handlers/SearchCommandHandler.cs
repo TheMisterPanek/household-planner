@@ -44,6 +44,9 @@ public class SearchCommandHandler : ICommandHandler
     public string Command => "/search";
 
     /// <inheritdoc/>
+    public string? Description => "Search items";
+
+    /// <inheritdoc/>
     public async Task HandleAsync(Message message, CancellationToken cancellationToken)
     {
         var query = ExtractQuery(message.Text);

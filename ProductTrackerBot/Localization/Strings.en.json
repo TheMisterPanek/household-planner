@@ -35,6 +35,8 @@
   "prices.header": "📊 Price Statistics for {item}",
   "prices.stats-line": "Overall: min {min}, avg {avg}, max {max} ({count} observations)",
   "prices.store-line": "  🏪 {store}: min {min}, avg {avg}, max {max} ({count})",
-  "prices.unknown-store": "Unknown Store"
+  "prices.unknown-store": "Unknown Store",
+  "start.welcome": "Welcome to ProductTrackerBot! Here are the available commands:",
+  "start.no-commands": "Welcome to ProductTrackerBot! No commands are currently available."
 }
 

@@ -33,6 +33,9 @@ public class HistoryCommandHandler : ICommandHandler
     public string Command => "/history";
 
     /// <inheritdoc/>
+    public string? Description => "View action history";
+
+    /// <inheritdoc/>
     public async Task HandleAsync(Message message, CancellationToken cancellationToken)
     {
         if (message.Chat.Id == message.From?.Id)

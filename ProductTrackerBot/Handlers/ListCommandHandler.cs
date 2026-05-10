@@ -48,6 +48,9 @@ public class ListCommandHandler : ICommandHandler
     public string Command => "/list";
 
     /// <inheritdoc/>
+    public string? Description => "View shopping list";
+
+    /// <inheritdoc/>
     public async Task HandleAsync(Message message, CancellationToken cancellationToken)
     {
         var pageNumber = ParsePageNumber(message.Text);

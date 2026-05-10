@@ -60,6 +60,9 @@ public class BuyCommandHandler : ICommandHandler
     public string Command => "/buy";
 
     /// <inheritdoc/>
+    public string? Description => "Start shopping session";
+
+    /// <inheritdoc/>
     public async Task HandleAsync(Message message, CancellationToken cancellationToken)
     {
         if (message.Chat.Type != ChatType.Group && message.Chat.Type != ChatType.Supergroup)

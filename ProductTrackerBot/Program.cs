@@ -65,6 +65,14 @@ builder.Services.AddSingleton(connectionString);
 builder.Services.AddHostedService<DatabaseInitializer>();
 
 builder.Services.AddSingleton<IUpdateHandler, UpdateDispatcher>();
+builder.Services.AddHostedService<BotCommandRegistrationService>(sp =>
+{
+    var botClient = sp.GetRequiredService<ITelegramBotClient>();
+    var logger = sp.GetRequiredService<ILogger<BotCommandRegistrationService>>();
+    using var scope = sp.CreateScope();
+    var handlers = scope.ServiceProvider.GetRequiredService<IEnumerable<ICommandHandler>>();
+    return new BotCommandRegistrationService(botClient, handlers, logger);
+});
 builder.Services.AddHostedService<BotHostedService>();
 
 // Register dialog state services
@@ -109,6 +117,7 @@ builder.Services.AddScoped<ICommandHandler, LanguageCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, MealsCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, PricesCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, SettingsCommandHandler>();
+builder.Services.AddScoped<ICommandHandler, StartCommandHandler>();
 
 // Register dialog message handlers
 builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();

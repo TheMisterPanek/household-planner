@@ -35,5 +35,7 @@
   "prices.header": "📊 Статистика цен для {item}",
   "prices.stats-line": "Всего: мин {min}, средн {avg}, макс {max} ({count} наблюдений)",
   "prices.store-line": "  🏪 {store}: мин {min}, средн {avg}, макс {max} ({count})",
-  "prices.unknown-store": "Неизвестный магазин"
+  "prices.unknown-store": "Неизвестный магазин",
+  "start.welcome": "Добро пожаловать в ProductTrackerBot! Вот доступные команды:",
+  "start.no-commands": "Добро пожаловать в ProductTrackerBot! В настоящий момент команды недоступны."
 }

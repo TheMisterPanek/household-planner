@@ -43,6 +43,9 @@ public class PricesCommandHandler : ICommandHandler
     public string Command => "/prices";
 
     /// <inheritdoc/>
+    public string? Description => "View price history";
+
+    /// <inheritdoc/>
     public async Task HandleAsync(Message message, CancellationToken cancellationToken)
     {
         if (message.Chat.Type == Telegram.Bot.Types.Enums.ChatType.Private)

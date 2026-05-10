@@ -17,6 +17,12 @@ public interface ICommandHandler
     string Command { get; }
 
     /// <summary>
+    /// Gets the optional command description shown in Telegram's suggestion list.
+    /// Handlers returning <c>null</c> are excluded from <c>setMyCommands</c> and from the /start reply list.
+    /// </summary>
+    string? Description => null;
+
+    /// <summary>
     /// Handles the command message.
     /// </summary>
     /// <param name="message">The incoming message containing the command.</param>
