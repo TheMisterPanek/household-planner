@@ -5,4 +5,11 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./ProductTrackerBot/.env
+    environment:
+      - DB_PATH=/data/product-tracker.db
+    volumes:
+      - db-data:/data
     restart: unless-stopped
+
+volumes:
+  db-data:

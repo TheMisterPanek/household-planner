@@ -68,7 +68,8 @@ builder.Services.AddSingleton<ITelegramBotClient>(sp =>
 });
 
 // Register SQLite database path and initializer
-var dbPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../data/product-tracker.db"));
+var dbPath = builder.Configuration["DB_PATH"]
+    ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../data/product-tracker.db"));
 Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
 var connectionString = $"Data Source={dbPath}";
 builder.Services.AddSingleton(connectionString);
