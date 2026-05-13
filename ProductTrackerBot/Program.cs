@@ -80,8 +80,8 @@ builder.Services.AddHostedService<DatabaseInitializer>();
 var aiQueryOptions = new AiQueryOptions
 {
     ApiKey = builder.Configuration["OPENROUTER_API_KEY"] ?? string.Empty,
-    SqlModel = builder.Configuration["AI_SQL_MODEL"] ?? "openai/gpt-4o-mini",
-    AnswerModel = builder.Configuration["AI_ANSWER_MODEL"] ?? "google/gemini-2.0-flash-exp:free",
+    SqlModel = builder.Configuration["AI_SQL_MODEL"] ?? builder.Configuration["AI_QUERY_MODEL"] ?? "openai/gpt-4o-mini",
+    AnswerModel = builder.Configuration["AI_ANSWER_MODEL"] ?? builder.Configuration["AI_QUERY_MODEL"] ?? "google/gemini-2.0-flash-exp:free",
     BaseUrl = "https://openrouter.ai/api/v1/",
     IdentityMdPath = Path.Combine(AppContext.BaseDirectory, "IDENTITY.md"),
 };
