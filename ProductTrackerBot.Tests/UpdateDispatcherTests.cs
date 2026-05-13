@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Handlers;
+using ProductTrackerBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
@@ -147,6 +148,105 @@ public class UpdateDispatcherTests
         commandHandler.Verify(h => h.HandleAsync(It.IsAny<Message>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task Mention_BotUsername_RoutesToAiHandler()
+    {
+        var aiHandler = new Mock<IAiQueryHandler>();
+        var botMock = new Mock<ITelegramBotClient>();
+        botMock.Setup(b => b.SendRequest(It.IsAny<Telegram.Bot.Requests.GetMeRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { Id = 1, Username = "mybot", IsBot = true, FirstName = "MyBot" });
+
+        var identityService = new BotIdentityService(botMock.Object, Mock.Of<ILogger<BotIdentityService>>());
+        await identityService.StartAsync(CancellationToken.None);
+
+        var dispatcher = CreateDispatcher(
+            Enumerable.Empty<ICommandHandler>(),
+            Enumerable.Empty<ICallbackHandler>(),
+            identityService,
+            aiHandler.Object);
+
+        // Message with entity type "mention" for @mybot
+        var update = DeserializeUpdate("""
+            {"update_id":1,"message":{"message_id":1,"from":{"id":100,"first_name":"Test"},"chat":{"id":1},
+            "text":"@mybot what did we buy?",
+            "entities":[{"type":"mention","offset":0,"length":6}]}}
+            """);
+
+        await dispatcher.HandleUpdateAsync(Mock.Of<ITelegramBotClient>(), update, CancellationToken.None);
+
+        aiHandler.Verify(h => h.HandleQueryAsync(
+            It.IsAny<Message>(),
+            It.Is<string>(q => q.Contains("what did we buy")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Mention_OtherUser_FallsThroughToDialogHandling()
+    {
+        var aiHandler = new Mock<IAiQueryHandler>();
+        var dialogHandler = new Mock<IDialogMessageHandler>();
+        dialogHandler.Setup(h => h.CanHandle(It.IsAny<long>(), It.IsAny<long>())).Returns(true);
+
+        var botMock = new Mock<ITelegramBotClient>();
+        botMock.Setup(b => b.SendRequest(It.IsAny<Telegram.Bot.Requests.GetMeRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { Id = 1, Username = "mybot", IsBot = true, FirstName = "MyBot" });
+
+        var identityService = new BotIdentityService(botMock.Object, Mock.Of<ILogger<BotIdentityService>>());
+        await identityService.StartAsync(CancellationToken.None);
+
+        var dispatcher = new UpdateDispatcher(
+            Enumerable.Empty<ICommandHandler>(),
+            Enumerable.Empty<ICallbackHandler>(),
+            new[] { dialogHandler.Object },
+            identityService,
+            aiHandler.Object,
+            this.loggerMock.Object);
+
+        // Message mentioning @otheruser — NOT the bot
+        var update = DeserializeUpdate("""
+            {"update_id":1,"message":{"message_id":1,"from":{"id":100,"first_name":"Test"},"chat":{"id":1},
+            "text":"@otheruser hello",
+            "entities":[{"type":"mention","offset":0,"length":10}]}}
+            """);
+
+        await dispatcher.HandleUpdateAsync(Mock.Of<ITelegramBotClient>(), update, CancellationToken.None);
+
+        aiHandler.Verify(h => h.HandleQueryAsync(It.IsAny<Message>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        dialogHandler.Verify(h => h.HandleAsync(It.IsAny<Message>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Mention_BotUsername_EmptyQuestion_RoutesToAiHandlerWithEmptyString()
+    {
+        var aiHandler = new Mock<IAiQueryHandler>();
+        var botMock = new Mock<ITelegramBotClient>();
+        botMock.Setup(b => b.SendRequest(It.IsAny<Telegram.Bot.Requests.GetMeRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { Id = 1, Username = "mybot", IsBot = true, FirstName = "MyBot" });
+
+        var identityService = new BotIdentityService(botMock.Object, Mock.Of<ILogger<BotIdentityService>>());
+        await identityService.StartAsync(CancellationToken.None);
+
+        var dispatcher = CreateDispatcher(
+            Enumerable.Empty<ICommandHandler>(),
+            Enumerable.Empty<ICallbackHandler>(),
+            identityService,
+            aiHandler.Object);
+
+        // Message is just the bot mention with no additional text
+        var update = DeserializeUpdate("""
+            {"update_id":1,"message":{"message_id":1,"from":{"id":100,"first_name":"Test"},"chat":{"id":1},
+            "text":"@mybot",
+            "entities":[{"type":"mention","offset":0,"length":6}]}}
+            """);
+
+        await dispatcher.HandleUpdateAsync(Mock.Of<ITelegramBotClient>(), update, CancellationToken.None);
+
+        aiHandler.Verify(h => h.HandleQueryAsync(
+            It.IsAny<Message>(),
+            It.Is<string>(q => q == string.Empty),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private static Update DeserializeUpdate(string json)
     {
         return JsonSerializer.Deserialize<Update>(json, JsonOpts)!;
@@ -154,12 +254,22 @@ public class UpdateDispatcherTests
 
     private UpdateDispatcher CreateDispatcher(
         IEnumerable<ICommandHandler> commandHandlers,
-        IEnumerable<ICallbackHandler> callbackHandlers)
+        IEnumerable<ICallbackHandler> callbackHandlers,
+        BotIdentityService? botIdentityService = null,
+        IAiQueryHandler? aiQueryHandler = null)
     {
+        var botClientMock = new Mock<ITelegramBotClient>();
+        botClientMock
+            .Setup(b => b.SendRequest(It.IsAny<Telegram.Bot.Requests.GetMeRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Telegram.Bot.Types.User { Id = 1, Username = "testbot", IsBot = true, FirstName = "Test" });
+        var identityService = botIdentityService
+            ?? new BotIdentityService(botClientMock.Object, Mock.Of<ILogger<BotIdentityService>>());
         return new UpdateDispatcher(
             commandHandlers,
             callbackHandlers,
             Enumerable.Empty<IDialogMessageHandler>(),
+            identityService,
+            aiQueryHandler ?? Mock.Of<IAiQueryHandler>(),
             this.loggerMock.Object);
     }
 }

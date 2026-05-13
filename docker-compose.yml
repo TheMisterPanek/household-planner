@@ -4,7 +4,7 @@ services:
       context: ./ProductTrackerBot
       dockerfile: Dockerfile
     env_file:
-      - ./ProductTrackerBot/.env
+      - ./.env
     environment:
       - DB_PATH=/data/product-tracker.db
     volumes:

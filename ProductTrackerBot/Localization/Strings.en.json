@@ -45,6 +45,11 @@
   "action.cancel": "Cancel",
   "undo.success": "↩️ Action undone.",
   "undo.nothing": "Nothing to undo.",
-  "undo.error": "Cannot undo this action."
+  "undo.error": "Cannot undo this action.",
+  "ai.usage-hint": "Usage: /ai <your question>\nExample: /ai what did we buy most this month?",
+  "ai.thinking": "🤔 Thinking...",
+  "ai.error.unsafe-query": "❌ Could not generate a safe query for that question. Please try rephrasing.",
+  "ai.error.service-unavailable": "❌ AI service is currently unavailable. Please try again later.",
+  "ai.error.no-result": "❌ No answer was returned. Please try rephrasing your question."
 }
 

@@ -45,5 +45,10 @@
   "action.cancel": "Anuluj",
   "undo.success": "↩️ Akcja cofnięta.",
   "undo.nothing": "Nie ma nic do cofnięcia.",
-  "undo.error": "Nie można cofnąć tej akcji."
+  "undo.error": "Nie można cofnąć tej akcji.",
+  "ai.usage-hint": "Użycie: /ai <twoje pytanie>\nPrzykład: /ai co kupowaliśmy najczęściej w tym miesiącu?",
+  "ai.thinking": "🤔 Myślę...",
+  "ai.error.unsafe-query": "❌ Nie udało się wygenerować bezpiecznego zapytania. Spróbuj inaczej sformułować pytanie.",
+  "ai.error.service-unavailable": "❌ Usługa AI jest chwilowo niedostępna. Spróbuj ponownie później.",
+  "ai.error.no-result": "❌ Nie otrzymano odpowiedzi. Spróbuj inaczej sformułować pytanie."
 }

@@ -2,6 +2,7 @@
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
 
+using System.Net.Http.Headers;
 using DotNetEnv;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -75,6 +76,40 @@ var connectionString = $"Data Source={dbPath}";
 builder.Services.AddSingleton(connectionString);
 builder.Services.AddHostedService<DatabaseInitializer>();
 
+// Register AI query options
+var aiQueryOptions = new AiQueryOptions
+{
+    ApiKey = builder.Configuration["OPENROUTER_API_KEY"] ?? string.Empty,
+    Model = builder.Configuration["AI_QUERY_MODEL"] ?? "openai/gpt-oss-120b:free",
+    BaseUrl = "https://openrouter.ai/api/v1/",
+    IdentityMdPath = Path.Combine(AppContext.BaseDirectory, "IDENTITY.md"),
+};
+builder.Services.AddSingleton(aiQueryOptions);
+
+// Register OpenRouter HTTP client (30s timeout, bearer auth)
+builder.Services.AddHttpClient("openrouter", (sp, client) =>
+{
+    var opts = sp.GetRequiredService<AiQueryOptions>();
+    client.BaseAddress = new Uri(opts.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    if (!string.IsNullOrEmpty(opts.ApiKey))
+    {
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", opts.ApiKey);
+    }
+
+    client.DefaultRequestHeaders.Add("HTTP-Referer", "https://github.com/product-tracker-bot");
+    client.DefaultRequestHeaders.Add("X-Title", "ProductTrackerBot");
+});
+builder.Services.AddSingleton<IOpenRouterClient>(sp =>
+    new OpenRouterClient(
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient("openrouter"),
+        sp.GetRequiredService<AiQueryOptions>()));
+
+// Register BotIdentityService as both hosted service and injectable singleton
+builder.Services.AddSingleton<BotIdentityService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<BotIdentityService>());
+
 builder.Services.AddSingleton<IUpdateHandler, UpdateDispatcher>();
 builder.Services.AddHostedService<BotCommandRegistrationService>(sp =>
 {
@@ -103,6 +138,9 @@ builder.Services.AddScoped<MealRepository>();
 builder.Services.AddScoped<MealIngredientRepository>();
 builder.Services.AddScoped<MealStepRepository>();
 
+// Register AI query service
+builder.Services.AddScoped<IAiQueryService, AiQueryService>();
+
 // Register services
 builder.Services.AddScoped<ShoppingListService>();
 builder.Services.AddScoped<MealMergeService>();
@@ -119,6 +157,11 @@ builder.Services.AddSingleton(sp => new ExpiryNotificationJob(
     sp.GetRequiredService<ILogger<ExpiryNotificationJob>>(),
     notifyTimeUtc));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ExpiryNotificationJob>());
+
+// Register AI command handler as both ICommandHandler and IAiQueryHandler (same scoped instance)
+builder.Services.AddScoped<AiCommandHandler>();
+builder.Services.AddScoped<ICommandHandler>(sp => sp.GetRequiredService<AiCommandHandler>());
+builder.Services.AddScoped<IAiQueryHandler>(sp => sp.GetRequiredService<AiCommandHandler>());
 
 // Register command handlers
 builder.Services.AddScoped<ICommandHandler, BuyCommandHandler>();

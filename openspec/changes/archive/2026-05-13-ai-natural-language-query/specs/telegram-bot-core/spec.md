@@ -1,21 +1,4 @@
-## ADDED Requirements
-
-### Requirement: Bot starts polling on application startup
-The system SHALL initialize a `TelegramBotClient` using the bot token from configuration and begin long-polling for updates when the hosted application starts. The SQLite connection string SHALL be resolved from the `DB_PATH` environment variable when present, falling back to the `AppContext.BaseDirectory`-relative default path.
-
-#### Scenario: Successful startup
-- **WHEN** the application starts with a valid `BOT_TOKEN` in configuration
-- **THEN** the polling loop begins and the bot logs "Bot polling started" at Information level
-
-#### Scenario: Missing token at startup
-- **WHEN** the application starts without `BOT_TOKEN` set
-- **THEN** the application SHALL fail fast with a clear error message before entering the polling loop
-
-#### Scenario: Startup with DB_PATH configured
-- **WHEN** the application starts with `DB_PATH=/data/product-tracker.db`
-- **THEN** the SQLite connection uses the specified path and `DatabaseInitializer` runs against that file
-
----
+## MODIFIED Requirements
 
 ### Requirement: Update dispatcher routes incoming updates to a handler
 The system SHALL pass each received `Update` object to an `UpdateDispatcher` that resolves the correct `ICommandHandler` by command text or `ICallbackHandler` by callback data prefix. For non-command text messages, the dispatcher SHALL first check for a bot mention entity before falling through to dialog handler resolution. The bot's own username SHALL be resolved once at startup via `GetMeAsync()` and injected into the dispatcher.
@@ -43,12 +26,3 @@ The system SHALL pass each received `Update` object to an `UpdateDispatcher` tha
 #### Scenario: Non-command message does not mention the bot
 - **WHEN** a text message does not start with `/` and contains no `Mention` entity matching the bot's username
 - **THEN** the dispatcher SHALL fall through to `TryHandleDialogMessageAsync` as before
-
----
-
-### Requirement: Graceful shutdown on cancellation
-The system SHALL stop polling and dispose the bot client when the application lifetime is cancelled.
-
-#### Scenario: Application receives SIGTERM
-- **WHEN** the host receives a stop signal (SIGTERM / Ctrl+C)
-- **THEN** the polling loop exits cleanly and logs "Bot polling stopped" at Information level before the process exits
