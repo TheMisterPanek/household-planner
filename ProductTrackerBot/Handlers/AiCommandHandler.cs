@@ -16,7 +16,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 /// <summary>
 /// Handles the <c>/ai</c> command and exposes shared question-answering logic for bot mention routing.
 /// </summary>
-public class AiCommandHandler : ICommandHandler, IAiQueryHandler
+public class AiCommandHandler : ICommandHandler
 {
     private readonly ITelegramBotClient botClient;
     private readonly GroupRepository groupRepository;
@@ -56,11 +56,10 @@ public class AiCommandHandler : ICommandHandler, IAiQueryHandler
     public async Task HandleAsync(Message message, CancellationToken cancellationToken)
     {
         var question = ExtractQuestion(message.Text);
-        await this.HandleQueryAsync(message, question, cancellationToken);
+        await this.ExecuteQueryAsync(message, question, cancellationToken);
     }
 
-    /// <inheritdoc/>
-    public async Task HandleQueryAsync(Message message, string question, CancellationToken cancellationToken)
+    private async Task ExecuteQueryAsync(Message message, string question, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(question))
         {

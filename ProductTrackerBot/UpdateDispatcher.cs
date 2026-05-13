@@ -7,7 +7,6 @@ namespace ProductTrackerBot;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Handlers;
-using ProductTrackerBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
@@ -21,8 +20,6 @@ public class UpdateDispatcher : IUpdateHandler
     private readonly IEnumerable<ICommandHandler> commandHandlers;
     private readonly IEnumerable<ICallbackHandler> callbackHandlers;
     private readonly IEnumerable<IDialogMessageHandler> dialogHandlers;
-    private readonly BotIdentityService botIdentityService;
-    private readonly IAiQueryHandler aiQueryHandler;
     private readonly ILogger<UpdateDispatcher> logger;
 
     /// <summary>
@@ -31,22 +28,16 @@ public class UpdateDispatcher : IUpdateHandler
     /// <param name="commandHandlers">All registered command handlers.</param>
     /// <param name="callbackHandlers">All registered callback handlers.</param>
     /// <param name="dialogHandlers">All registered dialog message handlers.</param>
-    /// <param name="botIdentityService">Service exposing the bot's own username.</param>
-    /// <param name="aiQueryHandler">Handler for AI natural language queries.</param>
     /// <param name="logger">The logger.</param>
     public UpdateDispatcher(
         IEnumerable<ICommandHandler> commandHandlers,
         IEnumerable<ICallbackHandler> callbackHandlers,
         IEnumerable<IDialogMessageHandler> dialogHandlers,
-        BotIdentityService botIdentityService,
-        IAiQueryHandler aiQueryHandler,
         ILogger<UpdateDispatcher> logger)
     {
         this.commandHandlers = commandHandlers;
         this.callbackHandlers = callbackHandlers;
         this.dialogHandlers = dialogHandlers;
-        this.botIdentityService = botIdentityService;
-        this.aiQueryHandler = aiQueryHandler;
         this.logger = logger;
     }
 
@@ -100,17 +91,6 @@ public class UpdateDispatcher : IUpdateHandler
 
         if (!message.Text.StartsWith('/'))
         {
-            // Check for bot mention before falling through to dialog handling
-            if (this.TryExtractMentionQuestion(message, out var question))
-            {
-                this.logger.LogInformation(
-                    "Routing bot mention from user {UserId} to AI query handler",
-                    message.From?.Id);
-                await this.aiQueryHandler.HandleQueryAsync(message, question, cancellationToken);
-                return;
-            }
-
-            // Check for pending dialogs
             await this.TryHandleDialogMessageAsync(message, cancellationToken);
             return;
         }
@@ -177,45 +157,6 @@ public class UpdateDispatcher : IUpdateHandler
         }
 
         this.logger.LogDebug("No dialog handler for message from user {UserId}", message.From.Id);
-    }
-
-    private bool TryExtractMentionQuestion(Message message, out string question)
-    {
-        question = string.Empty;
-
-        if (message.Text is null || message.Entities is null)
-        {
-            return false;
-        }
-
-        var botHandle = "@" + this.botIdentityService.BotUsername;
-        if (string.IsNullOrEmpty(this.botIdentityService.BotUsername))
-        {
-            return false;
-        }
-
-        bool mentionFound = false;
-        foreach (var entity in message.Entities)
-        {
-            if (entity.Type == MessageEntityType.Mention)
-            {
-                var entityText = message.Text.Substring(entity.Offset, entity.Length);
-                if (string.Equals(entityText, botHandle, StringComparison.OrdinalIgnoreCase))
-                {
-                    mentionFound = true;
-                    break;
-                }
-            }
-        }
-
-        if (!mentionFound)
-        {
-            return false;
-        }
-
-        // Strip all occurrences of @BotName (case-insensitive) and trim
-        question = message.Text.Replace(botHandle, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
-        return true;
     }
 
     private ICommandHandler? FindCommandHandler(string command)

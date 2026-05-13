@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
+using Telegram.Bot.Types.Enums;
 
 /// <summary>
 /// Background service that runs the Telegram bot polling loop.
@@ -46,7 +47,10 @@ public class BotHostedService : BackgroundService
     {
         this.logger.LogInformation("Bot polling started");
 
-        var receiverOptions = new ReceiverOptions();
+        var receiverOptions = new ReceiverOptions
+        {
+            AllowedUpdates = [UpdateType.Message, UpdateType.CallbackQuery]
+        };
 
         this.botClient.StartReceiving(
             updateHandler: this.updateHandler,
