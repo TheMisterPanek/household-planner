@@ -29,4 +29,10 @@ public record BotActionEntry
 
     /// <summary>Gets when the action was recorded (UTC).</summary>
     public DateTime RecordedAt { get; init; }
+
+    /// <summary>Gets the JSON payload used to revert this action, or null if not reversible.</summary>
+    public string? RevertPayload { get; init; }
+
+    /// <summary>Gets the UTC timestamp when this entry was reverted, or null if not yet reverted.</summary>
+    public string? RevertedAt { get; init; }
 }

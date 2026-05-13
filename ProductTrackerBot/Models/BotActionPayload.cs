@@ -13,6 +13,9 @@ using System.Text.Json.Serialization;
 [JsonSerializable(typeof(EmptyPayload))]
 [JsonSerializable(typeof(LanguagePayload))]
 [JsonSerializable(typeof(ListViewedPayload))]
+[JsonSerializable(typeof(ItemBoughtRevert))]
+[JsonSerializable(typeof(ItemRemovedRevert))]
+[JsonSerializable(typeof(ListArchivedRevert))]
 public partial class BotActionPayloadContext : JsonSerializerContext
 {
 }

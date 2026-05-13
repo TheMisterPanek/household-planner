@@ -116,12 +116,15 @@ public class ShopDoneCallbackHandler : ICallbackHandler
         {
             var payload = new ItemPayload(buttonText, null);
             var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.ItemPayload);
+            var revertPayload = new ItemBoughtRevert(item.Id, item.Name, item.Quantity, item.GroupId);
+            var revertPayloadJson = System.Text.Json.JsonSerializer.Serialize(revertPayload, BotActionPayloadContext.Default.ItemBoughtRevert);
             await this.historyRepository.RecordAsync(
                 chatId: callbackQuery.Message.Chat.Id,
                 userId: callbackQuery.From.Id,
                 userName: displayName ?? "Unknown",
                 actionType: BotActionType.ItemBought,
                 payloadJson: payloadJson,
+                revertPayloadJson: revertPayloadJson,
                 ct: cancellationToken);
         }
         catch (Exception ex)
@@ -163,7 +166,11 @@ public class ShopDoneCallbackHandler : ICallbackHandler
             rows.Add(new[] { InlineKeyboardButton.WithCallbackData(topShops[i], $"price:shop:{i}") });
         }
 
-        rows.Add(new[] { InlineKeyboardButton.WithCallbackData("Skip", "price:skip_store") });
+        rows.Add(new[]
+        {
+            InlineKeyboardButton.WithCallbackData("Skip", "price:skip_store"),
+            InlineKeyboardButton.WithCallbackData("↩️ Undo", "undo:inline"),
+        });
 
         return new InlineKeyboardMarkup(rows);
     }

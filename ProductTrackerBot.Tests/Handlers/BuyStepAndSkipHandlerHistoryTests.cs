@@ -59,7 +59,7 @@ public class BuyStepAndSkipHandlerHistoryTests
             .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Молоко", Quantity = "2л", ExpDate = expDate, AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var localizer = new Mock<ILocalizer>();
@@ -71,7 +71,7 @@ public class BuyStepAndSkipHandlerHistoryTests
         await handler.HandleAsync(message, CancellationToken.None);
 
         historyMock.Verify(
-            h => h.RecordAsync(-100L, 42L, "Alice", BotActionType.ItemAdded, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            h => h.RecordAsync(-100L, 42L, "Alice", BotActionType.ItemAdded, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -88,7 +88,7 @@ public class BuyStepAndSkipHandlerHistoryTests
             .ReturnsAsync(new ShoppingItem { Id = 2, GroupId = 10, Name = "Хлеб", Quantity = "1шт", ExpDate = expDate, AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB error"));
 
         var localizer = new Mock<ILocalizer>();
@@ -113,7 +113,7 @@ public class BuyStepAndSkipHandlerHistoryTests
             .ReturnsAsync(new ShoppingItem { Id = 3, GroupId = 10, Name = "Яйца", Quantity = "10шт", AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var localizer = new Mock<ILocalizer>();
@@ -126,7 +126,7 @@ public class BuyStepAndSkipHandlerHistoryTests
         await handler.HandleAsync(callbackQuery, CancellationToken.None);
 
         historyMock.Verify(
-            h => h.RecordAsync(-100L, 42L, "Alice", BotActionType.ItemAdded, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            h => h.RecordAsync(-100L, 42L, "Alice", BotActionType.ItemAdded, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -142,7 +142,7 @@ public class BuyStepAndSkipHandlerHistoryTests
             .ReturnsAsync(new ShoppingItem { Id = 4, GroupId = 10, Name = "Чай", AddedByName = "Bob" });
 
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB error"));
 
         var localizer = new Mock<ILocalizer>();

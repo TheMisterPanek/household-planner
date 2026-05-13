@@ -98,6 +98,7 @@ public class ListNextCallbackHandler : ICallbackHandler
                 userName: callbackQuery.From.FirstName ?? "Неизвестный",
                 actionType: BotActionType.ListViewed,
                 payloadJson: payloadJson,
+                revertPayloadJson: null,
                 ct: cancellationToken);
         }
         catch (Exception ex)

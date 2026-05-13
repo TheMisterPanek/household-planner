@@ -195,6 +195,32 @@ public class DatabaseInitializer : IHostedService
             this.logger.LogInformation("exp_date column already exists on PurchaseHistory table");
         }
 
+        // Migrate BotActionHistory table: add revert_payload column if it doesn't exist
+        try
+        {
+            await using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE BotActionHistory ADD COLUMN revert_payload TEXT";
+            await alterCmd.ExecuteNonQueryAsync(cancellationToken);
+            this.logger.LogInformation("Added revert_payload column to BotActionHistory table");
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 1)
+        {
+            this.logger.LogInformation("revert_payload column already exists on BotActionHistory table");
+        }
+
+        // Migrate BotActionHistory table: add reverted_at column if it doesn't exist
+        try
+        {
+            await using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE BotActionHistory ADD COLUMN reverted_at TEXT";
+            await alterCmd.ExecuteNonQueryAsync(cancellationToken);
+            this.logger.LogInformation("Added reverted_at column to BotActionHistory table");
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 1)
+        {
+            this.logger.LogInformation("reverted_at column already exists on BotActionHistory table");
+        }
+
         this.logger.LogInformation("Database schema initialized successfully");
     }
 

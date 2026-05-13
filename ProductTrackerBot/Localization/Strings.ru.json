@@ -41,5 +41,9 @@
   "prices.store-line": "  🏪 {store}: мин {min}, средн {avg}, макс {max} ({count})",
   "prices.unknown-store": "Неизвестный магазин",
   "start.welcome": "Добро пожаловать в ProductTrackerBot! Вот доступные команды:",
-  "start.no-commands": "Добро пожаловать в ProductTrackerBot! В настоящий момент команды недоступны."
+  "start.no-commands": "Добро пожаловать в ProductTrackerBot! В настоящий момент команды недоступны.",
+  "action.cancel": "Отмена",
+  "undo.success": "↩️ Действие отменено.",
+  "undo.nothing": "Нечего отменять.",
+  "undo.error": "Не удаётся отменить это действие."
 }

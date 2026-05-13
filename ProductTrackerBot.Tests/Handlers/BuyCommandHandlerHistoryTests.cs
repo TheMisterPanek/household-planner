@@ -72,14 +72,14 @@ public class BuyCommandHandlerHistoryTests
             .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Молоко", Quantity = "2л", AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var handler = CreateHandler(bot.Object, groupRepo.Object, itemRepo.Object, historyMock.Object);
         await handler.HandleAsync(GroupBuyMessage("Молоко 2л"), CancellationToken.None);
 
         historyMock.Verify(
-            h => h.RecordAsync(-100L, 42L, "Alice", BotActionType.ItemAdded, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            h => h.RecordAsync(-100L, 42L, "Alice", BotActionType.ItemAdded, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -104,7 +104,7 @@ public class BuyCommandHandlerHistoryTests
             .ReturnsAsync(new ShoppingItem { Id = 2, GroupId = 10, Name = "Хлеб", Quantity = null, AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB error"));
 
         var handler = CreateHandler(bot.Object, groupRepo.Object, itemRepo.Object, historyMock.Object);

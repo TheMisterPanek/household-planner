@@ -75,6 +75,7 @@ public class ListCommandHandler : ICommandHandler
                 userName: message.From?.FirstName ?? message.From?.Username ?? "Неизвестный",
                 actionType: BotActionType.ListViewed,
                 payloadJson: payloadJson,
+                revertPayloadJson: null,
                 ct: cancellationToken);
         }
         catch (Exception ex)

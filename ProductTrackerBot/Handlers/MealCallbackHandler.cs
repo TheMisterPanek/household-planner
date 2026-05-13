@@ -5,6 +5,7 @@
 namespace ProductTrackerBot.Handlers;
 
 using Microsoft.Extensions.Logging;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
@@ -27,6 +28,7 @@ public class MealCallbackHandler : ICallbackHandler
     private readonly PendingDialogService<MealAddIngredientDialogState> ingredientDialogService;
     private readonly PendingDialogService<MealAddStepDialogState> stepDialogService;
     private readonly MealMergeService mergeService;
+    private readonly ILocalizer localizer;
     private readonly ILogger<MealCallbackHandler> logger;
 
     /// <summary>
@@ -43,6 +45,7 @@ public class MealCallbackHandler : ICallbackHandler
         PendingDialogService<MealAddIngredientDialogState> ingredientDialogService,
         PendingDialogService<MealAddStepDialogState> stepDialogService,
         MealMergeService mergeService,
+        ILocalizer localizer,
         ILogger<MealCallbackHandler> logger)
     {
         this.botClient = botClient;
@@ -55,6 +58,7 @@ public class MealCallbackHandler : ICallbackHandler
         this.ingredientDialogService = ingredientDialogService;
         this.stepDialogService = stepDialogService;
         this.mergeService = mergeService;
+        this.localizer = localizer;
         this.logger = logger;
     }
 
@@ -442,7 +446,7 @@ public class MealCallbackHandler : ICallbackHandler
         {
             var sessionId = this.mergeService.CreateSession(chatId, mealId, conflicts);
             var conflictText = this.BuildConflictMessage(conflicts);
-            var conflictKeyboard = this.BuildConflictKeyboard(sessionId, conflicts);
+            var conflictKeyboard = this.BuildConflictKeyboard(chatId, sessionId, conflicts);
 
             await this.botClient.SendMessage(
                 chatId,
@@ -503,7 +507,7 @@ public class MealCallbackHandler : ICallbackHandler
         else
         {
             var conflictText = this.BuildConflictMessage(unresolved);
-            var conflictKeyboard = this.BuildConflictKeyboard(sessionId, unresolved);
+            var conflictKeyboard = this.BuildConflictKeyboard(callbackQuery.Message!.Chat.Id, sessionId, unresolved);
 
             await this.botClient.EditMessageText(
                 callbackQuery.Message!.Chat.Id,
@@ -580,7 +584,7 @@ public class MealCallbackHandler : ICallbackHandler
         return string.Join("\n", lines);
     }
 
-    private InlineKeyboardMarkup BuildConflictKeyboard(string sessionId, List<MergeConflict> conflicts)
+    private InlineKeyboardMarkup BuildConflictKeyboard(long chatId, string sessionId, List<MergeConflict> conflicts)
     {
         var keyboard = new List<List<InlineKeyboardButton>>();
 
@@ -592,6 +596,11 @@ public class MealCallbackHandler : ICallbackHandler
                 InlineKeyboardButton.WithCallbackData("+ Add anyway", $"meal:merge:add:{sessionId}:{i}"),
             });
         }
+
+        keyboard.Add(new List<InlineKeyboardButton>
+        {
+            InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "action.cancel"), "action:cancel"),
+        });
 
         return new InlineKeyboardMarkup(keyboard);
     }

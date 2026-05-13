@@ -26,4 +26,7 @@ public enum BotActionType
 
     /// <summary>The language preference was changed.</summary>
     LanguageChanged,
+
+    /// <summary>The shopping list was archived.</summary>
+    ListArchived,
 }

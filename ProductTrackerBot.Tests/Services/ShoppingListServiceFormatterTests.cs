@@ -49,8 +49,8 @@ public class ShoppingListServiceFormatterTests
 
         Assert.NotNull(keyboard);
         var buttonRows = keyboard!.InlineKeyboard.ToList();
-        // Should have 1 row for the item (2 buttons: done + remove), no pagination row
-        Assert.Single(buttonRows);
+        // Should have 1 item row + 1 Cancel row, no pagination row
+        Assert.Equal(2, buttonRows.Count);
         Assert.DoesNotContain(buttonRows, row => row.Any(b => b.Text == "Next" || b.Text == "Previous"));
     }
 
@@ -127,8 +127,7 @@ public class ShoppingListServiceFormatterTests
         var (_, keyboard, _) = await service.BuildListAsync(chatId: 1, pageNumber: 1);
 
         Assert.NotNull(keyboard);
-        var paginationRow = keyboard!.InlineKeyboard.Last();
-        var nextButton = paginationRow.First(b => b.Text.Contains("Next"));
+        var nextButton = keyboard!.InlineKeyboard.SelectMany(row => row).First(b => b.Text.Contains("Next"));
         Assert.NotNull(nextButton.CallbackData);
         // Format should be list_next:chatId:pageNumber
         Assert.StartsWith("list_next:1:", nextButton.CallbackData);
@@ -212,7 +211,8 @@ public class ShoppingListServiceFormatterTests
 
         Assert.Contains("• Apple", text);
         Assert.NotNull(keyboard);
-        Assert.Single(keyboard!.InlineKeyboard);
+        // item row + Cancel row
+        Assert.Equal(2, keyboard!.InlineKeyboard.Count());
         Assert.Equal("shop:done:1", keyboard.InlineKeyboard.First().First().CallbackData);
     }
 }

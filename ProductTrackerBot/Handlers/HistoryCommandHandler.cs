@@ -72,6 +72,7 @@ public class HistoryCommandHandler : ICommandHandler
             userName: message.From?.FirstName ?? message.From?.Username ?? "Неизвестный",
             actionType: BotActionType.HistoryViewed,
             payloadJson: "{}",
+            revertPayloadJson: null,
             ct: cancellationToken);
     }
 

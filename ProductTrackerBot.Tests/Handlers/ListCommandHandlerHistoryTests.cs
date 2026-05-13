@@ -66,14 +66,14 @@ public class ListCommandHandlerHistoryTests
     {
         var bot = CreateBotMock();
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var (handler, history) = CreateHandler(bot.Object, historyMock.Object);
         await handler.HandleAsync(GroupListMessage(), CancellationToken.None);
 
         history.Verify(
-            h => h.RecordAsync(-100L, 42L, "Alice", BotActionType.ListViewed, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            h => h.RecordAsync(-100L, 42L, "Alice", BotActionType.ListViewed, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -82,7 +82,7 @@ public class ListCommandHandlerHistoryTests
     {
         var bot = CreateBotMock();
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB error"));
 
         var (handler, _) = CreateHandler(bot.Object, historyMock.Object);
@@ -95,8 +95,8 @@ public class ListCommandHandlerHistoryTests
         var bot = CreateBotMock();
         var historyMock = new Mock<IHistoryRepository>();
         string? capturedPayload = null;
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Callback<long, long, string, BotActionType, string, CancellationToken>((_, _, _, _, payload, _) => capturedPayload = payload)
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<long, long, string, BotActionType, string, string?, CancellationToken>((_, _, _, _, payload, _, _) => capturedPayload = payload)
             .Returns(Task.CompletedTask);
 
         var (handler, _) = CreateHandler(bot.Object, historyMock.Object);

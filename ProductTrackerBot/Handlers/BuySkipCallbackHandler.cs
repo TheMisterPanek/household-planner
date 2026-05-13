@@ -110,6 +110,7 @@ public class BuySkipCallbackHandler : ICallbackHandler
                 userName: state.AddedByName,
                 actionType: BotActionType.ItemAdded,
                 payloadJson: payloadJson,
+                revertPayloadJson: null,
                 ct: cancellationToken);
         }
         catch (Exception ex)

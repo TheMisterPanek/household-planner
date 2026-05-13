@@ -45,7 +45,8 @@ public class ShoppingListServiceTests
         Assert.Contains("list.header", text);
         Assert.Contains("Молоко (2л)", text);
         Assert.NotNull(keyboard);
-        Assert.Single(keyboard!.InlineKeyboard);
+        // keyboard has item row + Cancel row
+        Assert.Equal(2, keyboard!.InlineKeyboard.Count());
 
         var row = keyboard.InlineKeyboard.First();
         Assert.Equal(2, row.Count());
@@ -75,14 +76,15 @@ public class ShoppingListServiceTests
         Assert.Contains("Молоко (2л)", text);
         Assert.Contains("Хлеб", text);
         Assert.NotNull(keyboard);
-        Assert.Equal(2, keyboard!.InlineKeyboard.Count());
+        // keyboard has 2 item rows + Cancel row
+        Assert.Equal(3, keyboard!.InlineKeyboard.Count());
 
         // Verify callback data for both items
         var firstRow = keyboard.InlineKeyboard.First();
         Assert.Equal("shop:done:1", firstRow.First().CallbackData);
         Assert.Equal("shop:remove:1", firstRow.Last().CallbackData);
 
-        var secondRow = keyboard.InlineKeyboard.Last();
+        var secondRow = keyboard.InlineKeyboard.ElementAt(1);
         Assert.Equal("shop:done:2", secondRow.First().CallbackData);
         Assert.Equal("shop:remove:2", secondRow.Last().CallbackData);
     }

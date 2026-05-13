@@ -140,6 +140,12 @@ public class ShoppingListService
         var itemsLabel = this.localizer.Get(chatId, "pagination_items_label");
         sb.AppendLine($"\n{pageLabel} {actualPageNumber} {ofLabel} {totalPages} ({totalItems} {itemsLabel})");
 
+        // Add Cancel button as the last row
+        buttons.Add(
+        [
+            InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "action.cancel"), "action:cancel"),
+        ]);
+
         return (sb.ToString(), new InlineKeyboardMarkup(buttons), group);
     }
 

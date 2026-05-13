@@ -59,7 +59,7 @@ public class ShopDoneCallbackHandlerHistoryTests
         var historyMock = new Mock<IHistoryRepository>();
         var setup = historyMock.Setup(h => h.RecordAsync(
             It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(),
-            It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()));
+            It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()));
 
         if (historyThrows)
             setup.ThrowsAsync(new InvalidOperationException("DB error"));
@@ -100,7 +100,7 @@ public class ShopDoneCallbackHandlerHistoryTests
         await handler.HandleAsync(callbackQuery, CancellationToken.None);
 
         historyMock.Verify(
-            h => h.RecordAsync(-100L, 42L, "Alice", BotActionType.ItemBought, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            h => h.RecordAsync(-100L, 42L, "Alice", BotActionType.ItemBought, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -116,6 +116,35 @@ public class ShopDoneCallbackHandlerHistoryTests
             "\"data\":\"shop:done:6\"}");
 
         await handler.HandleAsync(callbackQuery, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Passes_ItemBoughtRevert_Payload_With_Item_Details()
+    {
+        var item = new ShoppingItem { Id = 5, GroupId = 10, Name = "Молоко", Quantity = "2л", AddedByName = "Alice" };
+        var (handler, historyMock, _) = CreateFullHandler(item);
+        string? capturedRevert = null;
+        historyMock.Setup(h => h.RecordAsync(
+                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(),
+                It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<long, long, string, BotActionType, string, string?, CancellationToken>(
+                (_, _, _, _, _, revert, _) => capturedRevert = revert)
+            .Returns(Task.CompletedTask);
+
+        var callbackQuery = DeserializeCallbackQuery(
+            "{\"id\":\"cb1\",\"from\":{\"id\":42,\"first_name\":\"Alice\"}," +
+            "\"message\":{\"message_id\":10,\"chat\":{\"id\":-100}}," +
+            "\"data\":\"shop:done:5\"}");
+
+        await handler.HandleAsync(callbackQuery, CancellationToken.None);
+
+        Assert.NotNull(capturedRevert);
+        var revert = System.Text.Json.JsonSerializer.Deserialize<ItemBoughtRevert>(capturedRevert!, BotActionPayloadContext.Default.ItemBoughtRevert);
+        Assert.NotNull(revert);
+        Assert.Equal(5, revert!.ItemId);
+        Assert.Equal("Молоко", revert.ItemName);
+        Assert.Equal("2л", revert.Quantity);
+        Assert.Equal(10, revert.ListId);
     }
 
     private static Mock<ILocalizer> CreateLocalizerMock()

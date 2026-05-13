@@ -41,5 +41,9 @@
   "prices.store-line": "  🏪 {store}: min {min}, śr {avg}, maks {max} ({count})",
   "prices.unknown-store": "Nieznany sklep",
   "start.welcome": "Witaj w ProductTrackerBot! Oto dostępne polecenia:",
-  "start.no-commands": "Witaj w ProductTrackerBot! Polecenia nie są dostępne."
+  "start.no-commands": "Witaj w ProductTrackerBot! Polecenia nie są dostępne.",
+  "action.cancel": "Anuluj",
+  "undo.success": "↩️ Akcja cofnięta.",
+  "undo.nothing": "Nie ma nic do cofnięcia.",
+  "undo.error": "Nie można cofnąć tej akcji."
 }

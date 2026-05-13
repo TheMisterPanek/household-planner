@@ -105,7 +105,7 @@ public class PriceCaptureDialogTests
             .Returns(Task.CompletedTask);
 
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file:test");
@@ -459,7 +459,7 @@ public class PriceCaptureDialogTests
             .Returns(Task.CompletedTask);
 
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file:test");
@@ -515,7 +515,7 @@ public class PriceCaptureDialogTests
             .Returns(Task.CompletedTask);
 
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file:test");
@@ -571,7 +571,7 @@ public class PriceCaptureDialogTests
             .Returns(Task.CompletedTask);
 
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file:test");
@@ -708,7 +708,7 @@ public class PriceCaptureDialogTests
             .Returns(Task.CompletedTask);
 
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var longShopName = new string('A', 40);

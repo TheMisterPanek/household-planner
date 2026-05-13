@@ -87,6 +87,7 @@ public class LanguageSelectionHandler : ICallbackHandler
                 userName: callbackQuery.From?.FirstName ?? callbackQuery.From?.Username ?? "Неизвестный",
                 actionType: BotActionType.LanguageChanged,
                 payloadJson: payloadJson,
+                revertPayloadJson: null,
                 ct: cancellationToken);
         }
         catch (Exception ex)

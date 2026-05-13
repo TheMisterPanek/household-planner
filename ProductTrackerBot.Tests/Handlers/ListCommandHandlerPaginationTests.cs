@@ -71,7 +71,7 @@ public class ListCommandHandlerPaginationTests
     {
         var bot = CreateBotMock();
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var (handler, _) = CreateHandler(bot.Object, historyMock.Object);
@@ -86,7 +86,7 @@ public class ListCommandHandlerPaginationTests
     {
         var bot = CreateBotMock();
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var (handler, _) = CreateHandler(bot.Object, historyMock.Object);
@@ -101,7 +101,7 @@ public class ListCommandHandlerPaginationTests
     {
         var bot = CreateBotMock();
         var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var (handler, _) = CreateHandler(bot.Object, historyMock.Object);

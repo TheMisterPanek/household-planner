@@ -41,6 +41,10 @@
   "prices.store-line": "  🏪 {store}: min {min}, avg {avg}, max {max} ({count})",
   "prices.unknown-store": "Unknown Store",
   "start.welcome": "Welcome to ProductTrackerBot! Here are the available commands:",
-  "start.no-commands": "Welcome to ProductTrackerBot! No commands are currently available."
+  "start.no-commands": "Welcome to ProductTrackerBot! No commands are currently available.",
+  "action.cancel": "Cancel",
+  "undo.success": "↩️ Action undone.",
+  "undo.nothing": "Nothing to undo.",
+  "undo.error": "Cannot undo this action."
 }
 

@@ -106,6 +106,7 @@ builder.Services.AddScoped<MealStepRepository>();
 builder.Services.AddScoped<ShoppingListService>();
 builder.Services.AddScoped<MealMergeService>();
 builder.Services.AddScoped<ExpiryNotificationService>();
+builder.Services.AddScoped<IUndoService, UndoService>();
 builder.Services.AddSingleton<ILocalizer, Localizer>();
 
 // Register hosted services for background jobs
@@ -128,6 +129,7 @@ builder.Services.AddScoped<ICommandHandler, MealsCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, PricesCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, SettingsCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, StartCommandHandler>();
+builder.Services.AddScoped<ICommandHandler, UndoCommandHandler>();
 
 // Register dialog message handlers
 builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();
@@ -144,6 +146,8 @@ builder.Services.AddScoped<ICallbackHandler, LanguageCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ListNextCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ListPrevCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, MealCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, ActionCancelCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, UndoInlineCallbackHandler>();
 
 var host = builder.Build();
 await host.RunAsync();

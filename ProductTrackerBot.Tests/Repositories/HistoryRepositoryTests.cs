@@ -24,7 +24,9 @@ public class HistoryRepositoryTests : IDisposable
                 UserName TEXT NOT NULL,
                 ActionType TEXT NOT NULL,
                 Payload TEXT NOT NULL,
-                RecordedAt TEXT NOT NULL DEFAULT (datetime('now'))
+                RecordedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                revert_payload TEXT,
+                reverted_at TEXT
             );";
         cmd.ExecuteNonQuery();
 
@@ -46,6 +48,7 @@ public class HistoryRepositoryTests : IDisposable
             userName: "Alice",
             actionType: BotActionType.ItemAdded,
             payloadJson: "{\"name\":\"Milk\"}",
+            revertPayloadJson: null,
             ct: CancellationToken.None);
 
         using var cmd = this.connection.CreateCommand();
@@ -64,13 +67,37 @@ public class HistoryRepositoryTests : IDisposable
     [Fact]
     public async Task RecordAsync_Stores_ActionType_As_String()
     {
-        await this.repository.RecordAsync(100L, 200L, "Bob", BotActionType.ItemBought, "{}", CancellationToken.None);
+        await this.repository.RecordAsync(100L, 200L, "Bob", BotActionType.ItemBought, "{}", null, CancellationToken.None);
 
         using var cmd = this.connection.CreateCommand();
         cmd.CommandText = "SELECT ActionType FROM BotActionHistory";
         var result = cmd.ExecuteScalar() as string;
 
         Assert.Equal("ItemBought", result);
+    }
+
+    [Fact]
+    public async Task RecordAsync_Stores_RevertPayload_When_Provided()
+    {
+        await this.repository.RecordAsync(100L, 1L, "Alice", BotActionType.ItemBought, "{}", "{\"revert\":true}", CancellationToken.None);
+
+        using var cmd = this.connection.CreateCommand();
+        cmd.CommandText = "SELECT revert_payload FROM BotActionHistory";
+        var result = cmd.ExecuteScalar() as string;
+
+        Assert.Equal("{\"revert\":true}", result);
+    }
+
+    [Fact]
+    public async Task RecordAsync_Stores_Null_RevertPayload_When_Not_Provided()
+    {
+        await this.repository.RecordAsync(100L, 1L, "Alice", BotActionType.ItemAdded, "{}", null, CancellationToken.None);
+
+        using var cmd = this.connection.CreateCommand();
+        cmd.CommandText = "SELECT revert_payload FROM BotActionHistory";
+        var result = cmd.ExecuteScalar();
+
+        Assert.Equal(DBNull.Value, result);
     }
 
     [Fact]
@@ -84,9 +111,9 @@ public class HistoryRepositoryTests : IDisposable
     [Fact]
     public async Task GetRecentAsync_Returns_Entries_In_Descending_Order()
     {
-        await this.repository.RecordAsync(100L, 1L, "A", BotActionType.ItemAdded, "{}", CancellationToken.None);
-        await this.repository.RecordAsync(100L, 2L, "B", BotActionType.ItemBought, "{}", CancellationToken.None);
-        await this.repository.RecordAsync(100L, 3L, "C", BotActionType.ItemRemoved, "{}", CancellationToken.None);
+        await this.repository.RecordAsync(100L, 1L, "A", BotActionType.ItemAdded, "{}", null, CancellationToken.None);
+        await this.repository.RecordAsync(100L, 2L, "B", BotActionType.ItemBought, "{}", null, CancellationToken.None);
+        await this.repository.RecordAsync(100L, 3L, "C", BotActionType.ItemRemoved, "{}", null, CancellationToken.None);
 
         var entries = await this.repository.GetRecentAsync(chatId: 100L, limit: 10, ct: CancellationToken.None);
 
@@ -101,7 +128,7 @@ public class HistoryRepositoryTests : IDisposable
     {
         for (var i = 0; i < 5; i++)
         {
-            await this.repository.RecordAsync(100L, i, $"User{i}", BotActionType.ListViewed, "{}", CancellationToken.None);
+            await this.repository.RecordAsync(100L, i, $"User{i}", BotActionType.ListViewed, "{}", null, CancellationToken.None);
         }
 
         var entries = await this.repository.GetRecentAsync(chatId: 100L, limit: 3, ct: CancellationToken.None);
@@ -112,14 +139,70 @@ public class HistoryRepositoryTests : IDisposable
     [Fact]
     public async Task GetRecentAsync_Scoped_To_ChatId()
     {
-        await this.repository.RecordAsync(100L, 1L, "Alice", BotActionType.ItemAdded, "{}", CancellationToken.None);
-        await this.repository.RecordAsync(200L, 2L, "Bob", BotActionType.ItemAdded, "{}", CancellationToken.None);
+        await this.repository.RecordAsync(100L, 1L, "Alice", BotActionType.ItemAdded, "{}", null, CancellationToken.None);
+        await this.repository.RecordAsync(200L, 2L, "Bob", BotActionType.ItemAdded, "{}", null, CancellationToken.None);
 
         var entries = await this.repository.GetRecentAsync(chatId: 100L, limit: 10, ct: CancellationToken.None);
 
         Assert.Single(entries);
         Assert.Equal("Alice", entries[0].UserName);
         Assert.Equal(100L, entries[0].ChatId);
+    }
+
+    [Fact]
+    public async Task GetLatestReversibleAsync_Returns_Most_Recent_Reversible_Entry()
+    {
+        await this.repository.RecordAsync(100L, 1L, "Alice", BotActionType.ItemAdded, "{}", null, CancellationToken.None);
+        await this.repository.RecordAsync(100L, 1L, "Alice", BotActionType.ItemBought, "{}", "{\"revert\":true}", CancellationToken.None);
+
+        var entry = await this.repository.GetLatestReversibleAsync(100L, 1L, CancellationToken.None);
+
+        Assert.NotNull(entry);
+        Assert.Equal(BotActionType.ItemBought, entry.ActionType);
+        Assert.Equal("{\"revert\":true}", entry.RevertPayload);
+    }
+
+    [Fact]
+    public async Task GetLatestReversibleAsync_Returns_Null_When_No_Reversible_Entry()
+    {
+        await this.repository.RecordAsync(100L, 1L, "Alice", BotActionType.ListViewed, "{}", null, CancellationToken.None);
+
+        var entry = await this.repository.GetLatestReversibleAsync(100L, 1L, CancellationToken.None);
+
+        Assert.Null(entry);
+    }
+
+    [Fact]
+    public async Task GetLatestReversibleAsync_Excludes_Already_Reverted_Entries()
+    {
+        await this.repository.RecordAsync(100L, 1L, "Alice", BotActionType.ItemBought, "{}", "{\"revert\":true}", CancellationToken.None);
+
+        var entry = await this.repository.GetLatestReversibleAsync(100L, 1L, CancellationToken.None);
+        Assert.NotNull(entry);
+
+        await this.repository.MarkRevertedAsync(entry.Id, "2026-01-01T00:00:00Z", CancellationToken.None);
+
+        var afterRevert = await this.repository.GetLatestReversibleAsync(100L, 1L, CancellationToken.None);
+        Assert.Null(afterRevert);
+    }
+
+    [Fact]
+    public async Task MarkRevertedAsync_Sets_RevertedAt()
+    {
+        await this.repository.RecordAsync(100L, 1L, "Alice", BotActionType.ItemBought, "{}", "{\"revert\":true}", CancellationToken.None);
+
+        using var selectCmd = this.connection.CreateCommand();
+        selectCmd.CommandText = "SELECT Id FROM BotActionHistory";
+        var id = (long)selectCmd.ExecuteScalar()!;
+
+        await this.repository.MarkRevertedAsync(id, "2026-05-13T10:00:00Z", CancellationToken.None);
+
+        using var checkCmd = this.connection.CreateCommand();
+        checkCmd.CommandText = "SELECT reverted_at FROM BotActionHistory WHERE Id = @id";
+        checkCmd.Parameters.AddWithValue("@id", id);
+        var result = checkCmd.ExecuteScalar() as string;
+
+        Assert.Equal("2026-05-13T10:00:00Z", result);
     }
 
     public void Dispose()

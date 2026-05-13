@@ -104,6 +104,7 @@ public class LanguageSelectionHandlerTests
                 "Test",
                 BotActionType.LanguageChanged,
                 It.IsAny<string>(),
+                It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

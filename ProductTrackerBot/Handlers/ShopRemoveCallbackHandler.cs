@@ -65,6 +65,9 @@ public class ShopRemoveCallbackHandler : ICallbackHandler
             return;
         }
 
+        // Read item before deleting so we can store its details for undo
+        var item = await this.itemRepository.GetByIdAsync(itemId);
+
         // Delete the item
         await this.itemRepository.DeleteAsync(itemId);
 
@@ -99,12 +102,20 @@ public class ShopRemoveCallbackHandler : ICallbackHandler
         {
             var payload = new EmptyPayload();
             var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.EmptyPayload);
+            string? revertPayloadJson = null;
+            if (item is not null)
+            {
+                var revertPayload = new ItemRemovedRevert(item.Name, item.Quantity, item.GroupId);
+                revertPayloadJson = System.Text.Json.JsonSerializer.Serialize(revertPayload, BotActionPayloadContext.Default.ItemRemovedRevert);
+            }
+
             await this.historyRepository.RecordAsync(
                 chatId: callbackQuery.Message.Chat.Id,
                 userId: callbackQuery.From.Id,
                 userName: callbackQuery.From.FirstName ?? callbackQuery.From.Username ?? "Неизвестный",
                 actionType: BotActionType.ItemRemoved,
                 payloadJson: payloadJson,
+                revertPayloadJson: revertPayloadJson,
                 ct: cancellationToken);
         }
         catch (Exception ex)
