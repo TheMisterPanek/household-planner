@@ -12,11 +12,8 @@ public record AiQueryOptions
     /// <summary>Gets the OpenRouter API key.</summary>
     public string ApiKey { get; init; } = string.Empty;
 
-    /// <summary>Gets the model used for Round 1 (SQL generation) — benefits from stronger reasoning.</summary>
-    public string SqlModel { get; init; } = "openai/gpt-4o-mini";
-
-    /// <summary>Gets the model used for Round 2 (answer formatting) — a free/cheap model is fine.</summary>
-    public string AnswerModel { get; init; } = "google/gemini-2.0-flash-exp:free";
+    /// <summary>Gets the model used for all AI queries.</summary>
+    public string Model { get; init; } = "openai/gpt-4o-mini";
 
     /// <summary>Gets the OpenRouter API base URL.</summary>
     public string BaseUrl { get; init; } = "https://openrouter.ai/api/v1/";

@@ -19,8 +19,7 @@ public class AiQueryService : IAiQueryService
     private readonly ILocalizer localizer;
     private readonly ILogger<AiQueryService> logger;
     private readonly string identityTemplate;
-    private readonly string sqlModel;
-    private readonly string answerModel;
+    private readonly string model;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AiQueryService"/> class.
@@ -42,8 +41,7 @@ public class AiQueryService : IAiQueryService
         this.localizer = localizer;
         this.logger = logger;
         this.identityTemplate = File.ReadAllText(options.IdentityMdPath);
-        this.sqlModel = options.SqlModel;
-        this.answerModel = options.AnswerModel;
+        this.model = options.Model;
     }
 
     /// <inheritdoc/>
@@ -57,7 +55,7 @@ public class AiQueryService : IAiQueryService
         string? sqlResponse;
         try
         {
-            sqlResponse = await this.openRouterClient.CompleteAsync(this.sqlModel, systemPrompt, question, ct);
+            sqlResponse = await this.openRouterClient.CompleteAsync(this.model, systemPrompt, question, ct);
         }
         catch (HttpRequestException ex)
         {
@@ -108,7 +106,7 @@ public class AiQueryService : IAiQueryService
         string? answer;
         try
         {
-            answer = await this.openRouterClient.CompleteAsync(this.answerModel, systemPrompt, round2Message, ct);
+            answer = await this.openRouterClient.CompleteAsync(this.model, systemPrompt, round2Message, ct);
         }
         catch (HttpRequestException ex)
         {
