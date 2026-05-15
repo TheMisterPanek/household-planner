@@ -58,7 +58,8 @@ When proposing features:
 1. **Scope**: Use `/openspec-propose` to create a change with design docs and task breakdown
 2. **Unit tests**: Every handler/service proposal must include explicit test tasks
 3. **Implementation**: Use `/openspec-apply-change` to work through tasks
-4. **Archive**: When complete, use `/openspec-archive-change` to finalize
+4. **Smoke test**: After implementation tasks, always append a manual e2e smoke test task as the final task in the breakdown. This task describes how to verify the feature end-to-end in a real Telegram chat (commands to send, expected bot responses, edge cases to check by hand). Claude must stop and leave this task open — do NOT mark it complete or proceed to archive until the user confirms the smoke test passed.
+5. **Archive**: When complete, use `/openspec-archive-change` to finalize
 
 Example:
 ```
@@ -68,6 +69,7 @@ User: /openspec-propose Add /history command to view user activity log
   - Design doc (how pagination works, what data is shown)
   - Implementation tasks (handler, repository query, tests)
   - Test tasks (covers pagination, filtering, error cases)
+  - Smoke test guide (send /history, verify paginated list appears, test empty state, test with 1 item)
 ```
 
 ## Files to know
