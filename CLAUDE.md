@@ -28,6 +28,19 @@ Bot requires a Telegram token. Set via `BOT_TOKEN` environment variable or `.env
 - Test mocks for `ILocalizer` should return key names as fallback (allows assertions on key names)
 - Use `Mock.Of<T>()` for simple throwaway mocks; `new Mock<T>()` when setup is needed
 
+### Integration test requirements
+- Every new command handler, callback handler, or dialog flow must have a corresponding integration test in `ProductTrackerBot.Tests/Integration/`
+- Integration tests use `TelegramIntegrationTestBase` (named in-memory SQLite, mocked `ITelegramBotClient`)
+- All integration test classes carry `[Collection("IntegrationTests")]` so they run serially and share no state
+- Each test calls `ClearDataAsync()` at the start to ensure isolation
+- If adding a new handler, wire it into `TelegramIntegrationTestBase` so it is available to all integration tests
+- Integration tests verify the full update dispatch path: update in → bot mock call captured → repository state changed
+
+### TDD approach
+- Write the integration test for new features before implementing them; unit tests may be written alongside
+- Use failing tests to define the expected contract of a new handler or service
+- Keep test setup minimal — seed only the data each test needs
+
 ### Dependency injection
 - All repositories and services must be registered in `Program.cs`
 - Use `AddScoped` for stateless services and repositories

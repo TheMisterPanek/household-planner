@@ -1,6 +1,6 @@
 ## 1. Create `TelegramIntegrationTestBase`
 
-- [ ] 1.1 Create `ProductTrackerBot.Tests/Integration/TelegramIntegrationTestBase.cs` as an abstract base class implementing `IDisposable`:
+- [x] 1.1 Create `ProductTrackerBot.Tests/Integration/TelegramIntegrationTestBase.cs` as an abstract base class implementing `IDisposable`:
   - Open a named in-memory SQLite connection: `"Data Source=file:integration_test?mode=memory&cache=shared"`
   - Run `DatabaseInitializer.StartAsync(CancellationToken.None)` using the same connection string to initialize the schema
   - Instantiate real repositories: `GroupRepository`, `ShoppingItemRepository`, `HistoryRepository` (and any others needed by handlers below)
@@ -18,25 +18,25 @@
 
 ## 2. Command dispatch integration tests
 
-- [ ] 2.1 Create `ProductTrackerBot.Tests/Integration/CommandIntegrationTests.cs` extending `TelegramIntegrationTestBase`
-- [ ] 2.2 **/start — sends welcome message**: dispatch `CommandUpdate(-100, 42, "/start")`, verify `BotMock.SendRequest` called once with a non-empty text
-- [ ] 2.3 **/buy — adds item and sends confirmation**: dispatch `CommandUpdate(-100, 42, "/buy Milk 2l")`, verify `BotMock.SendRequest` called with text containing "Milk", then query `ShoppingItemRepository` and verify the item exists in the database for the group
-- [ ] 2.4 **/buy — group created on first use**: dispatch `/buy` command for a chat ID that has never been seen, verify `GroupRepository.GetOrCreateAsync` created a new group row (query the repository directly)
-- [ ] 2.5 **/list — shows empty list for new group**: dispatch `CommandUpdate(-100, 42, "/list")`, verify `BotMock.SendRequest` called once (empty list message)
-- [ ] 2.6 **/list — shows items after /buy**: dispatch `/buy Eggs` then `/list`, verify the list reply contains "Eggs"
+- [x] 2.1 Create `ProductTrackerBot.Tests/Integration/CommandIntegrationTests.cs` extending `TelegramIntegrationTestBase`
+- [x] 2.2 **/start — sends welcome message**: dispatch `CommandUpdate(-100, 42, "/start")`, verify `BotMock.SendRequest` called once with a non-empty text
+- [x] 2.3 **/buy — adds item and sends confirmation**: dispatch `CommandUpdate(-100, 42, "/buy Milk 2l")`, verify `BotMock.SendRequest` called with text containing "Milk", then query `ShoppingItemRepository` and verify the item exists in the database for the group
+- [x] 2.4 **/buy — group created on first use**: dispatch `/buy` command for a chat ID that has never been seen, verify `GroupRepository.GetOrCreateAsync` created a new group row (query the repository directly)
+- [x] 2.5 **/list — shows empty list for new group**: dispatch `CommandUpdate(-100, 42, "/list")`, verify `BotMock.SendRequest` called once (empty list message)
+- [x] 2.6 **/list — shows items after /buy**: dispatch `/buy Eggs` then `/list`, verify the list reply contains "Eggs"
 
 ## 3. Callback dispatch integration tests
 
-- [ ] 3.1 Create `ProductTrackerBot.Tests/Integration/CallbackIntegrationTests.cs` extending `TelegramIntegrationTestBase`
-- [ ] 3.2 **shop:done — marks item done and sends reply**: seed a group and item in SQLite, dispatch `CallbackUpdate(-100, 42, 99, "shop:done:{itemId}")`, verify `BotMock.SendRequest` (or `EditMessageTextRequest`) is called and the item is no longer returned by `ShoppingItemRepository.GetActiveAsync`
-- [ ] 3.3 **shop:remove — removes item and sends reply**: seed a group and item, dispatch `CallbackUpdate(-100, 42, 99, "shop:remove:{itemId}")`, verify item is removed from the repository
-- [ ] 3.4 **Unknown callback prefix — no handler called**: dispatch `CallbackUpdate(-100, 42, 99, "unknown:action:1")`, verify `BotMock.SendRequest` is never called
+- [x] 3.1 Create `ProductTrackerBot.Tests/Integration/CallbackIntegrationTests.cs` extending `TelegramIntegrationTestBase`
+- [x] 3.2 **shop:done — marks item done and sends reply**: seed a group and item in SQLite, dispatch `CallbackUpdate(-100, 42, 99, "shop:done:{itemId}")`, verify `BotMock.SendRequest` (or `EditMessageTextRequest`) is called and the item is no longer returned by `ShoppingItemRepository.GetActiveAsync`
+- [x] 3.3 **shop:remove — removes item and sends reply**: seed a group and item, dispatch `CallbackUpdate(-100, 42, 99, "shop:remove:{itemId}")`, verify item is removed from the repository
+- [x] 3.4 **Unknown callback prefix — no handler called**: dispatch `CallbackUpdate(-100, 42, 99, "unknown:action:1")`, verify `BotMock.SendRequest` is never called
 
 ## 4. Dialog state integration tests
 
-- [ ] 4.1 Create `ProductTrackerBot.Tests/Integration/DialogIntegrationTests.cs` extending `TelegramIntegrationTestBase`
-- [ ] 4.2 **Price capture — full flow**: dispatch `/buy Milk` to start a buy dialog step, then dispatch a plain `MessageUpdate(-100, 42, "1.99")` as the price capture reply, verify `BotMock.SendRequest` is called for both steps and the item's price is persisted in the repository
-- [ ] 4.3 **Dialog message ignored when no pending state**: dispatch a plain `MessageUpdate(-100, 42, "hello")` with no prior dialog in flight, verify `BotMock.SendRequest` is never called
+- [x] 4.1 Create `ProductTrackerBot.Tests/Integration/DialogIntegrationTests.cs` extending `TelegramIntegrationTestBase`
+- [x] 4.2 **Price capture — full flow**: dispatch `/buy Milk` to start a buy dialog step, then dispatch a plain `MessageUpdate(-100, 42, "1.99")` as the price capture reply, verify `BotMock.SendRequest` is called for both steps and the item's price is persisted in the repository
+- [x] 4.3 **Dialog message ignored when no pending state**: dispatch a plain `MessageUpdate(-100, 42, "hello")` with no prior dialog in flight, verify `BotMock.SendRequest` is never called
 
 ## 5. Manual smoke test
 
