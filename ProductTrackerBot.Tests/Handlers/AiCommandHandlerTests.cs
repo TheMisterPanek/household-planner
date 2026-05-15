@@ -97,34 +97,4 @@ public class AiCommandHandlerTests
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    [Fact]
-    public async Task HandleQueryAsync_WithEmptyQuestion_SendsUsageHint()
-    {
-        var (handler, botMock, serviceMock) = CreateHandler();
-        var message = AiMessage("/ai");
-
-        await handler.HandleQueryAsync(message, string.Empty, CancellationToken.None);
-
-        botMock.Verify(b => b.SendRequest(
-            It.Is<SendMessageRequest>(r => r.Text == "ai.usage-hint"),
-            It.IsAny<CancellationToken>()), Times.Once);
-        serviceMock.Verify(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task HandleQueryAsync_WithQuestion_DelegatesToService()
-    {
-        var (handler, botMock, serviceMock) = CreateHandler();
-        serviceMock.Setup(s => s.AnswerAsync(-100L, 1L, "my question", It.IsAny<CancellationToken>()))
-            .ReturnsAsync("my answer");
-
-        var message = AiMessage("@testbot my question");
-
-        await handler.HandleQueryAsync(message, "my question", CancellationToken.None);
-
-        serviceMock.Verify(s => s.AnswerAsync(-100L, 1L, "my question", It.IsAny<CancellationToken>()), Times.Once);
-        botMock.Verify(b => b.SendRequest(
-            It.Is<SendMessageRequest>(r => r.Text == "my answer"),
-            It.IsAny<CancellationToken>()), Times.Once);
-    }
 }

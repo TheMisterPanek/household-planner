@@ -10,7 +10,8 @@ using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Localization;
 
 /// <summary>
-/// Two-round AI query service: Round 1 generates SQL, Round 2 formats results as natural language.
+/// AI query service: Round 1 returns a planning document with zero or more APPLY_READ_SQL templates.
+/// Templates are resolved and substituted; Round 2 produces the final answer only when templates were present.
 /// </summary>
 public class AiQueryService : IAiQueryService
 {
@@ -51,11 +52,11 @@ public class AiQueryService : IAiQueryService
             .Replace("{groupId}", groupId.ToString(), StringComparison.Ordinal)
             .Replace("{chatId}", chatId.ToString(), StringComparison.Ordinal);
 
-        // Round 1: generate SQL
-        string? sqlResponse;
+        // Round 1: get planning document or direct answer
+        string? round1Response;
         try
         {
-            sqlResponse = await this.openRouterClient.CompleteAsync(this.model, systemPrompt, question, ct);
+            round1Response = await this.openRouterClient.CompleteAsync(this.model, systemPrompt, question, ct);
         }
         catch (HttpRequestException ex)
         {
@@ -68,45 +69,53 @@ public class AiQueryService : IAiQueryService
             return this.localizer.Get(chatId, "ai.error.service-unavailable");
         }
 
-        if (string.IsNullOrWhiteSpace(sqlResponse))
+        if (string.IsNullOrWhiteSpace(round1Response))
         {
             return this.localizer.Get(chatId, "ai.error.no-result");
         }
 
-        var sql = ExtractSql(sqlResponse);
+        var templates = ExtractTemplates(round1Response).ToList();
 
-        if (!sql.Contains("@groupId", StringComparison.OrdinalIgnoreCase) &&
-            !sql.Contains("@chatId", StringComparison.OrdinalIgnoreCase))
+        // Mode 1 / Mode 3: no templates → return Round 1 response directly (no Round 2 call)
+        if (templates.Count == 0)
         {
-            this.logger.LogWarning("AI generated SQL without required scoping placeholder. Chat={ChatId}", chatId);
-            return this.localizer.Get(chatId, "ai.error.unsafe-query");
+            return round1Response;
         }
 
-        if (!sql.Contains("LIMIT", StringComparison.OrdinalIgnoreCase))
+        // Mode 2: resolve each template
+        var resolvedDoc = round1Response;
+        foreach (var (fullMatch, sql) in templates)
         {
-            sql = sql.TrimEnd(';', ' ') + " LIMIT 50";
+            if (!ValidateSqlScope(sql))
+            {
+                this.logger.LogWarning("AI generated SQL without required scoping placeholder in template. Chat={ChatId}", chatId);
+                resolvedDoc = resolvedDoc.Replace(fullMatch, "[blocked: SQL must be scoped to @groupId or @chatId]", StringComparison.Ordinal);
+                continue;
+            }
+
+            var scopedSql = sql.Contains("LIMIT", StringComparison.OrdinalIgnoreCase)
+                ? sql
+                : sql.TrimEnd(';', ' ') + " LIMIT 50";
+
+            string replacement;
+            try
+            {
+                replacement = await this.ExecuteQueryAsync(scopedSql, groupId, chatId, ct);
+            }
+            catch (SqliteException ex)
+            {
+                this.logger.LogWarning(ex, "SQLite error executing AI-generated query for chat {ChatId}", chatId);
+                replacement = "[query error: SQL could not be executed]";
+            }
+
+            resolvedDoc = resolvedDoc.Replace(fullMatch, replacement, StringComparison.Ordinal);
         }
 
-        string formattedResults;
-        try
-        {
-            formattedResults = await this.ExecuteQueryAsync(sql, groupId, chatId, ct);
-        }
-        catch (SqliteException ex)
-        {
-            this.logger.LogWarning(ex, "SQLite error executing AI-generated query for chat {ChatId}", chatId);
-            formattedResults = "[Query could not be executed due to a SQL error. Please rephrase your question.]";
-        }
-
-        // Round 2: format results as natural language
-        var round2Message =
-            $"The user asked: \"{question}\"\n\nQuery results:\n{formattedResults}\n\n" +
-            "Please answer the user's question based on these results in a friendly, natural language response.";
-
+        // Round 2: final answer from resolved planning document
         string? answer;
         try
         {
-            answer = await this.openRouterClient.CompleteAsync(this.model, systemPrompt, round2Message, ct);
+            answer = await this.openRouterClient.CompleteAsync(this.model, systemPrompt, resolvedDoc, ct);
         }
         catch (HttpRequestException ex)
         {
@@ -122,27 +131,62 @@ public class AiQueryService : IAiQueryService
         return answer ?? this.localizer.Get(chatId, "ai.error.no-result");
     }
 
-    private static string ExtractSql(string response)
+    /// <summary>
+    /// Extracts all APPLY_READ_SQL(...) templates from a response string.
+    /// Uses parenthesis-counting to handle nested parens in SQL subqueries and functions.
+    /// </summary>
+    internal static IEnumerable<(string fullMatch, string sql)> ExtractTemplates(string response)
     {
-        var trimmed = response.Trim();
-
-        // Strip markdown code fences (```sql ... ``` or ``` ... ```)
-        if (trimmed.StartsWith("```", StringComparison.Ordinal))
+        const string marker = "APPLY_READ_SQL(";
+        int searchFrom = 0;
+        while (true)
         {
-            var newline = trimmed.IndexOf('\n');
-            if (newline >= 0)
+            int start = response.IndexOf(marker, searchFrom, StringComparison.OrdinalIgnoreCase);
+            if (start < 0)
             {
-                trimmed = trimmed[(newline + 1)..];
+                yield break;
             }
 
-            var endFence = trimmed.LastIndexOf("```", StringComparison.Ordinal);
-            if (endFence >= 0)
+            int contentStart = start + marker.Length;
+            int depth = 1;
+            int i = contentStart;
+            while (i < response.Length && depth > 0)
             {
-                trimmed = trimmed[..endFence];
+                if (response[i] == '(')
+                {
+                    depth++;
+                }
+                else if (response[i] == ')')
+                {
+                    depth--;
+                }
+
+                i++;
             }
+
+            if (depth != 0)
+            {
+                // Unmatched parentheses — skip this occurrence
+                searchFrom = contentStart;
+                continue;
+            }
+
+            // i points one past the closing )
+            string fullMatch = response.Substring(start, i - start);
+            string sql = response.Substring(contentStart, (i - 1) - contentStart).Trim();
+
+            yield return (fullMatch, sql);
+            searchFrom = i;
         }
+    }
 
-        return trimmed.Trim();
+    /// <summary>
+    /// Returns true if the SQL contains @groupId or @chatId (case-insensitive scope check).
+    /// </summary>
+    internal static bool ValidateSqlScope(string sql)
+    {
+        return sql.Contains("@groupId", StringComparison.OrdinalIgnoreCase)
+            || sql.Contains("@chatId", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<string> ExecuteQueryAsync(string sql, long groupId, long chatId, CancellationToken ct)

@@ -60,12 +60,18 @@ dotnet publish ProductTrackerBot -c Release -r linux-x64 /p:PublishAot=true
 ./ProductTrackerBot/bin/Release/net9.0/linux-x64/publish/ProductTrackerBot
 ```
 
-### 4. Docker
+### 4. Docker Compose (recommended for deployment)
 
 ```bash
-docker build -t product-tracker-bot ./ProductTrackerBot
-docker run --env-file ProductTrackerBot/.env product-tracker-bot
+make up        # Build image and start in the background
+make restart   # Rebuild image and recreate container (use after code changes)
+make down      # Stop and remove containers
+make logs      # Tail container logs
 ```
+
+`make restart` is the correct command when you want to deploy code changes — it rebuilds the Docker image and force-recreates the container. `make up` starts without rebuilding if the image already exists.
+
+> **Note:** `make run` runs the bot locally via `dotnet run`, outside Docker. Do not use it to restart the container — it will conflict with a running container instance (Telegram 409 error).
 
 The Dockerfile uses a multi-stage build that produces a self-contained AOT binary in a minimal `runtime-deps` image — no .NET runtime required at runtime.
 

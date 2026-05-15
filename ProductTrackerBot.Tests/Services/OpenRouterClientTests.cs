@@ -62,7 +62,7 @@ public class OpenRouterClientTests
         var options = new AiQueryOptions { Model = "test-model" };
         var client = new OpenRouterClient(CreateHttpClient(handlerMock.Object), options);
 
-        var result = await client.CompleteAsync("system prompt", "user message", CancellationToken.None);
+        var result = await client.CompleteAsync("test-model", "system prompt", "user message", CancellationToken.None);
 
         Assert.Equal("SELECT 1", result);
         Assert.Equal(HttpMethod.Post, capturedMethod);
@@ -80,7 +80,7 @@ public class OpenRouterClientTests
         var options = new AiQueryOptions { Model = "test-model" };
         var client = new OpenRouterClient(CreateHttpClient(handlerMock.Object), options);
 
-        var result = await client.CompleteAsync("sys", "usr", CancellationToken.None);
+        var result = await client.CompleteAsync("test-model", "sys", "usr", CancellationToken.None);
 
         Assert.Null(result);
     }
@@ -93,7 +93,7 @@ public class OpenRouterClientTests
         var client = new OpenRouterClient(CreateHttpClient(handlerMock.Object), options);
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
-            client.CompleteAsync("sys", "usr", CancellationToken.None));
+            client.CompleteAsync("test-model", "sys", "usr", CancellationToken.None));
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public class OpenRouterClientTests
         var options = new AiQueryOptions { Model = "gpt-4" };
         var client = new OpenRouterClient(CreateHttpClient(handlerMock.Object), options);
 
-        await client.CompleteAsync("my system prompt", "my user message", CancellationToken.None);
+        await client.CompleteAsync("gpt-4", "my system prompt", "my user message", CancellationToken.None);
 
         Assert.NotNull(capturedBody);
         using var doc = JsonDocument.Parse(capturedBody!);
