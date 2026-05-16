@@ -3,6 +3,7 @@ using System.Security.Claims;
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 using ProductTrackerBot;
 using ProductTrackerBot.Database;
@@ -41,6 +42,12 @@ builder.Services.AddSingleton<ITelegramBotClient>(sp =>
     var opts = sp.GetRequiredService<IOptionsMonitor<BotConfiguration>>();
     return new TelegramBotClient(opts.CurrentValue.Token);
 });
+
+// ── Data Protection ───────────────────────────────────────────────────────────
+var keysPath = builder.Configuration["DATA_PROTECTION_KEYS_PATH"]
+    ?? "/data/keys";
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
 
 // ── Database ─────────────────────────────────────────────────────────────────
 var dbPath = builder.Configuration["DB_PATH"]

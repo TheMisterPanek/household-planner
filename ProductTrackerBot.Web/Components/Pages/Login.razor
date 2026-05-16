@@ -3,7 +3,7 @@
 @inject LoginCodeStore CodeStore
 @inject NavigationManager Nav
 @inject IConfiguration Config
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@rendermode InteractiveServer
 
 <PageTitle>Sign in — Household Planner</PageTitle>
 
@@ -34,9 +34,12 @@
     private bool expired_;
     private CancellationTokenSource cts_ = new();
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender)
+            return;
         await StartAsync();
+        StateHasChanged();
     }
 
     private async Task StartAsync()
