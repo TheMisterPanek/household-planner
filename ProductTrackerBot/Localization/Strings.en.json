@@ -91,6 +91,11 @@
   "week.day.5": "Fri",
   "week.day.6": "Sat",
   "week.day.7": "Sun",
-  "week.max-meals": "Maximum 10 meals per day reached."
+  "week.max-meals": "Maximum 10 meals per day reached.",
+  "week.btn-add-meal": "＋ Add meal",
+  "week.btn-to-cart": "🛒 Add ingredients to cart",
+  "week.cart-added": "✓ Added {0} items to shopping list",
+  "week.cart-no-ingredients": "No ingredients found for this day's meals.",
+  "week.cart-no-meals": "No meals assigned to this day."
 }
 

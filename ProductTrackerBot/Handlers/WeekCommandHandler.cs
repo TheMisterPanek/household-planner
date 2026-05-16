@@ -6,21 +6,17 @@ namespace ProductTrackerBot.Handlers;
 
 using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Localization;
-using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using Telegram.Bot;
 using Telegram.Bot.Types;
-using Telegram.Bot.Types.ReplyMarkups;
 
 /// <summary>
-/// Handles the /week command — displays and manages the group's weekly meal plan.
+/// Handles the /week command — displays the day list for the weekly meal plan.
 /// </summary>
 public class WeekCommandHandler : ICommandHandler
 {
     private readonly ITelegramBotClient botClient;
     private readonly GroupRepository groupRepository;
-    private readonly DayMealsRepository dayMealsRepository;
-    private readonly MealRepository mealRepository;
     private readonly ILocalizer localizer;
     private readonly ILogger<WeekCommandHandler> logger;
 
@@ -30,15 +26,11 @@ public class WeekCommandHandler : ICommandHandler
     public WeekCommandHandler(
         ITelegramBotClient botClient,
         GroupRepository groupRepository,
-        DayMealsRepository dayMealsRepository,
-        MealRepository mealRepository,
         ILocalizer localizer,
         ILogger<WeekCommandHandler> logger)
     {
         this.botClient = botClient;
         this.groupRepository = groupRepository;
-        this.dayMealsRepository = dayMealsRepository;
-        this.mealRepository = mealRepository;
         this.localizer = localizer;
         this.logger = logger;
     }
@@ -63,12 +55,8 @@ public class WeekCommandHandler : ICommandHandler
             return;
         }
 
-        var group = await this.groupRepository.GetOrCreateAsync(chatId);
-        var plan = await this.dayMealsRepository.GetWeekAsync(group.Id);
-        var meals = await this.mealRepository.GetAllAsync(group.Id);
-
-        var planLookup = plan.ToLookup(e => e.DayOfWeek);
-        var keyboard = WeekViewBuilder.BuildWeekKeyboard(planLookup, meals.Count > 0, this.localizer, chatId);
+        await this.groupRepository.GetOrCreateAsync(chatId);
+        var keyboard = WeekViewBuilder.BuildDayListKeyboard(this.localizer, chatId);
 
         await this.botClient.SendMessage(
             chatId,

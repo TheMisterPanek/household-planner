@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Handlers;
 using ProductTrackerBot.Localization;
-using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using Telegram.Bot;
 using Telegram.Bot.Requests;
@@ -64,18 +63,14 @@ public class WeekCommandHandlerTests
     private static WeekCommandHandler CreateHandler(
         Mock<ITelegramBotClient> bot,
         GroupRepository? groupRepo = null,
-        DayMealsRepository? dayMealsRepo = null,
-        MealRepository? mealRepo = null,
         ILocalizer? localizer = null)
     {
         var gr = groupRepo ?? new Mock<GroupRepository>(MockBehavior.Default, "cs").Object;
-        var dm = dayMealsRepo ?? new Mock<DayMealsRepository>(MockBehavior.Default, "cs").Object;
-        var mr = mealRepo ?? new Mock<MealRepository>(MockBehavior.Default, "cs").Object;
         var loc = localizer ?? Mock.Of<ILocalizer>(l =>
             l.Get(It.IsAny<long>(), It.IsAny<string>()) == "key");
 
         return new WeekCommandHandler(
-            bot.Object, gr, dm, mr, loc,
+            bot.Object, gr, loc,
             Mock.Of<ILogger<WeekCommandHandler>>());
     }
 
@@ -94,17 +89,11 @@ public class WeekCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_Sends_Header_With_Empty_Keyboard_When_No_Plan()
+    public async Task HandleAsync_Sends_Header_With_Day_Buttons()
     {
         var (bot, sentTexts) = CreateBotMock();
         var groupRepo = new Mock<GroupRepository>(MockBehavior.Default, "cs");
-        groupRepo.Setup(r => r.GetOrCreateAsync(-100L)).ReturnsAsync(new Group { Id = 1, ChatId = -100 });
-
-        var dayMealsRepo = new Mock<DayMealsRepository>("cs");
-        dayMealsRepo.Setup(r => r.GetWeekAsync(1)).ReturnsAsync(new List<DayMealEntry>());
-
-        var mealRepo = new Mock<MealRepository>("cs");
-        mealRepo.Setup(r => r.GetAllAsync(1)).ReturnsAsync(new List<Meal>());
+        groupRepo.Setup(r => r.GetOrCreateAsync(-100L)).ReturnsAsync(new Models.Group { Id = 1, ChatId = -100 });
 
         var localizer = Mock.Of<ILocalizer>(l =>
             l.Get(It.IsAny<long>(), "week.header") == "Plan:" &&
@@ -116,76 +105,7 @@ public class WeekCommandHandlerTests
             l.Get(It.IsAny<long>(), "week.day.6") == "Sat" &&
             l.Get(It.IsAny<long>(), "week.day.7") == "Sun");
 
-        var handler = CreateHandler(bot, groupRepo.Object, dayMealsRepo.Object, mealRepo.Object, localizer);
-        await handler.HandleAsync(CreateGroupMessage("/week"), CancellationToken.None);
-
-        Assert.Single(sentTexts);
-        Assert.Equal("Plan:", sentTexts[0]);
-    }
-
-    [Fact]
-    public async Task HandleAsync_Shows_Set_Button_When_Meals_Exist_But_No_Plan()
-    {
-        var (bot, sentTexts) = CreateBotMock();
-        var groupRepo = new Mock<GroupRepository>(MockBehavior.Default, "cs");
-        groupRepo.Setup(r => r.GetOrCreateAsync(-100L)).ReturnsAsync(new Group { Id = 1, ChatId = -100 });
-
-        var dayMealsRepo = new Mock<DayMealsRepository>("cs");
-        dayMealsRepo.Setup(r => r.GetWeekAsync(1)).ReturnsAsync(new List<DayMealEntry>());
-
-        var mealRepo = new Mock<MealRepository>("cs");
-        mealRepo.Setup(r => r.GetAllAsync(1)).ReturnsAsync(new List<Meal> { new() { Id = 1, GroupId = 1, Name = "Pasta" } });
-
-        var localizer = Mock.Of<ILocalizer>(l =>
-            l.Get(It.IsAny<long>(), "week.header") == "Plan:" &&
-            l.Get(It.IsAny<long>(), "week.btn-set") == "Set" &&
-            l.Get(It.IsAny<long>(), "week.day.1") == "Mon" &&
-            l.Get(It.IsAny<long>(), "week.day.2") == "Tue" &&
-            l.Get(It.IsAny<long>(), "week.day.3") == "Wed" &&
-            l.Get(It.IsAny<long>(), "week.day.4") == "Thu" &&
-            l.Get(It.IsAny<long>(), "week.day.5") == "Fri" &&
-            l.Get(It.IsAny<long>(), "week.day.6") == "Sat" &&
-            l.Get(It.IsAny<long>(), "week.day.7") == "Sun");
-
-        var handler = CreateHandler(bot, groupRepo.Object, dayMealsRepo.Object, mealRepo.Object, localizer);
-        await handler.HandleAsync(CreateGroupMessage("/week"), CancellationToken.None);
-
-        Assert.Single(sentTexts);
-    }
-
-    [Fact]
-    public async Task HandleAsync_Shows_Assigned_Meals_With_Clear_Button()
-    {
-        var (bot, sentTexts) = CreateBotMock();
-        var groupRepo = new Mock<GroupRepository>(MockBehavior.Default, "cs");
-        groupRepo.Setup(r => r.GetOrCreateAsync(-100L)).ReturnsAsync(new Group { Id = 1, ChatId = -100 });
-
-        var dayMealsRepo = new Mock<DayMealsRepository>("cs");
-        dayMealsRepo.Setup(r => r.GetWeekAsync(1)).ReturnsAsync(new List<DayMealEntry>
-        {
-            new() { DayOfWeek = 1, MealId = 1, MealName = "Pasta" },
-            new() { DayOfWeek = 3, MealId = 2, MealName = "Pizza" },
-        });
-
-        var mealRepo = new Mock<MealRepository>("cs");
-        mealRepo.Setup(r => r.GetAllAsync(1)).ReturnsAsync(new List<Meal>
-        {
-            new() { Id = 1, GroupId = 1, Name = "Pasta" },
-            new() { Id = 2, GroupId = 1, Name = "Pizza" },
-        });
-
-        var localizer = Mock.Of<ILocalizer>(l =>
-            l.Get(It.IsAny<long>(), "week.header") == "Plan:" &&
-            l.Get(It.IsAny<long>(), "week.btn-clear") == "X" &&
-            l.Get(It.IsAny<long>(), "week.day.1") == "Mon" &&
-            l.Get(It.IsAny<long>(), "week.day.2") == "Tue" &&
-            l.Get(It.IsAny<long>(), "week.day.3") == "Wed" &&
-            l.Get(It.IsAny<long>(), "week.day.4") == "Thu" &&
-            l.Get(It.IsAny<long>(), "week.day.5") == "Fri" &&
-            l.Get(It.IsAny<long>(), "week.day.6") == "Sat" &&
-            l.Get(It.IsAny<long>(), "week.day.7") == "Sun");
-
-        var handler = CreateHandler(bot, groupRepo.Object, dayMealsRepo.Object, mealRepo.Object, localizer);
+        var handler = CreateHandler(bot, groupRepo.Object, localizer);
         await handler.HandleAsync(CreateGroupMessage("/week"), CancellationToken.None);
 
         Assert.Single(sentTexts);

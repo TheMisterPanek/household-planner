@@ -165,8 +165,8 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var loginHandler = new LoginCommandHandler(this.BotMock.Object, localizer.Object, loginCodeStore);
 
         var weekHandler = new WeekCommandHandler(
-            this.BotMock.Object, this.GroupRepository, this.DayMealsRepository,
-            this.MealRepository, localizer.Object, Mock.Of<ILogger<WeekCommandHandler>>());
+            this.BotMock.Object, this.GroupRepository,
+            localizer.Object, Mock.Of<ILogger<WeekCommandHandler>>());
 
         var nonStartHandlers = new List<ICommandHandler>
         {
@@ -235,7 +235,8 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         var weekCallbackHandler = new WeekCallbackHandler(
             this.BotMock.Object, this.GroupRepository, this.DayMealsRepository,
-            this.MealRepository, localizer.Object, Mock.Of<ILogger<WeekCallbackHandler>>());
+            this.MealRepository, this.MealIngredientRepository, this.ItemRepository,
+            localizer.Object, Mock.Of<ILogger<WeekCallbackHandler>>());
 
         var buyConfirmHandler = new BuyConfirmCallbackHandler(
             this.BotMock.Object, pendingAddService, this.ItemRepository, this.HistoryRepository,

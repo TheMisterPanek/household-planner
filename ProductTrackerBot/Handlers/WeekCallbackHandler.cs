@@ -20,6 +20,8 @@ public class WeekCallbackHandler : ICallbackHandler
     private readonly GroupRepository groupRepository;
     private readonly DayMealsRepository dayMealsRepository;
     private readonly MealRepository mealRepository;
+    private readonly MealIngredientRepository mealIngredientRepository;
+    private readonly ShoppingItemRepository shoppingItemRepository;
     private readonly ILocalizer localizer;
     private readonly ILogger<WeekCallbackHandler> logger;
 
@@ -31,6 +33,8 @@ public class WeekCallbackHandler : ICallbackHandler
         GroupRepository groupRepository,
         DayMealsRepository dayMealsRepository,
         MealRepository mealRepository,
+        MealIngredientRepository mealIngredientRepository,
+        ShoppingItemRepository shoppingItemRepository,
         ILocalizer localizer,
         ILogger<WeekCallbackHandler> logger)
     {
@@ -38,6 +42,8 @@ public class WeekCallbackHandler : ICallbackHandler
         this.groupRepository = groupRepository;
         this.dayMealsRepository = dayMealsRepository;
         this.mealRepository = mealRepository;
+        this.mealIngredientRepository = mealIngredientRepository;
+        this.shoppingItemRepository = shoppingItemRepository;
         this.localizer = localizer;
         this.logger = logger;
     }
@@ -69,6 +75,13 @@ public class WeekCallbackHandler : ICallbackHandler
         {
             switch (action)
             {
+                case "day":
+                    if (parts.Length >= 3 && int.TryParse(parts[2], out var dayNum))
+                    {
+                        await this.RenderDayDetailViewAsync(callbackQuery.Message!, group.Id, chatId, dayNum, cancellationToken);
+                    }
+
+                    break;
                 case "pick":
                     if (parts.Length >= 3 && int.TryParse(parts[2], out var pickDay))
                     {
@@ -90,8 +103,15 @@ public class WeekCallbackHandler : ICallbackHandler
                     }
 
                     break;
+                case "to_cart":
+                    if (parts.Length >= 3 && int.TryParse(parts[2], out var cartDay))
+                    {
+                        await this.HandleAddToCartAsync(callbackQuery, group.Id, chatId, cartDay, cancellationToken);
+                    }
+
+                    break;
                 case "back":
-                    await this.RenderWeekViewAsync(callbackQuery.Message!, group.Id, chatId, cancellationToken);
+                    await this.RenderDayListViewAsync(callbackQuery.Message!, chatId, cancellationToken);
                     break;
                 case "noop":
                     break;
@@ -129,7 +149,7 @@ public class WeekCallbackHandler : ICallbackHandler
 
         keyboard.Add(new List<InlineKeyboardButton>
         {
-            InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "week.btn-back"), "week:back"),
+            InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "week.btn-back"), $"week:day:{dayOfWeek}"),
         });
 
         var dayName = this.localizer.Get(chatId, $"week.day.{dayOfWeek}");
@@ -156,27 +176,84 @@ public class WeekCallbackHandler : ICallbackHandler
         }
 
         await this.dayMealsRepository.InsertAsync(groupId, dayOfWeek, mealId);
-        await this.RenderWeekViewAsync(callbackQuery.Message!, groupId, chatId, cancellationToken);
+        await this.RenderDayDetailViewAsync(callbackQuery.Message!, groupId, chatId, dayOfWeek, cancellationToken);
     }
 
     private async Task HandleClearMealAsync(CallbackQuery callbackQuery, int groupId, long chatId, int dayOfWeek, int mealId, CancellationToken cancellationToken)
     {
         await this.dayMealsRepository.ClearMealAsync(groupId, dayOfWeek, mealId);
-        await this.RenderWeekViewAsync(callbackQuery.Message!, groupId, chatId, cancellationToken);
+        await this.RenderDayDetailViewAsync(callbackQuery.Message!, groupId, chatId, dayOfWeek, cancellationToken);
     }
 
-    private async Task RenderWeekViewAsync(Message message, int groupId, long chatId, CancellationToken cancellationToken)
+    private async Task HandleAddToCartAsync(CallbackQuery callbackQuery, int groupId, long chatId, int dayOfWeek, CancellationToken cancellationToken)
     {
-        var plan = await this.dayMealsRepository.GetWeekAsync(groupId);
-        var meals = await this.mealRepository.GetAllAsync(groupId);
+        var dayMeals = await this.dayMealsRepository.GetWeekAsync(groupId);
+        var mealsForDay = dayMeals.Where(e => e.DayOfWeek == dayOfWeek).ToList();
 
-        var planLookup = plan.ToLookup(e => e.DayOfWeek);
-        var keyboard = WeekViewBuilder.BuildWeekKeyboard(planLookup, meals.Count > 0, this.localizer, chatId);
+        if (mealsForDay.Count == 0)
+        {
+            await this.botClient.AnswerCallbackQuery(
+                callbackQuery.Id,
+                this.localizer.Get(chatId, "week.cart-no-meals"),
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        var existingItems = await this.shoppingItemRepository.GetAllAsync(groupId);
+        var existingNames = new HashSet<string>(existingItems.Select(i => i.Name), StringComparer.OrdinalIgnoreCase);
+
+        var addedCount = 0;
+        foreach (var dayMeal in mealsForDay)
+        {
+            var ingredients = await this.mealIngredientRepository.GetAllAsync(dayMeal.MealId);
+            foreach (var ingredient in ingredients)
+            {
+                if (!existingNames.Contains(ingredient.Name))
+                {
+                    await this.shoppingItemRepository.AddAsync(groupId, ingredient.Name, ingredient.Quantity, "Week");
+                    existingNames.Add(ingredient.Name);
+                    addedCount++;
+                }
+            }
+        }
+
+        var message = addedCount > 0
+            ? string.Format(this.localizer.Get(chatId, "week.cart-added"), addedCount)
+            : this.localizer.Get(chatId, "week.cart-no-ingredients");
+
+        await this.botClient.AnswerCallbackQuery(
+            callbackQuery.Id,
+            message,
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task RenderDayListViewAsync(Message message, long chatId, CancellationToken cancellationToken)
+    {
+        var keyboard = WeekViewBuilder.BuildDayListKeyboard(this.localizer, chatId);
 
         await this.botClient.EditMessageText(
             chatId,
             message.MessageId,
             this.localizer.Get(chatId, "week.header"),
+            replyMarkup: keyboard,
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task RenderDayDetailViewAsync(Message message, int groupId, long chatId, int dayOfWeek, CancellationToken cancellationToken)
+    {
+        var allPlan = await this.dayMealsRepository.GetWeekAsync(groupId);
+        var dayMeals = allPlan.Where(e => e.DayOfWeek == dayOfWeek).ToList();
+        var meals = await this.mealRepository.GetAllAsync(groupId);
+
+        var dayName = this.localizer.Get(chatId, $"week.day.{dayOfWeek}");
+        var header = $"📅 {dayName}:";
+
+        var keyboard = WeekViewBuilder.BuildDayDetailKeyboard(dayOfWeek, dayMeals, meals.Count > 0, this.localizer, chatId);
+
+        await this.botClient.EditMessageText(
+            chatId,
+            message.MessageId,
+            header,
             replyMarkup: keyboard,
             cancellationToken: cancellationToken);
     }

@@ -21,7 +21,7 @@ public class WeekIntegrationTests : TelegramIntegrationTestBase
     }
 
     [Fact]
-    public async Task Week_In_Group_Sends_Header()
+    public async Task Week_In_Group_Sends_Header_With_Day_Buttons()
     {
         await ClearDataAsync();
 
@@ -35,34 +35,52 @@ public class WeekIntegrationTests : TelegramIntegrationTestBase
     }
 
     [Fact]
-    public async Task Week_Assign_Persists_In_Repository()
+    public async Task Week_Day_View_Shows_Day_Header()
     {
         await ClearDataAsync();
 
-        // Create a meal first
+        await GroupRepository.GetOrCreateAsync(-100);
+
+        await DispatchAsync(CallbackUpdate(-100, 42, 99, "week:day:1"));
+
+        BotMock.Verify(
+            b => b.SendRequest(
+                It.Is<EditMessageTextRequest>(r => r.Text.Contains("week.day.1")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Week_Assign_Persists_And_Shows_Day_Detail()
+    {
+        await ClearDataAsync();
+
         var group = await GroupRepository.GetOrCreateAsync(-100);
         var meal = await MealRepository.AddAsync(group.Id, "Pasta");
 
-        // Assign meal to Monday (day 1)
         await DispatchAsync(CallbackUpdate(-100, 42, 99, $"week:assign:1:{meal.Id}"));
 
         var plan = await DayMealsRepository.GetWeekAsync(group.Id);
         Assert.Single(plan);
         Assert.Equal(1, plan[0].DayOfWeek);
         Assert.Equal("Pasta", plan[0].MealName);
+
+        BotMock.Verify(
+            b => b.SendRequest(
+                It.Is<EditMessageTextRequest>(r => r.Text.Contains("week.day.1")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
-    public async Task Week_Clear_Removes_From_Repository()
+    public async Task Week_Clear_Removes_Specific_Meal()
     {
         await ClearDataAsync();
 
-        // Create a meal and assign it
         var group = await GroupRepository.GetOrCreateAsync(-100);
         var meal = await MealRepository.AddAsync(group.Id, "Pasta");
         await DayMealsRepository.InsertAsync(group.Id, 3, meal.Id);
 
-        // Clear Wednesday (day 3) — specific meal
         await DispatchAsync(CallbackUpdate(-100, 42, 99, $"week:clear:3:{meal.Id}"));
 
         var plan = await DayMealsRepository.GetWeekAsync(group.Id);
@@ -74,7 +92,6 @@ public class WeekIntegrationTests : TelegramIntegrationTestBase
     {
         await ClearDataAsync();
 
-        // Ensure group exists
         await GroupRepository.GetOrCreateAsync(-100);
 
         await DispatchAsync(CallbackUpdate(-100, 42, 99, "week:pick:1"));
@@ -91,7 +108,6 @@ public class WeekIntegrationTests : TelegramIntegrationTestBase
     {
         await ClearDataAsync();
 
-        // Create a meal
         var group = await GroupRepository.GetOrCreateAsync(-100);
         await MealRepository.AddAsync(group.Id, "Pasta");
 
@@ -105,7 +121,7 @@ public class WeekIntegrationTests : TelegramIntegrationTestBase
     }
 
     [Fact]
-    public async Task Week_Back_Renders_Week_View()
+    public async Task Week_Back_Renders_Day_List()
     {
         await ClearDataAsync();
 
@@ -118,5 +134,44 @@ public class WeekIntegrationTests : TelegramIntegrationTestBase
                 It.Is<EditMessageTextRequest>(r => r.Text == "week.header"),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task Week_ToCart_With_No_Meals_Answers_Callback()
+    {
+        await ClearDataAsync();
+
+        await GroupRepository.GetOrCreateAsync(-100);
+
+        await DispatchAsync(CallbackUpdate(-100, 42, 99, "week:to_cart:1"));
+
+        BotMock.Verify(
+            b => b.SendRequest(
+                It.Is<AnswerCallbackQueryRequest>(r => r.Text == "week.cart-no-meals"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Week_ToCart_Adds_Ingredients()
+    {
+        await ClearDataAsync();
+
+        var group = await GroupRepository.GetOrCreateAsync(-100);
+        var meal = await MealRepository.AddAsync(group.Id, "Pasta");
+        await MealIngredientRepository.AddAsync(meal.Id, "Flour", "500g");
+        await MealIngredientRepository.AddAsync(meal.Id, "Eggs", "3");
+        await DayMealsRepository.InsertAsync(group.Id, 1, meal.Id);
+
+        await DispatchAsync(CallbackUpdate(-100, 42, 99, "week:to_cart:1"));
+
+        BotMock.Verify(
+            b => b.SendRequest(
+                It.Is<AnswerCallbackQueryRequest>(r => r.Text == "week.cart-added"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        var cart = await ItemRepository.GetAllAsync(group.Id);
+        Assert.Equal(2, cart.Count);
     }
 }

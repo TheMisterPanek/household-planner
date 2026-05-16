@@ -91,5 +91,10 @@
   "week.day.5": "Pt",
   "week.day.6": "Sob",
   "week.day.7": "Ndz",
-  "week.max-meals": "Maksymalnie 10 posiłków dziennie."
+  "week.max-meals": "Maksymalnie 10 posiłków dziennie.",
+  "week.btn-add-meal": "＋ Dodaj posiłek",
+  "week.btn-to-cart": "🛒 Dodaj składniki do koszyka",
+  "week.cart-added": "✓ Dodano {0} produktów do listy zakupów",
+  "week.cart-no-ingredients": "Nie znaleziono składników dla posiłków tego dnia.",
+  "week.cart-no-meals": "Brak posiłków przypisanych do tego dnia."
 }
