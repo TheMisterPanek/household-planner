@@ -1,10 +1,10 @@
-# ProductTrackerBot
+# Household Planner
 
-A .NET 9 AOT-compiled Telegram bot scaffold for household food inventory management. Built with native AOT for minimal Docker image size and fast startup on a low-cost VPS.
+A .NET 9 AOT-compiled Telegram bot for household shopping lists and meal planning. Built with native AOT for minimal Docker image size and fast startup on a low-cost VPS.
 
 ## What this is
 
-FamilyStockBot — a Telegram bot for household food inventory and meal management with multi-language support.
+A Telegram bot that helps families and households manage shopping lists and meal planning with multi-language support.
 
 ### Current features
 

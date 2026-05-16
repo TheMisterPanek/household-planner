@@ -1,4 +1,4 @@
-# ProductTrackerBot — Claude Code Guide
+# Household Planner — Claude Code Guide
 
 ## Quick start
 
