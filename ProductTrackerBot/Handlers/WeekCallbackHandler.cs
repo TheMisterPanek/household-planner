@@ -246,14 +246,24 @@ public class WeekCallbackHandler : ICallbackHandler
         var meals = await this.mealRepository.GetAllAsync(groupId);
 
         var dayName = this.localizer.Get(chatId, $"week.day.{dayOfWeek}");
-        var header = $"📅 {dayName}:";
+        var sb = new System.Text.StringBuilder($"📅 {dayName}:");
+
+        if (dayMeals.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine();
+            foreach (var entry in dayMeals)
+            {
+                sb.AppendLine($"• {entry.MealName}");
+            }
+        }
 
         var keyboard = WeekViewBuilder.BuildDayDetailKeyboard(dayOfWeek, dayMeals, meals.Count > 0, this.localizer, chatId);
 
         await this.botClient.EditMessageText(
             chatId,
             message.MessageId,
-            header,
+            sb.ToString(),
             replyMarkup: keyboard,
             cancellationToken: cancellationToken);
     }

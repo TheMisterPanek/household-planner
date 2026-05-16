@@ -51,7 +51,7 @@ public class WeekIntegrationTests : TelegramIntegrationTestBase
     }
 
     [Fact]
-    public async Task Week_Assign_Persists_And_Shows_Day_Detail()
+    public async Task Week_Assign_Persists_And_Shows_Day_Detail_With_Bullet_List()
     {
         await ClearDataAsync();
 
@@ -67,7 +67,9 @@ public class WeekIntegrationTests : TelegramIntegrationTestBase
 
         BotMock.Verify(
             b => b.SendRequest(
-                It.Is<EditMessageTextRequest>(r => r.Text.Contains("week.day.1")),
+                It.Is<EditMessageTextRequest>(r =>
+                    r.Text.Contains("week.day.1") &&
+                    r.Text.Contains("• Pasta")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
