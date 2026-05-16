@@ -1,6 +1,6 @@
 ## 1. Landing Page HTML
 
-- [ ] 1.1 Create `html-landing/index.html` — single self-contained file:
+- [x] 1.1 Create `html-landing/index.html` — single self-contained file:
   - `<head>`: charset, viewport, title "HouseholdPlanner — Organise your home", Tailwind CDN script, inline `<style>` for dot-grid background and blob
   - Fixed navbar: logo left, three links right (Features, How it works, GitHub → `https://github.com/TheMisterPanek/household-planner`)
   - Hero section:
@@ -16,15 +16,15 @@
   - Smooth-scroll: `html { scroll-behavior: smooth; }`
   - Navbar scroll shadow: add/remove `shadow-sm` class on scroll via 10-line inline `<script>`
 
-- [ ] 1.2 Verify the page looks correct by opening `html-landing/index.html` directly in a browser (no server needed) and checking:
+- [x] 1.2 Verify the page looks correct by opening `html-landing/index.html` directly in a browser (no server needed) and checking:
   - Navbar sticky, hero text readable, feature cards aligned, steps horizontal on desktop, footer links correct
 
 ---
 
 ## 2. nginx Config
 
-- [ ] 2.1 Create `nginx/` directory
-- [ ] 2.2 Create `nginx/nginx.conf` (see design.md §nginx Config):
+- [x] 2.1 Create `nginx/` directory
+- [x] 2.2 Create `nginx/nginx.conf` (see design.md §nginx Config):
   - Listens on port 80
   - Serves `html-landing/` as static root with `Cache-Control: max-age=86400`
   - Proxies `/app` → `http://web:8080` with WebSocket upgrade headers
@@ -34,7 +34,7 @@
 
 ## 3. Docker Compose Update
 
-- [ ] 3.1 Update `docker-compose.yml`:
+- [x] 3.1 Update `docker-compose.yml`:
   - Add `networks: internal` to the existing `bot` service
   - Add `web` service (profile: `web`; see design.md §docker-compose; use placeholder Dockerfile path — update when `blazor-web-auth-scaffold` is implemented)
   - Add `nginx` service (image: `nginx:alpine`; ports `80:80` and `443:443`; mounts `html-landing/`, `nginx/nginx.conf`, `nginx/certs/`)
@@ -45,13 +45,13 @@
 
 ## 4. `.gitignore` Update
 
-- [ ] 4.1 Add `nginx/certs/` to `.gitignore`
+- [x] 4.1 Add `nginx/certs/` to `.gitignore`
 
 ---
 
 ## 5. SSL Reference (manual post-deploy — not automated)
 
-- [ ] 5.1 Add a comment block at the bottom of `nginx/nginx.conf` with the ready-to-paste HTTPS server block:
+- [x] 5.1 Add a comment block at the bottom of `nginx/nginx.conf` with the ready-to-paste HTTPS server block:
 
   ```nginx
   # --- HTTPS (uncomment after running Certbot) ---
@@ -73,7 +73,7 @@
   # }
   ```
 
-- [ ] 5.2 Add a `DEPLOY.md` (or section in `README.md`) with the Certbot one-liner:
+- [x] 5.2 Add a `DEPLOY.md` (or section in `README.md`) with the Certbot one-liner:
 
   ```bash
   # Run once after nginx is live on port 80:

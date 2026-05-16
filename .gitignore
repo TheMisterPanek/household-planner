@@ -7,3 +7,5 @@ bin/
 *.db-shm
 *.db-wal
 ProductTrackerBot/IDENTITY.md
+nginx/certs/
+html-landing/index.html

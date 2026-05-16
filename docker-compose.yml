@@ -10,6 +10,50 @@ services:
     volumes:
       - db-data:/data
     restart: unless-stopped
+    networks:
+      - internal
+
+  web:
+    build:
+      context: .
+      dockerfile: ProductTrackerBot.Web/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      - DB_PATH=/data/product-tracker.db
+      - ASPNETCORE_URLS=http://+:8080
+      - WEB_SESSION_TTL_HOURS=24
+    volumes:
+      - db-data:/data
+    restart: unless-stopped
+    networks:
+      - internal
+    profiles:
+      - web
+
+  nginx:
+    image: nginx:alpine
+    entrypoint: ["/custom-entrypoint.sh"]
+    command: ["nginx", "-g", "daemon off;"]
+    env_file:
+      - ./.env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./html-landing:/usr/share/nginx/html
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./nginx/docker-entrypoint.sh:/custom-entrypoint.sh:ro
+    depends_on:
+      - bot
+    restart: unless-stopped
+    networks:
+      - internal
 
 volumes:
   db-data:
+
+networks:
+  internal:
+    driver: bridge
