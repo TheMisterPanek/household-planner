@@ -143,6 +143,7 @@ builder.Services.AddScoped<PriceLogRepository>();
 builder.Services.AddScoped<MealRepository>();
 builder.Services.AddScoped<MealIngredientRepository>();
 builder.Services.AddScoped<MealStepRepository>();
+builder.Services.AddScoped<DayMealsRepository>();
 
 // Register AI query service
 builder.Services.AddScoped<IAiQueryService, AiQueryService>();
@@ -178,6 +179,7 @@ builder.Services.AddScoped<ICommandHandler, PricesCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, SettingsCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, StartCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, UndoCommandHandler>();
+builder.Services.AddScoped<ICommandHandler, WeekCommandHandler>();
 
 // Register dialog message handlers
 builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();
@@ -205,6 +207,7 @@ builder.Services.AddScoped<ICallbackHandler, ActionCancelCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, UndoInlineCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, AiAddItemCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, AiAddAllCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, WeekCallbackHandler>();
 
 var host = builder.Build();
 await host.RunAsync();

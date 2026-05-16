@@ -139,6 +139,19 @@ public class DatabaseInitializer : IHostedService
         cmd8.CommandText = createMealSteps;
         await cmd8.ExecuteNonQueryAsync(cancellationToken);
 
+        var createDayMeals = @"
+            CREATE TABLE IF NOT EXISTS DayMeals (
+                Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                GroupId   INTEGER NOT NULL REFERENCES Groups(Id),
+                DayOfWeek INTEGER NOT NULL CHECK(DayOfWeek BETWEEN 1 AND 7),
+                MealId    INTEGER NOT NULL REFERENCES Meals(Id),
+                UNIQUE(GroupId, DayOfWeek)
+            );";
+
+        await using var cmd9 = connection.CreateCommand();
+        cmd9.CommandText = createDayMeals;
+        await cmd9.ExecuteNonQueryAsync(cancellationToken);
+
         // Migrate Groups table: add LanguageCode column if it doesn't exist
         try
         {

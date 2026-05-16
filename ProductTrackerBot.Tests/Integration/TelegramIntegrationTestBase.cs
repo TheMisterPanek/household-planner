@@ -49,6 +49,8 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
     protected MealStepRepository MealStepRepository { get; }
 
+    protected DayMealsRepository DayMealsRepository { get; }
+
     protected Mock<IAiQueryService> AiQueryServiceMock { get; }
 
     protected AiSuggestionService AiSuggestionService { get; private set; } = null!;
@@ -71,6 +73,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         this.MealRepository = new MealRepository(ConnectionString);
         this.MealIngredientRepository = new MealIngredientRepository(ConnectionString);
         this.MealStepRepository = new MealStepRepository(ConnectionString);
+        this.DayMealsRepository = new DayMealsRepository(ConnectionString);
 
         var localizer = new Mock<ILocalizer>();
         localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
@@ -161,10 +164,14 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         var loginHandler = new LoginCommandHandler(this.BotMock.Object, localizer.Object, loginCodeStore);
 
+        var weekHandler = new WeekCommandHandler(
+            this.BotMock.Object, this.GroupRepository, this.DayMealsRepository,
+            this.MealRepository, localizer.Object, Mock.Of<ILogger<WeekCommandHandler>>());
+
         var nonStartHandlers = new List<ICommandHandler>
         {
             buyHandler, listHandler, historyHandler, searchHandler, pricesHandler,
-            settingsHandler, languageHandler, undoCommandHandler, mealsHandler, aiHandler, loginHandler,
+            settingsHandler, languageHandler, undoCommandHandler, mealsHandler, aiHandler, loginHandler, weekHandler,
         };
 
         var scopeFactory = BuildScopeFactory(nonStartHandlers);
@@ -226,6 +233,10 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             mealCreateDialogService, mealIngredientDialogService, mealStepDialogService,
             mealMergeService, localizer.Object, Mock.Of<ILogger<MealCallbackHandler>>());
 
+        var weekCallbackHandler = new WeekCallbackHandler(
+            this.BotMock.Object, this.GroupRepository, this.DayMealsRepository,
+            this.MealRepository, localizer.Object, Mock.Of<ILogger<WeekCallbackHandler>>());
+
         var buyConfirmHandler = new BuyConfirmCallbackHandler(
             this.BotMock.Object, pendingAddService, this.ItemRepository, this.HistoryRepository,
             localizer.Object, Mock.Of<ILogger<BuyConfirmCallbackHandler>>());
@@ -261,7 +272,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             buyEditHandler, buyCancelHandler, itemEditCallbackHandler, itemSaveHandler,
             itemCancelEditHandler, listNextHandler, listPrevHandler, undoInlineHandler,
             priceSkipHandler, priceShopHandler, mealCallbackHandler, aiAddItemHandler,
-            aiAddAllHandler,
+            aiAddAllHandler, weekCallbackHandler,
         };
 
         // Dialog handlers
@@ -330,6 +341,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             DELETE FROM PriceLog;
             DELETE FROM PurchaseHistory;
             DELETE FROM BotActionHistory;
+            DELETE FROM DayMeals;
             DELETE FROM MealSteps;
             DELETE FROM MealIngredients;
             DELETE FROM Meals;
