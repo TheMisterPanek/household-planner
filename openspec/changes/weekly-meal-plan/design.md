@@ -1,171 +1,154 @@
 ## Schema
 
-### New table: `WeekMealPlan`
+### New table: `DayMeals`
 
-Added in `DatabaseInitializer.StartAsync` using the standard `CREATE TABLE IF NOT EXISTS` pattern:
+Added in `DatabaseInitializer.StartAsync` using `CREATE TABLE IF NOT EXISTS`:
 
 ```sql
-CREATE TABLE IF NOT EXISTS WeekMealPlan (
-    Id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    GroupId       INTEGER NOT NULL REFERENCES Groups(Id),
-    WeekStartDate TEXT    NOT NULL,   -- ISO-8601 date of the Monday, e.g. "2026-05-11"
-    DayOfWeek     INTEGER NOT NULL CHECK(DayOfWeek BETWEEN 1 AND 7),  -- 1=Mon, 7=Sun
-    MealId        INTEGER NOT NULL REFERENCES Meals(Id),
-    UNIQUE(GroupId, WeekStartDate, DayOfWeek)
+CREATE TABLE IF NOT EXISTS DayMeals (
+    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    GroupId   INTEGER NOT NULL REFERENCES Groups(Id),
+    DayOfWeek INTEGER NOT NULL CHECK(DayOfWeek BETWEEN 1 AND 7),  -- 1=Mon, 7=Sun
+    MealId    INTEGER NOT NULL REFERENCES Meals(Id),
+    UNIQUE(GroupId, DayOfWeek)
 );
 ```
 
-`WeekStartDate` is stored as `yyyy-MM-dd` TEXT (lexicographically sortable). The `UNIQUE` constraint enforces one meal per group per day per week; `UpsertAsync` uses `INSERT OR REPLACE`.
+No date column. The plan is abstract (recurring Mon–Sun). `UpsertAsync` uses `INSERT OR REPLACE` to enforce the unique constraint.
 
 ---
 
-## Repository: `WeekMealPlanRepository`
-
-```
-GetWeekAsync(int groupId, string weekStartDate)
-    → List<(int DayOfWeek, int MealId, string MealName)>
-    JOIN WeekMealPlan wp ON Meals m ON wp.MealId = m.Id
-    WHERE wp.GroupId = @groupId AND wp.WeekStartDate = @weekStart
-    ORDER BY wp.DayOfWeek
-
-UpsertAsync(int groupId, string weekStartDate, int dayOfWeek, int mealId)
-    INSERT OR REPLACE INTO WeekMealPlan (GroupId, WeekStartDate, DayOfWeek, MealId)
-    VALUES (...)
-
-ClearAsync(int groupId, string weekStartDate, int dayOfWeek)
-    DELETE FROM WeekMealPlan
-    WHERE GroupId = @groupId AND WeekStartDate = @weekStart AND DayOfWeek = @dayOfWeek
-```
-
-Registered as `AddScoped<WeekMealPlanRepository>` in `Program.cs`.
-
----
-
-## Callback Data Format
-
-All callbacks use the `week:` prefix. All fit within the 64-byte Telegram limit.
-
-| Callback data | Example | Bytes | Meaning |
-|---|---|---|---|
-| `week:pick:{day}:{weekStart}` | `week:pick:1:2026-05-11` | 24 | Open meal picker for a day |
-| `week:assign:{day}:{weekStart}:{mealId}` | `week:assign:3:2026-05-11:42` | 29 | Assign meal to a day |
-| `week:clear:{day}:{weekStart}` | `week:clear:7:2026-05-11` | 25 | Remove assignment for a day |
-| `week:back:{weekStart}` | `week:back:2026-05-11` | 21 | Return to week view |
-
-`{day}` is an integer 1–7 (1=Monday). `{weekStart}` is always `yyyy-MM-dd` of the Monday.
-
----
-
-## Week Start Computation
+## Model: `DayMealEntry`
 
 ```csharp
-static string GetCurrentWeekMonday()
+// ProductTrackerBot/Models/DayMealEntry.cs
+public record DayMealEntry
 {
-    var today = DateTimeOffset.UtcNow.Date;
-    var daysFromMonday = ((int)today.DayOfWeek + 6) % 7; // Mon=0 ... Sun=6
-    return today.AddDays(-daysFromMonday).ToString("yyyy-MM-dd");
+    public int DayOfWeek { get; init; }   // 1=Mon … 7=Sun
+    public int MealId    { get; init; }
+    public string MealName { get; init; } = string.Empty;
 }
 ```
 
 ---
 
-## Handler: `WeekPlanCommandHandler`
+## Repository: `DayMealsRepository`
 
-`Command = "/weekplan"`
+```
+GetWeekAsync(int groupId) → Task<List<DayMealEntry>>
+    SELECT dm.DayOfWeek, dm.MealId, m.Name
+    FROM DayMeals dm JOIN Meals m ON dm.MealId = m.Id
+    WHERE dm.GroupId = @groupId
+    ORDER BY dm.DayOfWeek
+
+UpsertAsync(int groupId, int dayOfWeek, int mealId) → Task
+    INSERT OR REPLACE INTO DayMeals (GroupId, DayOfWeek, MealId)
+    VALUES (@groupId, @dayOfWeek, @mealId)
+
+ClearAsync(int groupId, int dayOfWeek) → Task
+    DELETE FROM DayMeals WHERE GroupId = @groupId AND DayOfWeek = @dayOfWeek
+```
+
+All methods `virtual` for mockability. Registered as `builder.Services.AddScoped<DayMealsRepository>()`.
+
+---
+
+## Callback Data Format
+
+All callbacks use the `week:` prefix. All fit well within the 64-byte Telegram limit.
+
+| Callback data | Example | Bytes | Meaning |
+|---|---|---|---|
+| `week:pick:{day}` | `week:pick:1` | 12 | Open meal picker for that day |
+| `week:assign:{day}:{mealId}` | `week:assign:3:42` | 17 | Assign meal to that day |
+| `week:clear:{day}` | `week:clear:7` | 13 | Remove assignment for that day |
+| `week:back` | `week:back` | 9 | Return to week view |
+| `week:noop` | `week:noop` | 9 | No-op for display-only buttons |
+
+`{day}` is 1–7 (1=Monday). No date token needed.
+
+---
+
+## Handler: `WeekCommandHandler`
+
+`Command = "/week"`, `Description = "View and plan meals for the week"`
 
 ```
 HandleAsync(message):
   if not group chat → reply localizer.Get(chatId, "common.group-only") and return
   group = groupRepository.GetOrCreateAsync(chatId)
-  weekStart = GetCurrentWeekMonday()
-  plan = weekMealPlanRepository.GetWeekAsync(group.Id, weekStart)
-    → dict dayOfWeek → (MealId, MealName)
+  plan  = dayMealsRepository.GetWeekAsync(group.Id)   → dict DayOfWeek → DayMealEntry
   meals = mealRepository.GetAllAsync(group.Id)
-  keyboard = BuildWeekKeyboard(plan, weekStart, hasMeals: meals.Count > 0)
-  text = localizer.Get(chatId, "weekplan.header")
-  SendMessage(text, replyMarkup: keyboard)
+  keyboard = BuildWeekKeyboard(plan, hasMeals: meals.Count > 0, localizer, chatId)
+  SendMessage(localizer.Get(chatId, "week.header"), replyMarkup: keyboard)
 ```
 
 ### `BuildWeekKeyboard` logic
 
-One row per day (1–7). Each row has two or three buttons:
+One row per day (1–7). Each row has:
 
-- **If day has a meal assigned:**
-  `[{DayName}: {MealName}]` (display only, no-op callback `week:noop`) + `[✕]` (`week:clear:{day}:{weekStart}`)
-- **If day is unset and group has meals:**
-  `[{DayName}: —]` (display only) + `[＋ Set]` (`week:pick:{day}:{weekStart}`)
-- **If day is unset and group has no meals:**
-  `[{DayName}: —]` (display only, no button — no meals to pick from)
+- **Day has a meal**: `[{DayName}: {MealName}]` (noop) + `[✕]` (`week:clear:{day}`)
+- **Day unset, group has meals**: `[{DayName}: —]` (noop) + `[＋ Set]` (`week:pick:{day}`)
+- **Day unset, no meals in library**: `[{DayName}: —]` (noop only, no Set button)
 
-Day names are resolved via localizer keys `weekplan.day.1` … `weekplan.day.7` (Mon–Sun).
+Day names resolved via `localizer.Get(chatId, "week.day.{n}")` (1=Mon … 7=Sun).
 
 ---
 
-## Handler: `WeekPlanCallbackHandler`
+## Handler: `WeekCallbackHandler`
 
 `CallbackPrefix = "week:"`
 
 ```
 HandleAsync(callbackQuery):
-  parts = data.Split(':')
+  parts  = data.Split(':')
   action = parts[1]   // "pick" | "assign" | "clear" | "back" | "noop"
+  chatId = callbackQuery.Message!.Chat.Id
+  group  = groupRepository.GetOrCreateAsync(chatId)
 
   switch action:
-    "pick"   → HandlePickAsync(...)
-    "assign" → HandleAssignAsync(...)
-    "clear"  → HandleClearAsync(...)
-    "back"   → HandleBackAsync(...)
-    "noop"   → AnswerCallbackQuery() only
+    "pick"   → HandlePickAsync(callbackQuery, group.Id, int.Parse(parts[2]))
+    "assign" → HandleAssignAsync(callbackQuery, group.Id, int.Parse(parts[2]), int.Parse(parts[3]))
+    "clear"  → HandleClearAsync(callbackQuery, group.Id, int.Parse(parts[2]))
+    "back"   → RenderWeekViewAsync(callbackQuery.Message, group.Id)
+    "noop"   → (answer only)
+  AnswerCallbackQuery()
 ```
 
-### `HandlePickAsync(chatId, groupId, dayOfWeek, weekStart)`
+### `HandlePickAsync(callbackQuery, groupId, dayOfWeek)`
 
 ```
 meals = mealRepository.GetAllAsync(groupId)
 if meals.Count == 0:
-  AnswerCallbackQuery(localizer.Get(chatId, "weekplan.no-meals"))
+  AnswerCallbackQuery(localizer.Get(chatId, "week.no-meals"))
   return
-
-keyboard = meals.Select(m =>
-    [InlineKeyboardButton(m.Name, $"week:assign:{dayOfWeek}:{weekStart}:{m.Id}")])
-  + [[Back button: localizer.Get("weekplan.btn-back"), $"week:back:{weekStart}"]]
-
-dayName = localizer.Get(chatId, $"weekplan.day.{dayOfWeek}")
-EditMessageText(localizer.Get(chatId, "weekplan.pick-prompt", dayName), keyboard)
-AnswerCallbackQuery()
+keyboard = meals rows: [InlineKeyboardButton(m.Name, $"week:assign:{dayOfWeek}:{m.Id}")]
+         + [[localizer.Get("week.btn-back"), "week:back"]]
+dayName  = localizer.Get(chatId, $"week.day.{dayOfWeek}")
+EditMessageText(localizer.Get(chatId, "week.pick-prompt", dayName), keyboard)
 ```
 
-### `HandleAssignAsync(chatId, groupId, dayOfWeek, weekStart, mealId)`
+### `HandleAssignAsync(callbackQuery, groupId, dayOfWeek, mealId)`
 
 ```
-weekMealPlanRepository.UpsertAsync(groupId, weekStart, dayOfWeek, mealId)
-await RenderWeekViewAsync(chatId, groupId, weekStart, messageId)
-AnswerCallbackQuery()
+dayMealsRepository.UpsertAsync(groupId, dayOfWeek, mealId)
+RenderWeekViewAsync(callbackQuery.Message, groupId)
 ```
 
-### `HandleClearAsync(chatId, groupId, dayOfWeek, weekStart)`
+### `HandleClearAsync(callbackQuery, groupId, dayOfWeek)`
 
 ```
-weekMealPlanRepository.ClearAsync(groupId, weekStart, dayOfWeek)
-await RenderWeekViewAsync(chatId, groupId, weekStart, messageId)
-AnswerCallbackQuery()
+dayMealsRepository.ClearAsync(groupId, dayOfWeek)
+RenderWeekViewAsync(callbackQuery.Message, groupId)
 ```
 
-### `HandleBackAsync(chatId, groupId, weekStart)`
+### `RenderWeekViewAsync(message, groupId)` (private async helper)
 
 ```
-await RenderWeekViewAsync(chatId, groupId, weekStart, messageId)
-AnswerCallbackQuery()
-```
-
-### `RenderWeekViewAsync` (private helper)
-
-```
-plan = weekMealPlanRepository.GetWeekAsync(groupId, weekStart)
+plan  = dayMealsRepository.GetWeekAsync(groupId)
 meals = mealRepository.GetAllAsync(groupId)
-keyboard = BuildWeekKeyboard(plan, weekStart, hasMeals: meals.Count > 0)
-text = localizer.Get(chatId, "weekplan.header")
-EditMessageText(chatId, messageId, text, keyboard)
+keyboard = BuildWeekKeyboard(plan, hasMeals: meals.Count > 0, localizer, chatId)
+EditMessageText(chatId, message.MessageId, localizer.Get(chatId, "week.header"), keyboard)
 ```
 
 ---
@@ -173,58 +156,58 @@ EditMessageText(chatId, messageId, text, keyboard)
 ## Sequence Diagram: Assign a meal to a day
 
 ```
-User          Bot                WeekMealPlanRepo   MealRepo
- |                |                      |               |
- |--/weekplan---> |                      |               |
- |                |--GetWeekAsync------->|               |
- |                |<--plan---------------|               |
- |                |--GetAllAsync---------|-------------> |
- |                |<--meals--------------|<------------- |
- |                |--SendMessage-------->|               |
- |<--week view----|                      |               |
- |                |                      |               |
- |--[＋ Set Mon]->|   (week:pick:1:...) |               |
- |                |--GetAllAsync---------|-------------> |
- |                |<--meals--------------|<------------- |
- |                |--EditMessage-------->|               |
- |<--meal picker--|                      |               |
- |                |                      |               |
- |--[Pasta]------>|  (week:assign:1:...:id)             |
- |                |--UpsertAsync-------->|               |
- |                |--GetWeekAsync------->|               |
- |                |<--plan---------------|               |
- |                |--GetAllAsync---------|-------------> |
- |                |<--meals--------------|<------------- |
- |                |--EditMessage-------->|               |
- |<--week view----|                      |               |
+User         Bot              DayMealsRepo   MealRepo
+ |               |                  |             |
+ |--/week------> |                  |             |
+ |               |--GetWeekAsync--> |             |
+ |               |<--plan-----------|             |
+ |               |--GetAllAsync-----|-----------> |
+ |               |<--meals----------|<----------- |
+ |               |--SendMessage                   |
+ |<--week view---|                  |             |
+ |               |                  |             |
+ |--[＋ Set Mon] |  (week:pick:1)  |             |
+ |               |--GetAllAsync-----|-----------> |
+ |               |<--meals----------|<----------- |
+ |               |--EditMessage                   |
+ |<--meal picker |                  |             |
+ |               |                  |             |
+ |--[Pasta]----> | (week:assign:1:42)             |
+ |               |--UpsertAsync---> |             |
+ |               |--GetWeekAsync--> |             |
+ |               |<--plan-----------|             |
+ |               |--GetAllAsync-----|-----------> |
+ |               |<--meals----------|<----------- |
+ |               |--EditMessage                   |
+ |<--week view---|                  |             |
 ```
 
 ---
 
 ## Localization Keys
 
-All keys added to `Strings.en.json`, `Strings.ru.json`, `Strings.pl.json`:
+Added to `Strings.en.json`, `Strings.ru.json`, `Strings.pl.json`:
 
 | Key | English value |
 |---|---|
-| `weekplan.header` | `📅 Meal plan for this week:` |
-| `weekplan.pick-prompt` | `Choose a meal for {0}:` |
-| `weekplan.no-meals` | `No meals in your library yet. Add meals with /meals first.` |
-| `weekplan.btn-set` | `＋ Set` |
-| `weekplan.btn-clear` | `✕` |
-| `weekplan.btn-back` | `← Back` |
-| `weekplan.day.1` | `Mon` |
-| `weekplan.day.2` | `Tue` |
-| `weekplan.day.3` | `Wed` |
-| `weekplan.day.4` | `Thu` |
-| `weekplan.day.5` | `Fri` |
-| `weekplan.day.6` | `Sat` |
-| `weekplan.day.7` | `Sun` |
+| `week.header` | `📅 Meal plan:` |
+| `week.pick-prompt` | `Choose a meal for {0}:` |
+| `week.no-meals` | `No meals in your library yet. Add meals with /meals first.` |
+| `week.btn-set` | `＋ Set` |
+| `week.btn-clear` | `✕` |
+| `week.btn-back` | `← Back` |
+| `week.day.1` | `Mon` |
+| `week.day.2` | `Tue` |
+| `week.day.3` | `Wed` |
+| `week.day.4` | `Thu` |
+| `week.day.5` | `Fri` |
+| `week.day.6` | `Sat` |
+| `week.day.7` | `Sun` |
 
 ---
 
 ## AOT Compatibility Notes
 
-- No reflection is used. `WeekMealPlanRepository` uses raw `SqliteCommand` with parameterized queries.
-- `WeekPlanCallbackHandler` parses callback data with `string.Split` and `int.Parse`; no `JsonSerializer` needed (all data is embedded in callback strings).
+- No reflection used. `DayMealsRepository` uses raw `SqliteCommand` with parameterized queries.
+- `WeekCallbackHandler` parses callback data with `string.Split` and `int.Parse`; no `JsonSerializer` needed.
 - No new types need to be registered in `BotActionPayloadContext`.

@@ -37,97 +37,61 @@ public class BuyExpiryHandlerTests
     }
 
     [Fact]
-    public async Task BuyStepHandler_HandleStep3_Valid_Days_Number_Saves_Item_With_Expiry()
+    public async Task BuyStepHandler_Step1_NormalMode_AdvancesToStep2()
     {
         var bot = CreateBotMock();
         var dialogService = new PendingDialogService<BuyDialogState>();
         dialogService.SetState(-100L, 42L, new BuyDialogState
         {
-            Step = 3,
+            Step = 1,
             GroupId = 10,
-            Name = "Молоко",
-            Quantity = "2л",
             AddedByName = "Alice",
         });
 
-        var expDate = DateOnly.FromDateTime(DateTime.Now).AddDays(5);
-        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
-            .ReturnsAsync(new ShoppingItem
-            {
-                Id = 1,
-                GroupId = 10,
-                Name = "Молоко",
-                Quantity = "2л",
-                ExpDate = expDate,
-                AddedByName = "Alice",
-            });
-
+        var pendingAddService = new PendingAddService();
         var localizer = new Mock<ILocalizer>();
-        localizer.Setup(l => l.Get(-100L, "buy.item-added-quantity-expiry"))
-            .Returns("{name} added {item} ({quantity}, until {expiry})");
+        localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
+            .Returns<long, string>((_, key) => key);
 
-        var handler = new BuyStepHandler(
-            bot.Object,
-            dialogService,
-            itemRepo.Object,
-            Mock.Of<IHistoryRepository>(),
-            localizer.Object,
-            Mock.Of<ILogger<BuyStepHandler>>());
-
-        var message = DeserializeMessage("{\"message_id\":3,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100},\"text\":\"5\"}");
+        var handler = new BuyStepHandler(bot.Object, dialogService, pendingAddService, localizer.Object);
+        var message = DeserializeMessage("{\"message_id\":3,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100},\"text\":\"Молоко\"}");
         await handler.HandleAsync(message, CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2л", "Alice", It.IsAny<DateOnly?>()), Times.Once);
+        var state = dialogService.GetState(-100L, 42L);
+        Assert.NotNull(state);
+        Assert.Equal(2, state.Step);
+        Assert.Equal("Молоко", state.Name);
     }
 
     [Fact]
-    public async Task BuyStepHandler_HandleStep3_Valid_Week_Variant_Saves_Item_With_Expiry()
+    public async Task BuyStepHandler_Step2_SendsReviewMessage()
     {
         var bot = CreateBotMock();
         var dialogService = new PendingDialogService<BuyDialogState>();
         dialogService.SetState(-100L, 42L, new BuyDialogState
         {
-            Step = 3,
+            Step = 2,
             GroupId = 10,
             Name = "Молоко",
-            Quantity = "2л",
             AddedByName = "Alice",
         });
 
-        var weekExpDate = DateOnly.FromDateTime(DateTime.Now).AddDays(14);
-        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
-            .ReturnsAsync(new ShoppingItem
-            {
-                Id = 1,
-                GroupId = 10,
-                Name = "Молоко",
-                Quantity = "2л",
-                ExpDate = weekExpDate,
-                AddedByName = "Alice",
-            });
-
+        var pendingAddService = new PendingAddService();
         var localizer = new Mock<ILocalizer>();
-        localizer.Setup(l => l.Get(-100L, "buy.item-added-quantity-expiry"))
-            .Returns("{name} added {item} ({quantity}, until {expiry})");
+        localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
+            .Returns<long, string>((_, key) => key);
 
-        var handler = new BuyStepHandler(
-            bot.Object,
-            dialogService,
-            itemRepo.Object,
-            Mock.Of<IHistoryRepository>(),
-            localizer.Object,
-            Mock.Of<ILogger<BuyStepHandler>>());
-
-        var message = DeserializeMessage("{\"message_id\":3,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100},\"text\":\"2 week\"}");
+        var handler = new BuyStepHandler(bot.Object, dialogService, pendingAddService, localizer.Object);
+        var message = DeserializeMessage("{\"message_id\":3,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100},\"text\":\"2л\"}");
         await handler.HandleAsync(message, CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2л", "Alice", It.IsAny<DateOnly?>()), Times.Once);
+        // Dialog cleared after step 2 — item is now pending
+        Assert.Null(dialogService.GetState(-100L, 42L));
+        bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task BuyStepHandler_HandleStep3_Invalid_Input_Stays_At_Step3()
+    public async Task BuyStepHandler_UnknownStep_IsNoOp()
     {
         var bot = CreateBotMock();
         var dialogService = new PendingDialogService<BuyDialogState>();
@@ -141,31 +105,22 @@ public class BuyExpiryHandlerTests
         };
         dialogService.SetState(-100L, 42L, state);
 
-        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
+        var pendingAddService = new PendingAddService();
         var localizer = new Mock<ILocalizer>();
-        localizer.Setup(l => l.Get(-100L, "buy.invalid-date"))
-            .Returns("Invalid format");
+        localizer.Setup(l => l.Get(-100L, "buy.invalid-date")).Returns("Invalid format");
 
-        var handler = new BuyStepHandler(
-            bot.Object,
-            dialogService,
-            itemRepo.Object,
-            Mock.Of<IHistoryRepository>(),
-            localizer.Object,
-            Mock.Of<ILogger<BuyStepHandler>>());
-
+        var handler = new BuyStepHandler(bot.Object, dialogService, pendingAddService, localizer.Object);
         var message = DeserializeMessage("{\"message_id\":3,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100},\"text\":\"invalid\"}");
         await handler.HandleAsync(message, CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateOnly?>()), Times.Never);
-
+        // No state change for unknown step
         var updatedState = dialogService.GetState(-100L, 42L);
         Assert.NotNull(updatedState);
         Assert.Equal(3, updatedState.Step);
     }
 
     [Fact]
-    public async Task BuySkipCallbackHandler_Transitions_To_Step3()
+    public async Task BuySkipCallbackHandler_DirectlySavesItem()
     {
         var bot = CreateBotMock();
         var dialogService = new PendingDialogService<BuyDialogState>();
@@ -177,28 +132,29 @@ public class BuyExpiryHandlerTests
             AddedByName = "Alice",
         });
 
-        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:").Object;
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
+        itemRepo.Setup(r => r.AddAsync(10, "Молоко", null, "Alice", null))
+            .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Alice" });
+
         var localizer = new Mock<ILocalizer>();
-        localizer.Setup(l => l.Get(-100L, "buy.skip"))
-            .Returns("Skip");
-        localizer.Setup(l => l.Get(-100L, "buy.expiry-date"))
-            .Returns("Expiry date?");
+        localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
+            .Returns<long, string>((_, key) => key);
 
         var handler = new BuySkipCallbackHandler(
             bot.Object,
             dialogService,
-            itemRepo,
+            itemRepo.Object,
             Mock.Of<IHistoryRepository>(),
             localizer.Object,
             Mock.Of<ILogger<BuySkipCallbackHandler>>());
 
-        var callback = DeserializeCallbackQuery("{\"id\":\"cb1\",\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat_instance\":\"123\",\"message\":{\"message_id\":2,\"chat\":{\"id\":-100}}}");
+        var callback = DeserializeCallbackQuery("{\"id\":\"cb1\",\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat_instance\":\"123\",\"message\":{\"message_id\":2,\"chat\":{\"id\":-100}},\"data\":\"buy:skip_quantity\"}");
         await handler.HandleAsync(callback, CancellationToken.None);
 
-        var state = dialogService.GetState(-100L, 42L);
-        Assert.NotNull(state);
-        Assert.Equal(3, state.Step);
-        Assert.Null(state.Quantity);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Alice", null), Times.Once);
+
+        // Dialog cleared
+        Assert.Null(dialogService.GetState(-100L, 42L));
     }
 
     [Fact]

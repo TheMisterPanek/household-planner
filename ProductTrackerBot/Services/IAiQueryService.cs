@@ -16,7 +16,8 @@ public interface IAiQueryService
     /// <param name="chatId">Telegram chat ID (for localizing error messages).</param>
     /// <param name="groupId">Internal database GroupId scoping all queries.</param>
     /// <param name="question">The user's natural language question.</param>
+    /// <param name="recentContext">Recent conversation turns (last 15 min, ≤500 chars) for short-term memory. Empty string if none.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>A natural language answer, or a localized error message on failure.</returns>
-    Task<string> AnswerAsync(long chatId, long groupId, string question, CancellationToken ct);
+    Task<string> AnswerAsync(long chatId, long groupId, string question, string recentContext, CancellationToken ct);
 }

@@ -117,8 +117,15 @@ builder.Services.AddHostedService<BotCommandRegistrationService>(sp =>
 });
 builder.Services.AddHostedService<BotHostedService>();
 
+// Register pending session services
+builder.Services.AddSingleton<PendingAddService>();
+builder.Services.AddSingleton<PendingEditService>();
+builder.Services.AddSingleton<ConversationHistoryService>();
+builder.Services.AddSingleton<AiSuggestionService>();
+
 // Register dialog state services
 builder.Services.AddSingleton<PendingDialogService<BuyDialogState>>();
+builder.Services.AddSingleton<PendingDialogService<EditItemDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<PriceCaptureDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<MealCreateDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<MealAddIngredientDialogState>>();
@@ -172,9 +179,16 @@ builder.Services.AddScoped<ICommandHandler, UndoCommandHandler>();
 builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler, PriceCaptureStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler, MealDialogStepHandler>();
+builder.Services.AddScoped<IDialogMessageHandler, ItemEditStepHandler>();
 
 // Register callback handlers
 builder.Services.AddScoped<ICallbackHandler, BuySkipCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, BuyConfirmCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, BuyEditCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, BuyCancelCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, ItemEditCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, ItemSaveCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, ItemCancelEditCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopDoneCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopRemoveCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, PriceSkipCallbackHandler>();

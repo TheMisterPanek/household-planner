@@ -29,4 +29,7 @@ public enum BotActionType
 
     /// <summary>The shopping list was archived.</summary>
     ListArchived,
+
+    /// <summary>An existing shopping list item was edited.</summary>
+    ItemEdited,
 }

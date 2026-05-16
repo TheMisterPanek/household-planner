@@ -11,7 +11,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 
 /// <summary>
-/// Handles the /history command — prints the last 10 actions for the current group chat.
+/// Handles the /history command — prints the last 10 actions for the current chat.
 /// </summary>
 public class HistoryCommandHandler : ICommandHandler
 {
@@ -38,15 +38,6 @@ public class HistoryCommandHandler : ICommandHandler
     /// <inheritdoc/>
     public async Task HandleAsync(Message message, CancellationToken cancellationToken)
     {
-        if (message.Chat.Id == message.From?.Id)
-        {
-            await this.botClient.SendMessage(
-                chatId: message.Chat.Id,
-                text: "Эта команда работает только в групповом чате.",
-                cancellationToken: cancellationToken);
-            return;
-        }
-
         var entries = await this.historyRepository.GetRecentAsync(message.Chat.Id, limit: 10, ct: cancellationToken);
 
         if (entries.Count == 0)

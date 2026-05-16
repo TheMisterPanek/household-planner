@@ -39,8 +39,13 @@ public class BuySkipIntegrationTests : TelegramIntegrationTestBase
         await DispatchAsync(CommandUpdate(-100, 42, "/buy"));
         // Enter name
         await DispatchAsync(MessageUpdate(-100, 42, "Sugar"));
-        // Enter quantity (completes the dialog)
+        // Enter quantity → sends review message (no immediate DB add)
         await DispatchAsync(MessageUpdate(-100, 42, "1kg"));
+
+        // Confirm the add
+        var confirmData = GetLastBuyConfirmCallbackData();
+        Assert.NotNull(confirmData);
+        await DispatchAsync(CallbackUpdate(-100, 42, 1, confirmData));
 
         var group = await GroupRepository.GetOrCreateAsync(-100);
         var items = await ItemRepository.GetAllAsync(group.Id);

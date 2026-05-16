@@ -46,11 +46,16 @@ public class AiQueryService : IAiQueryService
     }
 
     /// <inheritdoc/>
-    public async Task<string> AnswerAsync(long chatId, long groupId, string question, CancellationToken ct)
+    public async Task<string> AnswerAsync(long chatId, long groupId, string question, string recentContext, CancellationToken ct)
     {
         var systemPrompt = this.identityTemplate
             .Replace("{groupId}", groupId.ToString(), StringComparison.Ordinal)
             .Replace("{chatId}", chatId.ToString(), StringComparison.Ordinal);
+
+        if (!string.IsNullOrEmpty(recentContext))
+        {
+            systemPrompt += $"\n\n## Recent Conversation (last 15 min)\n{recentContext}";
+        }
 
         // Round 1: get planning document or direct answer
         string? round1Response;
@@ -79,6 +84,12 @@ public class AiQueryService : IAiQueryService
         // Mode 1 / Mode 3: no templates → return Round 1 response directly (no Round 2 call)
         if (templates.Count == 0)
         {
+            if (ContainsSql(round1Response))
+            {
+                this.logger.LogWarning("Round 1 response contained raw SQL for chat {ChatId}", chatId);
+                return this.localizer.Get(chatId, "ai.error.sql-in-response");
+            }
+
             return round1Response;
         }
 
@@ -126,6 +137,12 @@ public class AiQueryService : IAiQueryService
         {
             this.logger.LogWarning(ex, "OpenRouter timeout in Round 2 for chat {ChatId}", chatId);
             return this.localizer.Get(chatId, "ai.error.service-unavailable");
+        }
+
+        if (answer != null && ContainsSql(answer))
+        {
+            this.logger.LogWarning("Round 2 response contained raw SQL for chat {ChatId}", chatId);
+            return this.localizer.Get(chatId, "ai.error.sql-in-response");
         }
 
         return answer ?? this.localizer.Get(chatId, "ai.error.no-result");
@@ -178,6 +195,22 @@ public class AiQueryService : IAiQueryService
             yield return (fullMatch, sql);
             searchFrom = i;
         }
+    }
+
+    /// <summary>
+    /// Returns true if the text looks like it contains a raw SQL SELECT statement outside any APPLY_READ_SQL wrapper.
+    /// </summary>
+    internal static bool ContainsSql(string text)
+    {
+        // Strip APPLY_READ_SQL(...) blocks first so we don't flag legitimate template syntax
+        var stripped = System.Text.RegularExpressions.Regex.Replace(
+            text, @"APPLY_READ_SQL\s*\(.*?\)", string.Empty,
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            stripped,
+            @"\bSELECT\b.{1,200}\bFROM\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
     }
 
     /// <summary>

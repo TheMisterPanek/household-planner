@@ -1,0 +1,114 @@
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Moq;
+using ProductTrackerBot.Handlers;
+using ProductTrackerBot.Models;
+using ProductTrackerBot.Repositories;
+using ProductTrackerBot.Services;
+using ProductTrackerBot.Localization;
+using Telegram.Bot;
+using Telegram.Bot.Requests;
+using Telegram.Bot.Types;
+
+namespace ProductTrackerBot.Tests.Handlers;
+
+public class BuyConfirmCallbackHandlerTests
+{
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+    };
+
+    private static CallbackQuery DeserializeCallbackQuery(string json) =>
+        JsonSerializer.Deserialize<CallbackQuery>(json, JsonOpts)!;
+
+    private static Mock<ITelegramBotClient> CreateBotMock()
+    {
+        var bot = new Mock<ITelegramBotClient>();
+        bot.Setup(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Message());
+        bot.Setup(b => b.SendRequest(It.IsAny<AnswerCallbackQueryRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        return bot;
+    }
+
+    [Fact]
+    public async Task ValidToken_CallsAddAsync_RecordsHistory_SendsConfirm()
+    {
+        var bot = CreateBotMock();
+        var pendingAddService = new PendingAddService();
+        var token = pendingAddService.Store(new PendingAddItem(
+            ChatId: -100L,
+            GroupId: 10,
+            Name: "Молоко",
+            Quantity: "2 л",
+            AddedByName: "Alice"));
+
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
+        itemRepo.Setup(r => r.AddAsync(10, "Молоко", "2 л", "Alice", null))
+            .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Молоко", Quantity = "2 л", AddedByName = "Alice" });
+
+        var historyMock = new Mock<IHistoryRepository>();
+        historyMock.Setup(h => h.RecordAsync(
+                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(),
+                It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var localizer = new Mock<ILocalizer>();
+        localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
+            .Returns<long, string>((_, key) => key);
+
+        var handler = new BuyConfirmCallbackHandler(
+            bot.Object, pendingAddService, itemRepo.Object, historyMock.Object,
+            localizer.Object, Mock.Of<ILogger<BuyConfirmCallbackHandler>>());
+
+        var cbQuery = DeserializeCallbackQuery(
+            $"{{\"id\":\"cb1\",\"from\":{{\"id\":42,\"first_name\":\"Alice\"}}," +
+            $"\"message\":{{\"message_id\":5,\"chat\":{{\"id\":-100}},\"text\":\"test\"}}," +
+            $"\"data\":\"buy:confirm:{token}\"}}");
+
+        await handler.HandleAsync(cbQuery, CancellationToken.None);
+
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Alice", null), Times.Once);
+        historyMock.Verify(h => h.RecordAsync(
+            -100L, 42L, "Alice", BotActionType.ItemAdded,
+            It.IsAny<string>(), null, It.IsAny<CancellationToken>()), Times.Once);
+        bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExpiredToken_AnswersWithError_DoesNotCallAddAsync()
+    {
+        var bot = CreateBotMock();
+        var pendingAddService = new PendingAddService();
+
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
+        var historyMock = new Mock<IHistoryRepository>();
+        var localizer = new Mock<ILocalizer>();
+        localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
+            .Returns<long, string>((_, key) => key);
+
+        var handler = new BuyConfirmCallbackHandler(
+            bot.Object, pendingAddService, itemRepo.Object, historyMock.Object,
+            localizer.Object, Mock.Of<ILogger<BuyConfirmCallbackHandler>>());
+
+        var cbQuery = DeserializeCallbackQuery(
+            "{\"id\":\"cb2\",\"from\":{\"id\":42,\"first_name\":\"Alice\"}," +
+            "\"message\":{\"message_id\":5,\"chat\":{\"id\":-100},\"text\":\"test\"}," +
+            "\"data\":\"buy:confirm:deadbeef\"}");
+
+        await handler.HandleAsync(cbQuery, CancellationToken.None);
+
+        itemRepo.Verify(r => r.AddAsync(
+            It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(),
+            It.IsAny<string>(), It.IsAny<DateOnly?>()), Times.Never);
+        historyMock.Verify(h => h.RecordAsync(
+            It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(),
+            It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        bot.Verify(b => b.SendRequest(It.IsAny<AnswerCallbackQueryRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+}

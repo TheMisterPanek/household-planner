@@ -50,6 +50,26 @@
   "ai.thinking": "🤔 Thinking...",
   "ai.error.unsafe-query": "❌ Could not generate a safe query for that question. Please try rephrasing.",
   "ai.error.service-unavailable": "❌ AI service is currently unavailable. Please try again later.",
-  "ai.error.no-result": "❌ No answer was returned. Please try rephrasing your question."
+  "ai.error.no-result": "❌ No answer was returned. Please try rephrasing your question.",
+  "ai.error.sql-in-response": "❌ Something went wrong generating your answer. Please try rephrasing your question.",
+  "buy.review-add": "Add: {item}?",
+  "buy.review-add-qty": "Add: {item} ×{quantity}?",
+  "buy.btn-confirm": "✓ Add",
+  "buy.btn-edit": "✏️ Edit",
+  "buy.btn-cancel": "✕ Cancel",
+  "buy.cancelled": "Cancelled.",
+  "buy.edit-prompt": "Enter corrected item and quantity:",
+  "item.edit-prompt": "✏️ Editing: {item}\nEnter new name and quantity:",
+  "item.review-save": "Save: {item}?",
+  "item.review-save-qty": "Save: {item} ×{quantity}?",
+  "item.btn-save": "✓ Save",
+  "item.btn-cancel": "✕ Cancel",
+  "item.saved": "✏️ Updated: {item}",
+  "item.saved-qty": "✏️ Updated: {item} ({quantity})",
+  "item.edit-button": "✏️",
+  "ai.suggestion-added": "✅ Added!",
+  "ai.suggestion-added-msg": "✅ Added: {item}",
+  "ai.suggestion-added-msg-qty": "✅ Added: {item} ({count})",
+  "ai.suggestion-expired": "Session expired. Please ask again."
 }
 

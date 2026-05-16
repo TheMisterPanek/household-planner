@@ -4,11 +4,8 @@
 
 namespace ProductTrackerBot.Handlers;
 
-using System.Text.Json;
-using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
-using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -16,40 +13,32 @@ using Telegram.Bot.Types.ReplyMarkups;
 
 /// <summary>
 /// Processes dialog steps for the /buy command — step 1 (item name), step 2 (quantity).
-/// Expiration is captured later when the item is marked as bought via the price-capture dialog.
+/// Step 2 now routes to a review step instead of saving directly.
 /// </summary>
 public class BuyStepHandler : IDialogMessageHandler
 {
     private readonly ITelegramBotClient botClient;
     private readonly PendingDialogService<BuyDialogState> dialogService;
-    private readonly ShoppingItemRepository itemRepository;
-    private readonly IHistoryRepository historyRepository;
+    private readonly PendingAddService pendingAddService;
     private readonly ILocalizer localizer;
-    private readonly ILogger<BuyStepHandler> logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BuyStepHandler"/> class.
     /// </summary>
     /// <param name="botClient">The Telegram bot client.</param>
     /// <param name="dialogService">The dialog state service.</param>
-    /// <param name="itemRepository">The shopping item repository.</param>
-    /// <param name="historyRepository">The history repository.</param>
+    /// <param name="pendingAddService">The pending add session service.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
-    /// <param name="logger">The logger.</param>
     public BuyStepHandler(
         ITelegramBotClient botClient,
         PendingDialogService<BuyDialogState> dialogService,
-        ShoppingItemRepository itemRepository,
-        IHistoryRepository historyRepository,
-        ILocalizer localizer,
-        ILogger<BuyStepHandler> logger)
+        PendingAddService pendingAddService,
+        ILocalizer localizer)
     {
         this.botClient = botClient;
         this.dialogService = dialogService;
-        this.itemRepository = itemRepository;
-        this.historyRepository = historyRepository;
+        this.pendingAddService = pendingAddService;
         this.localizer = localizer;
-        this.logger = logger;
     }
 
     /// <inheritdoc/>
@@ -72,9 +61,6 @@ public class BuyStepHandler : IDialogMessageHandler
             return;
         }
 
-        var chatId = message.Chat.Id;
-        var userId = message.From.Id;
-
         switch (state.Step)
         {
             case 1:
@@ -88,6 +74,22 @@ public class BuyStepHandler : IDialogMessageHandler
 
     private async Task HandleStep1Async(Message message, BuyDialogState state, CancellationToken cancellationToken)
     {
+        if (state.IsOneLineMode)
+        {
+            var (name, quantity) = BuyInputParser.Parse(message.Text!.Trim());
+            this.dialogService.ClearState(message.Chat.Id, message.From!.Id);
+
+            var token = this.pendingAddService.Store(new PendingAddItem(
+                ChatId: message.Chat.Id,
+                GroupId: state.GroupId,
+                Name: name,
+                Quantity: quantity,
+                AddedByName: state.AddedByName));
+
+            await this.SendReviewMessageAsync(message.Chat.Id, name, quantity, token, twoButtonMode: true, cancellationToken);
+            return;
+        }
+
         state.Name = message.Text!.Trim();
         state.Step = 2;
         this.dialogService.SetState(message.Chat.Id, message.From!.Id, state);
@@ -106,52 +108,62 @@ public class BuyStepHandler : IDialogMessageHandler
 
     private async Task HandleStep2Async(Message message, BuyDialogState state, CancellationToken cancellationToken)
     {
-        state.Quantity = message.Text!.Trim();
-        await this.FinishDialogAsync(message.Chat.Id, message.From!.Id, state, cancellationToken);
+        var quantity = message.Text!.Trim();
+        this.dialogService.ClearState(message.Chat.Id, message.From!.Id);
+
+        var token = this.pendingAddService.Store(new PendingAddItem(
+            ChatId: message.Chat.Id,
+            GroupId: state.GroupId,
+            Name: state.Name!,
+            Quantity: quantity,
+            AddedByName: state.AddedByName));
+
+        await this.SendReviewMessageAsync(message.Chat.Id, state.Name!, quantity, token, twoButtonMode: false, cancellationToken);
     }
 
-    private async Task FinishDialogAsync(
+    private async Task SendReviewMessageAsync(
         long chatId,
-        long userId,
-        BuyDialogState state,
+        string name,
+        string? quantity,
+        string token,
+        bool twoButtonMode,
         CancellationToken cancellationToken)
     {
-        var item = await this.itemRepository.AddAsync(
-            groupId: state.GroupId,
-            name: state.Name!,
-            quantity: state.Quantity,
-            addedByName: state.AddedByName,
-            expDate: null);
+        var reviewText = quantity is not null
+            ? this.localizer.Get(chatId, "buy.review-add-qty")
+                .Replace("{item}", name).Replace("{quantity}", quantity)
+            : this.localizer.Get(chatId, "buy.review-add")
+                .Replace("{item}", name);
 
-        this.dialogService.ClearState(chatId, userId);
-
-        var confirmText = item.Quantity is not null
-            ? this.localizer.Get(chatId, "buy.item-added-quantity")
-                .Replace("{name}", state.AddedByName).Replace("{item}", item.Name).Replace("{quantity}", item.Quantity)
-            : this.localizer.Get(chatId, "buy.item-added")
-                .Replace("{name}", state.AddedByName).Replace("{item}", item.Name);
+        InlineKeyboardMarkup keyboard;
+        if (twoButtonMode)
+        {
+            keyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "buy.btn-confirm"), $"buy:confirm:{token}"),
+                    InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "buy.btn-cancel"), $"buy:cancel:{token}"),
+                },
+            });
+        }
+        else
+        {
+            keyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "buy.btn-confirm"), $"buy:confirm:{token}"),
+                    InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "buy.btn-edit"), $"buy:edit:{token}"),
+                    InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "buy.btn-cancel"), $"buy:cancel:{token}"),
+                },
+            });
+        }
 
         await this.botClient.SendMessage(
             chatId: chatId,
-            text: confirmText,
+            text: reviewText,
+            replyMarkup: keyboard,
             cancellationToken: cancellationToken);
-
-        try
-        {
-            var payload = new ItemPayload(item.Name, item.Quantity);
-            var payloadJson = JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.ItemPayload);
-            await this.historyRepository.RecordAsync(
-                chatId: chatId,
-                userId: userId,
-                userName: state.AddedByName,
-                actionType: BotActionType.ItemAdded,
-                payloadJson: payloadJson,
-                revertPayloadJson: null,
-                ct: cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            this.logger.LogWarning(ex, "Failed to record history for ItemAdded");
-        }
     }
 }

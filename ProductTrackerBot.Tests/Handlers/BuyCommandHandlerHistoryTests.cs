@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Handlers;
 using ProductTrackerBot.Localization;
@@ -40,27 +39,22 @@ public class BuyCommandHandlerHistoryTests
     private static BuyCommandHandler CreateHandler(
         ITelegramBotClient bot,
         GroupRepository groupRepo,
-        ShoppingItemRepository itemRepo,
-        IHistoryRepository historyRepo)
+        PendingAddService pendingAddService)
     {
         var localizer = new Mock<ILocalizer>();
-        localizer.Setup(l => l.Get(It.IsAny<long>(), "buy.item-added-quantity"))
-            .Returns("{name} added {item} ({quantity})");
-        localizer.Setup(l => l.Get(It.IsAny<long>(), "buy.item-added"))
-            .Returns("{name} added {item}");
+        localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
+            .Returns<long, string>((_, key) => key);
 
         return new BuyCommandHandler(
             bot,
             groupRepo,
-            itemRepo,
             new PendingDialogService<BuyDialogState>(),
-            historyRepo,
-            localizer.Object,
-            Mock.Of<ILogger<BuyCommandHandler>>());
+            pendingAddService,
+            localizer.Object);
     }
 
     [Fact]
-    public async Task Inline_Buy_Calls_RecordAsync_With_ItemAdded()
+    public async Task Inline_Buy_Stores_In_PendingAddService_And_Sends_Review()
     {
         var bot = CreateBotMock();
         var groupRepo = new Mock<GroupRepository>("Data Source=file::memory:");
@@ -68,49 +62,32 @@ public class BuyCommandHandlerHistoryTests
             .ReturnsAsync(new Group { Id = 10, ChatId = -100L });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
-            .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Молоко", Quantity = "2л", AddedByName = "Alice" });
+        var pendingAddService = new PendingAddService();
 
-        var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        var handler = CreateHandler(bot.Object, groupRepo.Object, itemRepo.Object, historyMock.Object);
+        var handler = CreateHandler(bot.Object, groupRepo.Object, pendingAddService);
         await handler.HandleAsync(GroupBuyMessage("Молоко 2л"), CancellationToken.None);
 
-        historyMock.Verify(
-            h => h.RecordAsync(-100L, 42L, "Alice", BotActionType.ItemAdded, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
-            Times.Once);
+        // No AddAsync calls — item should be pending
+        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()), Times.Never);
+
+        // Review message was sent
+        bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task Inline_Buy_Still_Sends_Reply_When_RecordAsync_Throws()
+    public async Task Inline_Buy_With_No_Args_Starts_Dialog()
     {
-        var sentTexts = new List<string>();
-        var bot = new Mock<ITelegramBotClient>();
-        bot.Setup(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
-            .Callback<IRequest<Message>, CancellationToken>((req, _) =>
-            {
-                if (req is SendMessageRequest smr) sentTexts.Add(smr.Text);
-            })
-            .ReturnsAsync(new Message());
-
+        var bot = CreateBotMock();
         var groupRepo = new Mock<GroupRepository>("Data Source=file::memory:");
         groupRepo.Setup(r => r.GetOrCreateAsync(-100L))
             .ReturnsAsync(new Group { Id = 10, ChatId = -100L });
 
-        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
-            .ReturnsAsync(new ShoppingItem { Id = 2, GroupId = 10, Name = "Хлеб", Quantity = null, AddedByName = "Alice" });
+        var pendingAddService = new PendingAddService();
+        var handler = CreateHandler(bot.Object, groupRepo.Object, pendingAddService);
 
-        var historyMock = new Mock<IHistoryRepository>();
-        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("DB error"));
+        var message = DeserializeMessage("{\"message_id\":1,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100,\"type\":\"supergroup\"},\"text\":\"/buy\"}");
+        await handler.HandleAsync(message, CancellationToken.None);
 
-        var handler = CreateHandler(bot.Object, groupRepo.Object, itemRepo.Object, historyMock.Object);
-        await handler.HandleAsync(GroupBuyMessage("Хлеб"), CancellationToken.None);
-
-        Assert.Single(sentTexts);
-        Assert.Contains("Хлеб", sentTexts[0]);
+        bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

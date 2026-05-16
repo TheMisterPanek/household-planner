@@ -134,35 +134,7 @@ public class LocalizationHandlerTests
     }
 
     [Fact]
-    public async Task BuyCommandHandler_Uses_Localized_GroupOnly_Message_For_Private_Chat()
-    {
-        // Arrange
-        var (bot, sentTexts) = CreateBotMock();
-        var localizer = CreateLocalizerMock();
-        var groupRepo = CreateGroupRepoMock();
-
-        var handler = new BuyCommandHandler(
-            bot.Object,
-            groupRepo.Object,
-            new Mock<ShoppingItemRepository>("Data Source=:memory:").Object,
-            new PendingDialogService<BuyDialogState>(),
-            Mock.Of<IHistoryRepository>(),
-            localizer.Object,
-            Mock.Of<ILogger<BuyCommandHandler>>());
-
-        var message = CreatePrivateMessage("/buy");
-
-        // Act
-        await handler.HandleAsync(message, CancellationToken.None);
-
-        // Assert
-        Assert.Single(sentTexts);
-        Assert.Equal("This command only works in a group chat.", sentTexts[0]);
-        localizer.Verify(l => l.Get(message.Chat.Id, "buy.group-only"), Times.Once);
-    }
-
-    [Fact]
-    public async Task BuyCommandHandler_Uses_Localized_WhatToBuy_Prompt_In_Group()
+    public async Task BuyCommandHandler_Uses_Localized_WhatToBuy_Prompt_When_No_Args()
     {
         // Arrange
         var (bot, sentTexts) = CreateBotMock();
@@ -171,11 +143,9 @@ public class LocalizationHandlerTests
         var handler = new BuyCommandHandler(
             bot.Object,
             groupRepo.Object,
-            new Mock<ShoppingItemRepository>("Data Source=:memory:").Object,
             new PendingDialogService<BuyDialogState>(),
-            Mock.Of<IHistoryRepository>(),
-            localizer.Object,
-            Mock.Of<ILogger<BuyCommandHandler>>());
+            new PendingAddService(),
+            localizer.Object);
 
         var message = CreateGroupMessage("/buy");
 

@@ -1,6 +1,6 @@
 .PHONY: run build test up down logs restart deploy
 
-COMPOSE := $(shell which podman > /dev/null 2>&1 && echo "podman compose" || echo "docker compose")
+COMPOSE := docker compose
 
 run:
 	dotnet run --project ProductTrackerBot

@@ -166,6 +166,27 @@ public class ShoppingItemRepository
     }
 
     /// <summary>
+    /// Updates the name and quantity of an existing shopping item.
+    /// </summary>
+    /// <param name="itemId">The item ID to update.</param>
+    /// <param name="name">The new item name.</param>
+    /// <param name="quantity">The new quantity, or null to clear it.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public virtual async Task UpdateAsync(int itemId, string name, string? quantity)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "UPDATE ShoppingItems SET Name = @name, Quantity = @quantity WHERE Id = @id";
+        cmd.Parameters.AddWithValue("@name", name);
+        cmd.Parameters.AddWithValue("@quantity", (object?)quantity ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@id", itemId);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Deletes a shopping item by ID.
     /// </summary>
     /// <param name="itemId">The item ID to delete.</param>

@@ -21,6 +21,7 @@ public class AiCommandHandler : ICommandHandler
     private readonly ITelegramBotClient botClient;
     private readonly GroupRepository groupRepository;
     private readonly IAiQueryService aiQueryService;
+    private readonly ConversationHistoryService conversationHistory;
     private readonly ILocalizer localizer;
     private readonly ILogger<AiCommandHandler> logger;
 
@@ -30,18 +31,21 @@ public class AiCommandHandler : ICommandHandler
     /// <param name="botClient">Telegram bot client.</param>
     /// <param name="groupRepository">Group repository to resolve GroupId.</param>
     /// <param name="aiQueryService">AI query service.</param>
+    /// <param name="conversationHistory">Short-term conversation memory service.</param>
     /// <param name="localizer">Localizer.</param>
     /// <param name="logger">Logger.</param>
     public AiCommandHandler(
         ITelegramBotClient botClient,
         GroupRepository groupRepository,
         IAiQueryService aiQueryService,
+        ConversationHistoryService conversationHistory,
         ILocalizer localizer,
         ILogger<AiCommandHandler> logger)
     {
         this.botClient = botClient;
         this.groupRepository = groupRepository;
         this.aiQueryService = aiQueryService;
+        this.conversationHistory = conversationHistory;
         this.localizer = localizer;
         this.logger = logger;
     }
@@ -73,6 +77,9 @@ public class AiCommandHandler : ICommandHandler
 
         this.logger.LogInformation("AI query from chat {ChatId}: {Question}", message.Chat.Id, question);
 
+        var recentContext = this.conversationHistory.GetRecentContext(message.Chat.Id);
+        this.conversationHistory.Record(message.Chat.Id, $"User: {question}");
+
         using var typingCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var typingTask = this.SendTypingLoopAsync(message.Chat.Id, typingCts.Token);
 
@@ -80,13 +87,15 @@ public class AiCommandHandler : ICommandHandler
         try
         {
             var group = await this.groupRepository.GetOrCreateAsync(message.Chat.Id);
-            answer = await this.aiQueryService.AnswerAsync(message.Chat.Id, group.Id, question, cancellationToken);
+            answer = await this.aiQueryService.AnswerAsync(message.Chat.Id, group.Id, question, recentContext, cancellationToken);
         }
         finally
         {
             await typingCts.CancelAsync();
             try { await typingTask; } catch (OperationCanceledException) { }
         }
+
+        this.conversationHistory.Record(message.Chat.Id, $"Bot: {answer}");
 
         await this.botClient.SendMessage(
             chatId: message.Chat.Id,

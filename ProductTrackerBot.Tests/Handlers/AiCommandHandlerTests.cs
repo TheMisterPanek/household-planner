@@ -46,6 +46,7 @@ public class AiCommandHandlerTests
             botMock.Object,
             groupRepo.Object,
             serviceMock.Object,
+            new ProductTrackerBot.Services.ConversationHistoryService(),
             localizer.Object,
             Mock.Of<ILogger<AiCommandHandler>>());
 
@@ -63,7 +64,7 @@ public class AiCommandHandlerTests
         botMock.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r => r.Text == "ai.usage-hint"),
             It.IsAny<CancellationToken>()), Times.Once);
-        serviceMock.Verify(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        serviceMock.Verify(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -77,21 +78,21 @@ public class AiCommandHandlerTests
         botMock.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r => r.Text == "ai.usage-hint"),
             It.IsAny<CancellationToken>()), Times.Once);
-        serviceMock.Verify(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        serviceMock.Verify(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task HandleAsync_NonEmptyQuestion_DelegatesToService()
     {
         var (handler, botMock, serviceMock) = CreateHandler();
-        serviceMock.Setup(s => s.AnswerAsync(-100L, 1L, "what did we buy?", It.IsAny<CancellationToken>()))
+        serviceMock.Setup(s => s.AnswerAsync(-100L, 1L, "what did we buy?", It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("You bought milk.");
 
         var message = AiMessage("/ai what did we buy?");
 
         await handler.HandleAsync(message, CancellationToken.None);
 
-        serviceMock.Verify(s => s.AnswerAsync(-100L, 1L, "what did we buy?", It.IsAny<CancellationToken>()), Times.Once);
+        serviceMock.Verify(s => s.AnswerAsync(-100L, 1L, "what did we buy?", It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
         botMock.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r => r.Text == "You bought milk."),
             It.IsAny<CancellationToken>()), Times.Once);

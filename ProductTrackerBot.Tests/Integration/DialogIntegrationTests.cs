@@ -13,15 +13,15 @@ public class DialogIntegrationTests : TelegramIntegrationTestBase
 
         // Step 1: /buy (no args) starts dialog
         await DispatchAsync(CommandUpdate(-100, 42, "/buy"));
-        // Step 2: item name entered
+        // Step 2: item name entered → advances to step 2
         await DispatchAsync(MessageUpdate(-100, 42, "Milk"));
-        // Step 3: quantity entered — BuyStepHandler finishes and adds the item
+        // Step 3: quantity entered → sends review message
         await DispatchAsync(MessageUpdate(-100, 42, "1.99"));
 
-        // Bot should have sent messages for both dialog steps (step 2 ask-quantity, step 3 confirmation)
-        BotMock.Verify(
-            b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()),
-            Times.AtLeast(2));
+        // Confirm the add from the review message
+        var confirmData = GetLastBuyConfirmCallbackData();
+        Assert.NotNull(confirmData);
+        await DispatchAsync(CallbackUpdate(-100, 42, 1, confirmData));
 
         var group = await GroupRepository.GetOrCreateAsync(-100);
         var items = await ItemRepository.GetAllAsync(group.Id);

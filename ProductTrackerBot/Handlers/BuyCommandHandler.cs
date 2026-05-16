@@ -4,8 +4,6 @@
 
 namespace ProductTrackerBot.Handlers;
 
-using System.Text.Json;
-using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
@@ -15,44 +13,36 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 
 /// <summary>
-/// Handles the /buy command — adds an item directly (/buy name qty) or initiates a 2-step dialog.
+/// Handles the /buy command — shows a review step (/buy name qty) or initiates a 2-step dialog.
 /// </summary>
 public class BuyCommandHandler : ICommandHandler
 {
     private readonly ITelegramBotClient botClient;
     private readonly GroupRepository groupRepository;
-    private readonly ShoppingItemRepository itemRepository;
     private readonly PendingDialogService<BuyDialogState> dialogService;
-    private readonly IHistoryRepository historyRepository;
+    private readonly PendingAddService pendingAddService;
     private readonly ILocalizer localizer;
-    private readonly ILogger<BuyCommandHandler> logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BuyCommandHandler"/> class.
     /// </summary>
     /// <param name="botClient">The Telegram bot client.</param>
     /// <param name="groupRepository">The group repository.</param>
-    /// <param name="itemRepository">The shopping item repository.</param>
     /// <param name="dialogService">The dialog state service.</param>
-    /// <param name="historyRepository">The history repository.</param>
+    /// <param name="pendingAddService">The pending add session service.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
-    /// <param name="logger">The logger.</param>
     public BuyCommandHandler(
         ITelegramBotClient botClient,
         GroupRepository groupRepository,
-        ShoppingItemRepository itemRepository,
         PendingDialogService<BuyDialogState> dialogService,
-        IHistoryRepository historyRepository,
-        ILocalizer localizer,
-        ILogger<BuyCommandHandler> logger)
+        PendingAddService pendingAddService,
+        ILocalizer localizer)
     {
         this.botClient = botClient;
         this.groupRepository = groupRepository;
-        this.itemRepository = itemRepository;
         this.dialogService = dialogService;
-        this.historyRepository = historyRepository;
+        this.pendingAddService = pendingAddService;
         this.localizer = localizer;
-        this.logger = logger;
     }
 
     /// <inheritdoc/>
@@ -67,38 +57,39 @@ public class BuyCommandHandler : ICommandHandler
         var group = await this.groupRepository.GetOrCreateAsync(message.Chat.Id);
         var displayName = message.From?.FirstName ?? message.From?.Username ?? "Unknown";
 
-        var args = ParseArgs(message.Text);
-        if (args.HasValue)
+        var inlineArgs = ExtractInlineArgs(message.Text);
+        if (inlineArgs is not null)
         {
-            var item = await this.itemRepository.AddAsync(group.Id, args.Value.Name, args.Value.Quantity, displayName);
-            var confirm = item.Quantity is not null
-                ? this.localizer.Get(message.Chat.Id, "buy.item-added-quantity")
-                    .Replace("{name}", displayName).Replace("{item}", item.Name).Replace("{quantity}", item.Quantity)
-                : this.localizer.Get(message.Chat.Id, "buy.item-added")
-                    .Replace("{name}", displayName).Replace("{item}", item.Name);
+            var (name, quantity) = BuyInputParser.Parse(inlineArgs);
+            var token = this.pendingAddService.Store(new PendingAddItem(
+                ChatId: message.Chat.Id,
+                GroupId: group.Id,
+                Name: name,
+                Quantity: quantity,
+                AddedByName: displayName));
+
+            var reviewText = quantity is not null
+                ? this.localizer.Get(message.Chat.Id, "buy.review-add-qty")
+                    .Replace("{item}", name).Replace("{quantity}", quantity)
+                : this.localizer.Get(message.Chat.Id, "buy.review-add")
+                    .Replace("{item}", name);
+
+            var keyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData(this.localizer.Get(message.Chat.Id, "buy.btn-confirm"), $"buy:confirm:{token}"),
+                    InlineKeyboardButton.WithCallbackData(this.localizer.Get(message.Chat.Id, "buy.btn-edit"), $"buy:edit:{token}"),
+                    InlineKeyboardButton.WithCallbackData(this.localizer.Get(message.Chat.Id, "buy.btn-cancel"), $"buy:cancel:{token}"),
+                },
+            });
+
             await this.botClient.SendMessage(
                 chatId: message.Chat.Id,
-                text: confirm,
+                text: reviewText,
+                replyMarkup: keyboard,
                 replyParameters: new ReplyParameters { MessageId = message.MessageId },
                 cancellationToken: cancellationToken);
-
-            try
-            {
-                var payload = new ItemPayload(item.Name, item.Quantity);
-                var payloadJson = JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.ItemPayload);
-                await this.historyRepository.RecordAsync(
-                    chatId: message.Chat.Id,
-                    userId: message.From!.Id,
-                    userName: displayName,
-                    actionType: BotActionType.ItemAdded,
-                    payloadJson: payloadJson,
-                    revertPayloadJson: null,
-                    ct: cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                this.logger.LogWarning(ex, "Failed to record history for ItemAdded");
-            }
 
             return;
         }
@@ -118,14 +109,13 @@ public class BuyCommandHandler : ICommandHandler
             cancellationToken: cancellationToken);
     }
 
-    private static (string Name, string? Quantity)? ParseArgs(string? text)
+    private static string? ExtractInlineArgs(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
             return null;
         }
 
-        // Strip "/buy" or "/buy@botname"
         var spaceIdx = text.IndexOf(' ');
         if (spaceIdx < 0)
         {
@@ -133,17 +123,6 @@ public class BuyCommandHandler : ICommandHandler
         }
 
         var args = text[(spaceIdx + 1)..].Trim();
-        if (string.IsNullOrEmpty(args))
-        {
-            return null;
-        }
-
-        var lastSpace = args.LastIndexOf(' ');
-        if (lastSpace < 0)
-        {
-            return (args, null);
-        }
-
-        return (args[..lastSpace].Trim(), args[(lastSpace + 1)..].Trim());
+        return string.IsNullOrEmpty(args) ? null : args;
     }
 }

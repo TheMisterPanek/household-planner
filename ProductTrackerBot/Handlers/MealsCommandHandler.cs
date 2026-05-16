@@ -9,7 +9,6 @@ using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using Telegram.Bot;
 using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 /// <summary>
@@ -46,15 +45,6 @@ public class MealsCommandHandler : ICommandHandler
     /// <inheritdoc/>
     public async Task HandleAsync(Message message, CancellationToken cancellationToken)
     {
-        if (message.Chat.Type != ChatType.Group && message.Chat.Type != ChatType.Supergroup)
-        {
-            await this.botClient.SendMessage(
-                message.Chat.Id,
-                "❌ The /meals command only works in group chats.",
-                cancellationToken: cancellationToken);
-            return;
-        }
-
         var group = await this.groupRepository.GetOrCreateAsync(message.Chat.Id);
         var meals = await this.mealRepository.GetAllAsync(group.Id);
 

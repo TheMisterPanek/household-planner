@@ -35,4 +35,10 @@ public class BuyDialogState
     /// Gets or sets the display name of the user who started /buy.
     /// </summary>
     public string AddedByName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this is a one-line re-entry from the Edit button.
+    /// When true, step 1 parses the combined input with BuyInputParser instead of going to step 2.
+    /// </summary>
+    public bool IsOneLineMode { get; set; }
 }
