@@ -18,7 +18,7 @@ using Telegram.Bot.Types;
 public class LanguageSelectionHandler : ICallbackHandler
 {
     private readonly ITelegramBotClient botClient;
-    private readonly IPreferenceRepository preferenceRepository;
+    private readonly GroupRepository groupRepository;
     private readonly IHistoryRepository historyRepository;
     private readonly ILocalizer localizer;
     private readonly ILogger<LanguageSelectionHandler> logger;
@@ -27,19 +27,19 @@ public class LanguageSelectionHandler : ICallbackHandler
     /// Initializes a new instance of the <see cref="LanguageSelectionHandler"/> class.
     /// </summary>
     /// <param name="botClient">The Telegram bot client.</param>
-    /// <param name="preferenceRepository">The preference repository.</param>
+    /// <param name="groupRepository">The group repository.</param>
     /// <param name="historyRepository">The history repository.</param>
     /// <param name="localizer">The localizer for resolved strings.</param>
     /// <param name="logger">The logger.</param>
     public LanguageSelectionHandler(
         ITelegramBotClient botClient,
-        IPreferenceRepository preferenceRepository,
+        GroupRepository groupRepository,
         IHistoryRepository historyRepository,
         ILocalizer localizer,
         ILogger<LanguageSelectionHandler> logger)
     {
         this.botClient = botClient;
-        this.preferenceRepository = preferenceRepository;
+        this.groupRepository = groupRepository;
         this.historyRepository = historyRepository;
         this.localizer = localizer;
         this.logger = logger;
@@ -70,7 +70,7 @@ public class LanguageSelectionHandler : ICallbackHandler
 
         try
         {
-            await this.preferenceRepository.SaveLanguageAsync(chatId, languageCode, cancellationToken);
+            await this.groupRepository.SetLanguageAsync(chatId, languageCode);
 
             var confirmationMessage = this.localizer.Get(chatId, "language_saved");
 

@@ -31,14 +31,14 @@ public class LanguageSelectionHandlerTests
     public void CallbackPrefix_Returns_Settings_Lang()
     {
         var mockBotClient = new Mock<ITelegramBotClient>();
-        var mockPrefRepo = new Mock<IPreferenceRepository>();
+        var mockGroupRepo = new Mock<GroupRepository>("Data Source=file:test");
         var mockHistRepo = new Mock<IHistoryRepository>();
         var mockLocalizer = new Mock<ILocalizer>();
         var mockLogger = new Mock<ILogger<LanguageSelectionHandler>>();
 
         var handler = new LanguageSelectionHandler(
             mockBotClient.Object,
-            mockPrefRepo.Object,
+            mockGroupRepo.Object,
             mockHistRepo.Object,
             mockLocalizer.Object,
             mockLogger.Object);
@@ -47,10 +47,10 @@ public class LanguageSelectionHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_Saves_Language_Preference()
+    public async Task HandleAsync_Sets_Language_On_Group()
     {
         var mockBotClient = new Mock<ITelegramBotClient>();
-        var mockPrefRepo = new Mock<IPreferenceRepository>();
+        var mockGroupRepo = new Mock<GroupRepository>("Data Source=file:test");
         var mockHistRepo = new Mock<IHistoryRepository>();
         var mockLocalizer = new Mock<ILocalizer>();
         var mockLogger = new Mock<ILogger<LanguageSelectionHandler>>();
@@ -61,7 +61,7 @@ public class LanguageSelectionHandlerTests
 
         var handler = new LanguageSelectionHandler(
             mockBotClient.Object,
-            mockPrefRepo.Object,
+            mockGroupRepo.Object,
             mockHistRepo.Object,
             mockLocalizer.Object,
             mockLogger.Object);
@@ -70,14 +70,14 @@ public class LanguageSelectionHandlerTests
 
         await handler.HandleAsync(callbackQuery, CancellationToken.None);
 
-        mockPrefRepo.Verify(r => r.SaveLanguageAsync(200L, "en", It.IsAny<CancellationToken>()), Times.Once);
+        mockGroupRepo.Verify(r => r.SetLanguageAsync(200L, "en"), Times.Once);
     }
 
     [Fact]
     public async Task HandleAsync_Records_History()
     {
         var mockBotClient = new Mock<ITelegramBotClient>();
-        var mockPrefRepo = new Mock<IPreferenceRepository>();
+        var mockGroupRepo = new Mock<GroupRepository>("Data Source=file:test");
         var mockHistRepo = new Mock<IHistoryRepository>();
         var mockLocalizer = new Mock<ILocalizer>();
         var mockLogger = new Mock<ILogger<LanguageSelectionHandler>>();
@@ -88,7 +88,7 @@ public class LanguageSelectionHandlerTests
 
         var handler = new LanguageSelectionHandler(
             mockBotClient.Object,
-            mockPrefRepo.Object,
+            mockGroupRepo.Object,
             mockHistRepo.Object,
             mockLocalizer.Object,
             mockLogger.Object);
@@ -113,7 +113,7 @@ public class LanguageSelectionHandlerTests
     public async Task HandleAsync_Extracts_Language_Code_From_Callback()
     {
         var mockBotClient = new Mock<ITelegramBotClient>();
-        var mockPrefRepo = new Mock<IPreferenceRepository>();
+        var mockGroupRepo = new Mock<GroupRepository>("Data Source=file:test");
         var mockHistRepo = new Mock<IHistoryRepository>();
         var mockLocalizer = new Mock<ILocalizer>();
         var mockLogger = new Mock<ILogger<LanguageSelectionHandler>>();
@@ -124,7 +124,7 @@ public class LanguageSelectionHandlerTests
 
         var handler = new LanguageSelectionHandler(
             mockBotClient.Object,
-            mockPrefRepo.Object,
+            mockGroupRepo.Object,
             mockHistRepo.Object,
             mockLocalizer.Object,
             mockLogger.Object);
@@ -133,9 +133,6 @@ public class LanguageSelectionHandlerTests
 
         await handler.HandleAsync(callbackQuery, CancellationToken.None);
 
-        // Verify language was saved with correct code
-        mockPrefRepo.Verify(
-            r => r.SaveLanguageAsync(200L, "ru", It.IsAny<CancellationToken>()),
-            Times.Once);
+        mockGroupRepo.Verify(r => r.SetLanguageAsync(200L, "ru"), Times.Once);
     }
 }

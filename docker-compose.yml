@@ -1,4 +1,18 @@
 services:
+  bot:
+    build:
+      context: ./ProductTrackerBot
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      - DB_PATH=/data/product-tracker.db
+    volumes:
+      - db-data:/data
+    restart: unless-stopped
+    networks:
+      - internal
+
   web:
     build:
       context: .

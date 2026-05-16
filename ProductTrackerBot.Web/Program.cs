@@ -83,15 +83,6 @@ builder.Services.AddSingleton<IOpenRouterClient>(sp =>
 
 // ── Bot infrastructure ────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IUpdateHandler, UpdateDispatcher>();
-builder.Services.AddHostedService<BotCommandRegistrationService>(sp =>
-{
-    var botClient = sp.GetRequiredService<ITelegramBotClient>();
-    var logger = sp.GetRequiredService<ILogger<BotCommandRegistrationService>>();
-    using var scope = sp.CreateScope();
-    var handlers = scope.ServiceProvider.GetRequiredService<IEnumerable<ICommandHandler>>();
-    return new BotCommandRegistrationService(botClient, handlers, logger);
-});
-builder.Services.AddHostedService<BotHostedService>();
 
 // ── Shared singletons ─────────────────────────────────────────────────────────
 builder.Services.AddSingleton(TimeProvider.System);
