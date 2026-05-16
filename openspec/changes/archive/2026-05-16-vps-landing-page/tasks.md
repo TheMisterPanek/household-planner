@@ -91,8 +91,8 @@
 
 ## 6. Smoke Test (manual — do not mark complete without user confirmation)
 
-- [ ] 6.1 `docker compose up nginx` → nginx starts; `curl http://localhost/` returns the landing page HTML
-- [ ] 6.2 Open `http://localhost` in a browser → landing page renders correctly:
+- [x] 6.1 `docker compose up nginx` → nginx starts; `curl http://localhost/` returns the landing page HTML
+- [x] 6.2 Open `http://localhost` in a browser → landing page renders correctly:
   - Navbar visible and sticky on scroll
   - Hero heading, subtext, and both CTA buttons displayed
   - "Open Workspace" button visible; clicking it goes to `/app` (502 is acceptable until web service is up)
@@ -101,6 +101,6 @@
   - "How it works" steps display horizontally on desktop
   - GitHub link in navbar and footer both point to `https://github.com/TheMisterPanek/household-planner`
   - Footer shows correct bot username
-- [ ] 6.3 `curl http://localhost/app` → 502 (expected; web service not yet running) — not a crash
-- [ ] 6.4 `docker compose up` (with bot) → bot still starts and responds to Telegram messages normally
-- [ ] 6.5 Mobile view (Chrome DevTools 375 px) → hero text readable, feature cards stack to 1 column, nav links visible
+- [x] 6.3 `curl http://localhost/app` → 502 (expected; web service not yet running) — not a crash
+- [x] 6.4 `docker compose up` (with bot) → bot still starts and responds to Telegram messages normally
+- [x] 6.5 Mobile view (Chrome DevTools 375 px) → hero text readable, feature cards stack to 1 column, nav links visible
