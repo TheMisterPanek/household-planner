@@ -70,5 +70,11 @@
   "ai.suggestion-added": "✅ Dodano!",
   "ai.suggestion-added-msg": "✅ Dodano: {item}",
   "ai.suggestion-added-msg-qty": "✅ Dodano: {item} ({count})",
-  "ai.suggestion-expired": "Sesja wygasła. Proszę zapytać ponownie."
+  "ai.suggestion-expired": "Sesja wygasła. Proszę zapytać ponownie.",
+  "ai.suggestion-add-all": "➕ Dodaj wszystko",
+  "ai.suggestion-all-added": "✅ Dodano {count} pozycji!",
+  "ai.suggestion-all-added-msg": "✅ Dodano {count} pozycji do listy",
+  "login.usage": "Wyślij /login <kod> z kodem widocznym na stronie.",
+  "login.success": "Uwierzytelniono! Możesz wrócić do przeglądarki.",
+  "login.invalid": "Nieprawidłowy lub wygasły kod. Odśwież stronę logowania i spróbuj ponownie."
 }

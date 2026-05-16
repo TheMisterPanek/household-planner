@@ -1,14 +1,8 @@
-﻿// <copyright file="Program.cs" company="PlaceholderCompany">
-// Copyright (c) PlaceholderCompany. All rights reserved.
-// </copyright>
-
 using System.Net.Http.Headers;
+using System.Security.Claims;
 using DotNetEnv;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Console;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Options;
 using ProductTrackerBot;
 using ProductTrackerBot.Database;
@@ -17,58 +11,38 @@ using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
+using ProductTrackerBot.Web.Components;
+using ProductTrackerBot.Web.Services;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 
-// Load environment variables from .env file before creating the host
+// Load .env (same logic as the bot)
 var envFile = Path.Combine(Environment.CurrentDirectory, ".env");
 if (!File.Exists(envFile))
-{
     envFile = Path.Combine(AppContext.BaseDirectory, "../../../../.env");
-}
 if (File.Exists(envFile))
-{
     Env.Load(envFile);
-}
 
-var builder = Host.CreateApplicationBuilder(args);
-
-// Ensure environment variables are added to configuration (may already be done by default)
+var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
 
-// Configure BotConfiguration from environment variables
+// ── Bot configuration ────────────────────────────────────────────────────────
 builder.Services.AddOptions<BotConfiguration>()
     .BindConfiguration(string.Empty)
-    .ValidateOnStart();
-
-// Add custom validation for Token
-// Note: BotConfiguration.Token should never be logged; ensure no logging middleware logs configuration
-builder.Services.AddOptions<BotConfiguration>()
     .PostConfigure(config =>
     {
         if (string.IsNullOrWhiteSpace(config.Token))
-        {
-            throw new InvalidOperationException("BotConfiguration.Token is required and cannot be empty. Set BOT_TOKEN environment variable.");
-        }
-    });
+            throw new InvalidOperationException("BOT_TOKEN is required.");
+    })
+    .ValidateOnStart();
 
-// Configure structured JSON logging with UTC timestamps
-builder.Logging.ClearProviders();
-builder.Logging.AddJsonConsole(options =>
-{
-    options.IncludeScopes = true;
-    options.UseUtcTimestamp = true;
-    options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
-});
-
-// Register Telegram bot services
 builder.Services.AddSingleton<ITelegramBotClient>(sp =>
 {
-    var options = sp.GetRequiredService<IOptionsMonitor<BotConfiguration>>();
-    return new TelegramBotClient(options.CurrentValue.Token);
+    var opts = sp.GetRequiredService<IOptionsMonitor<BotConfiguration>>();
+    return new TelegramBotClient(opts.CurrentValue.Token);
 });
 
-// Register SQLite database path and initializer
+// ── Database ─────────────────────────────────────────────────────────────────
 var dbPath = builder.Configuration["DB_PATH"]
     ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../data/product-tracker.db"));
 Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
@@ -76,7 +50,7 @@ var connectionString = $"Data Source={dbPath}";
 builder.Services.AddSingleton(connectionString);
 builder.Services.AddHostedService<DatabaseInitializer>();
 
-// Register AI query options
+// ── AI / OpenRouter ───────────────────────────────────────────────────────────
 var aiQueryOptions = new AiQueryOptions
 {
     ApiKey = builder.Configuration["OPENROUTER_API_KEY"] ?? string.Empty,
@@ -85,19 +59,13 @@ var aiQueryOptions = new AiQueryOptions
     IdentityMdPath = Path.Combine(AppContext.BaseDirectory, "IDENTITY.md"),
 };
 builder.Services.AddSingleton(aiQueryOptions);
-
-// Register OpenRouter HTTP client (30s timeout, bearer auth)
 builder.Services.AddHttpClient("openrouter", (sp, client) =>
 {
     var opts = sp.GetRequiredService<AiQueryOptions>();
     client.BaseAddress = new Uri(opts.BaseUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
     if (!string.IsNullOrEmpty(opts.ApiKey))
-    {
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", opts.ApiKey);
-    }
-
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", opts.ApiKey);
     client.DefaultRequestHeaders.Add("HTTP-Referer", "https://github.com/product-tracker-bot");
     client.DefaultRequestHeaders.Add("X-Title", "ProductTrackerBot");
 });
@@ -106,6 +74,7 @@ builder.Services.AddSingleton<IOpenRouterClient>(sp =>
         sp.GetRequiredService<IHttpClientFactory>().CreateClient("openrouter"),
         sp.GetRequiredService<AiQueryOptions>()));
 
+// ── Bot infrastructure ────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IUpdateHandler, UpdateDispatcher>();
 builder.Services.AddHostedService<BotCommandRegistrationService>(sp =>
 {
@@ -117,16 +86,15 @@ builder.Services.AddHostedService<BotCommandRegistrationService>(sp =>
 });
 builder.Services.AddHostedService<BotHostedService>();
 
-// Register pending session services
+// ── Shared singletons ─────────────────────────────────────────────────────────
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<LoginCodeStore>();
-
 builder.Services.AddSingleton<PendingAddService>();
 builder.Services.AddSingleton<PendingEditService>();
 builder.Services.AddSingleton<ConversationHistoryService>();
 builder.Services.AddSingleton<AiSuggestionService>();
 
-// Register dialog state services
+// ── Dialog state services ─────────────────────────────────────────────────────
 builder.Services.AddSingleton<PendingDialogService<BuyDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<EditItemDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<PriceCaptureDialogState>>();
@@ -134,7 +102,7 @@ builder.Services.AddSingleton<PendingDialogService<MealCreateDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<MealAddIngredientDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<MealAddStepDialogState>>();
 
-// Register repositories
+// ── Repositories ──────────────────────────────────────────────────────────────
 builder.Services.AddScoped<GroupRepository>();
 builder.Services.AddScoped<ShoppingItemRepository>();
 builder.Services.AddSingleton<IHistoryRepository, HistoryRepository>();
@@ -143,18 +111,17 @@ builder.Services.AddScoped<PriceLogRepository>();
 builder.Services.AddScoped<MealRepository>();
 builder.Services.AddScoped<MealIngredientRepository>();
 builder.Services.AddScoped<MealStepRepository>();
+builder.Services.AddSingleton<IPreferenceRepository, PreferenceRepository>();
 
-// Register AI query service
+// ── Services ──────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<IAiQueryService, AiQueryService>();
-
-// Register services
 builder.Services.AddScoped<ShoppingListService>();
 builder.Services.AddScoped<MealMergeService>();
 builder.Services.AddScoped<ExpiryNotificationService>();
 builder.Services.AddScoped<IUndoService, UndoService>();
 builder.Services.AddSingleton<ILocalizer, Localizer>();
 
-// Register hosted services for background jobs
+// ── Background jobs ───────────────────────────────────────────────────────────
 var notifyTimeUtc = Environment.GetEnvironmentVariable("NOTIFY_TIME_UTC") ?? "09:00";
 builder.Services.AddSingleton(sp => new ExpiryNotificationJob(
     sp.GetRequiredService<ITelegramBotClient>(),
@@ -164,10 +131,9 @@ builder.Services.AddSingleton(sp => new ExpiryNotificationJob(
     notifyTimeUtc));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ExpiryNotificationJob>());
 
+// ── Command handlers ──────────────────────────────────────────────────────────
 builder.Services.AddScoped<ICommandHandler, AiCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, LoginCommandHandler>();
-
-// Register command handlers
 builder.Services.AddScoped<ICommandHandler, BuyCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, ListCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, HistoryCommandHandler>();
@@ -179,13 +145,13 @@ builder.Services.AddScoped<ICommandHandler, SettingsCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, StartCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, UndoCommandHandler>();
 
-// Register dialog message handlers
+// ── Dialog message handlers ───────────────────────────────────────────────────
 builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler, PriceCaptureStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler, MealDialogStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler, ItemEditStepHandler>();
 
-// Register callback handlers
+// ── Callback handlers ─────────────────────────────────────────────────────────
 builder.Services.AddScoped<ICallbackHandler, BuySkipCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, BuyConfirmCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, BuyEditCallbackHandler>();
@@ -206,7 +172,56 @@ builder.Services.AddScoped<ICallbackHandler, UndoInlineCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, AiAddItemCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, AiAddAllCallbackHandler>();
 
-var host = builder.Build();
-await host.RunAsync();
+// ── Web auth ──────────────────────────────────────────────────────────────────
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<WebSessionStore>();
 
+var sessionTtlHours = int.Parse(Environment.GetEnvironmentVariable("WEB_SESSION_TTL_HOURS") ?? "24");
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/login";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.ExpireTimeSpan = TimeSpan.FromHours(sessionTtlHours);
+        options.SlidingExpiration = false;
+    });
+builder.Services.AddAuthorization();
 
+// ── Blazor ────────────────────────────────────────────────────────────────────
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+
+// ─────────────────────────────────────────────────────────────────────────────
+var app = builder.Build();
+
+if (!app.Environment.IsDevelopment())
+    app.UseHsts();
+
+app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseAntiforgery();
+
+app.MapGet("/api/auth/status", (string token, LoginCodeStore store) =>
+    store.TryGetSession(token, out var chatId)
+        ? Results.Ok(new { valid = true, chatId })
+        : Results.Ok(new { valid = false, chatId = 0L }));
+
+app.MapGet("/api/auth/complete", async (HttpContext ctx, string token, LoginCodeStore store) =>
+{
+    if (!store.TryGetSession(token, out var chatId))
+        return Results.Redirect("/login");
+
+    var claims = new[] { new Claim(ClaimTypes.NameIdentifier, chatId.ToString()) };
+    var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+    var principal = new ClaimsPrincipal(identity);
+    await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+    return Results.Redirect("/");
+});
+
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
+
+await app.RunAsync();

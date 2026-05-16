@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Handlers;
 using ProductTrackerBot.Localization;
+using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
 using Telegram.Bot;
@@ -46,6 +47,7 @@ public class AiCommandHandlerTests
             botMock.Object,
             groupRepo.Object,
             serviceMock.Object,
+            new ProductTrackerBot.Services.AiSuggestionService(),
             new ProductTrackerBot.Services.ConversationHistoryService(),
             localizer.Object,
             Mock.Of<ILogger<AiCommandHandler>>());
@@ -86,7 +88,7 @@ public class AiCommandHandlerTests
     {
         var (handler, botMock, serviceMock) = CreateHandler();
         serviceMock.Setup(s => s.AnswerAsync(-100L, 1L, "what did we buy?", It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("You bought milk.");
+            .ReturnsAsync(new AiQueryResult("You bought milk.", []));
 
         var message = AiMessage("/ai what did we buy?");
 
@@ -95,6 +97,59 @@ public class AiCommandHandlerTests
         serviceMock.Verify(s => s.AnswerAsync(-100L, 1L, "what did we buy?", It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
         botMock.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r => r.Text == "You bought milk."),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // Task 9.1: With suggestions → SendMessage includes InlineKeyboardMarkup with correct buttons
+    [Fact]
+    public async Task HandleAsync_WithSuggestions_SendsMessageWithInlineKeyboard()
+    {
+        var (handler, botMock, serviceMock) = CreateHandler();
+        serviceMock.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiQueryResult("Try pasta carbonara!", new List<AiSuggestion>
+            {
+                new("pasta", "500g"),
+                new("eggs", null),
+            }));
+
+        var message = AiMessage("/ai suggest a recipe");
+        await handler.HandleAsync(message, CancellationToken.None);
+
+        botMock.Verify(b => b.SendRequest(
+            It.Is<SendMessageRequest>(r =>
+                r.Text == "Try pasta carbonara!" &&
+                r.ReplyMarkup is Telegram.Bot.Types.ReplyMarkups.InlineKeyboardMarkup),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        var sentMsg = (SendMessageRequest)botMock.Invocations
+            .Where(i => i.Method.Name == "SendRequest" && i.Arguments[0] is SendMessageRequest smr && smr.Text == "Try pasta carbonara!")
+            .Select(i => i.Arguments[0])
+            .First();
+        var keyboard = (Telegram.Bot.Types.ReplyMarkups.InlineKeyboardMarkup)((SendMessageRequest)sentMsg).ReplyMarkup!;
+        var rows = keyboard.InlineKeyboard.ToList();
+        // 2 suggestion rows + 1 "Add All" row
+        Assert.Equal(3, rows.Count);
+        Assert.Contains("pasta", rows[0].First().Text);
+        Assert.StartsWith("ai:add:", rows[0].First().CallbackData!);
+        Assert.Contains("eggs", rows[1].First().Text);
+        Assert.StartsWith("ai:add-all:", rows[2].First().CallbackData!);
+    }
+
+    // Task 9.2: Without suggestions → SendMessage has no replyMarkup
+    [Fact]
+    public async Task HandleAsync_NoSuggestions_SendsMessageWithoutInlineKeyboard()
+    {
+        var (handler, botMock, serviceMock) = CreateHandler();
+        serviceMock.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiQueryResult("You have 5 items.", []));
+
+        var message = AiMessage("/ai how many items?");
+        await handler.HandleAsync(message, CancellationToken.None);
+
+        botMock.Verify(b => b.SendRequest(
+            It.Is<SendMessageRequest>(r =>
+                r.Text == "You have 5 items." &&
+                r.ReplyMarkup == null),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

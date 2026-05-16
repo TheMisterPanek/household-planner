@@ -70,6 +70,12 @@
   "ai.suggestion-added": "✅ Added!",
   "ai.suggestion-added-msg": "✅ Added: {item}",
   "ai.suggestion-added-msg-qty": "✅ Added: {item} ({count})",
-  "ai.suggestion-expired": "Session expired. Please ask again."
+  "ai.suggestion-expired": "Session expired. Please ask again.",
+  "ai.suggestion-add-all": "➕ Add All",
+  "ai.suggestion-all-added": "✅ Added {count} items!",
+  "ai.suggestion-all-added-msg": "✅ Added {count} items to your list",
+  "login.usage": "Send /login <code> with the code shown on the website.",
+  "login.success": "Authenticated! You can return to the browser.",
+  "login.invalid": "Invalid or expired code. Reload the login page and try again."
 }
 

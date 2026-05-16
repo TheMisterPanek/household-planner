@@ -70,5 +70,11 @@
   "ai.suggestion-added": "✅ Добавлено!",
   "ai.suggestion-added-msg": "✅ Добавлено: {item}",
   "ai.suggestion-added-msg-qty": "✅ Добавлено: {item} ({count})",
-  "ai.suggestion-expired": "Сессия истекла. Пожалуйста, спросите снова."
+  "ai.suggestion-expired": "Сессия истекла. Пожалуйста, спросите снова.",
+  "ai.suggestion-add-all": "➕ Добавить всё",
+  "ai.suggestion-all-added": "✅ Добавлено {count} позиций!",
+  "ai.suggestion-all-added-msg": "✅ Добавлено {count} позиций в список",
+  "login.usage": "Отправьте /login <код> с кодом, показанным на сайте.",
+  "login.success": "Авторизация прошла успешно! Можете вернуться в браузер.",
+  "login.invalid": "Неверный или истёкший код. Обновите страницу входа и попробуйте снова."
 }

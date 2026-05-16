@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProductTrackerBot", "Produc
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProductTrackerBot.Tests", "ProductTrackerBot.Tests\ProductTrackerBot.Tests.csproj", "{D3D55EC0-AA35-4FAF-A3C5-A05DFF7DA57A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProductTrackerBot.Web", "ProductTrackerBot.Web\ProductTrackerBot.Web.csproj", "{A43A1307-8A81-4D1D-ACEE-FEADD54F6531}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,6 +22,10 @@ Global
 		{D3D55EC0-AA35-4FAF-A3C5-A05DFF7DA57A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D3D55EC0-AA35-4FAF-A3C5-A05DFF7DA57A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D3D55EC0-AA35-4FAF-A3C5-A05DFF7DA57A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A43A1307-8A81-4D1D-ACEE-FEADD54F6531}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A43A1307-8A81-4D1D-ACEE-FEADD54F6531}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A43A1307-8A81-4D1D-ACEE-FEADD54F6531}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A43A1307-8A81-4D1D-ACEE-FEADD54F6531}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

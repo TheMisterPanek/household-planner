@@ -6,6 +6,7 @@ namespace ProductTrackerBot.Handlers;
 
 using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Localization;
+using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
 using Telegram.Bot;
@@ -21,6 +22,7 @@ public class AiCommandHandler : ICommandHandler
     private readonly ITelegramBotClient botClient;
     private readonly GroupRepository groupRepository;
     private readonly IAiQueryService aiQueryService;
+    private readonly AiSuggestionService aiSuggestionService;
     private readonly ConversationHistoryService conversationHistory;
     private readonly ILocalizer localizer;
     private readonly ILogger<AiCommandHandler> logger;
@@ -31,6 +33,7 @@ public class AiCommandHandler : ICommandHandler
     /// <param name="botClient">Telegram bot client.</param>
     /// <param name="groupRepository">Group repository to resolve GroupId.</param>
     /// <param name="aiQueryService">AI query service.</param>
+    /// <param name="aiSuggestionService">AI suggestion token store.</param>
     /// <param name="conversationHistory">Short-term conversation memory service.</param>
     /// <param name="localizer">Localizer.</param>
     /// <param name="logger">Logger.</param>
@@ -38,6 +41,7 @@ public class AiCommandHandler : ICommandHandler
         ITelegramBotClient botClient,
         GroupRepository groupRepository,
         IAiQueryService aiQueryService,
+        AiSuggestionService aiSuggestionService,
         ConversationHistoryService conversationHistory,
         ILocalizer localizer,
         ILogger<AiCommandHandler> logger)
@@ -45,6 +49,7 @@ public class AiCommandHandler : ICommandHandler
         this.botClient = botClient;
         this.groupRepository = groupRepository;
         this.aiQueryService = aiQueryService;
+        this.aiSuggestionService = aiSuggestionService;
         this.conversationHistory = conversationHistory;
         this.localizer = localizer;
         this.logger = logger;
@@ -83,11 +88,11 @@ public class AiCommandHandler : ICommandHandler
         using var typingCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var typingTask = this.SendTypingLoopAsync(message.Chat.Id, typingCts.Token);
 
-        string answer;
+        AiQueryResult result;
         try
         {
             var group = await this.groupRepository.GetOrCreateAsync(message.Chat.Id);
-            answer = await this.aiQueryService.AnswerAsync(message.Chat.Id, group.Id, question, recentContext, cancellationToken);
+            result = await this.aiQueryService.AnswerAsync(message.Chat.Id, group.Id, question, recentContext, cancellationToken);
         }
         finally
         {
@@ -95,12 +100,30 @@ public class AiCommandHandler : ICommandHandler
             try { await typingTask; } catch (OperationCanceledException) { }
         }
 
-        this.conversationHistory.Record(message.Chat.Id, $"Bot: {answer}");
+        this.conversationHistory.Record(message.Chat.Id, $"Bot: {result.Text}");
+
+        InlineKeyboardMarkup? replyMarkup = null;
+        if (result.Suggestions.Count > 0)
+        {
+            var rows = result.Suggestions.Select(s =>
+            {
+                var token = this.aiSuggestionService.Store(s);
+                var label = s.Count is not null ? $"➕ {s.Name} ({s.Count})" : $"➕ {s.Name}";
+                return new[] { InlineKeyboardButton.WithCallbackData(label, $"ai:add:{token}") };
+            }).ToList();
+
+            var batchToken = this.aiSuggestionService.StoreBatch(result.Suggestions);
+            var addAllLabel = this.localizer.Get(message.Chat.Id, "ai.suggestion-add-all");
+            rows.Add(new[] { InlineKeyboardButton.WithCallbackData(addAllLabel, $"ai:add-all:{batchToken}") });
+
+            replyMarkup = new InlineKeyboardMarkup(rows);
+        }
 
         await this.botClient.SendMessage(
             chatId: message.Chat.Id,
-            text: answer,
+            text: result.Text,
             replyParameters: new ReplyParameters { MessageId = message.MessageId },
+            replyMarkup: replyMarkup,
             cancellationToken: cancellationToken);
     }
 

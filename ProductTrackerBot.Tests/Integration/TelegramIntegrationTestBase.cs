@@ -51,6 +51,10 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
     protected Mock<IAiQueryService> AiQueryServiceMock { get; }
 
+    protected AiSuggestionService AiSuggestionService { get; private set; } = null!;
+
+    protected LoginCodeStore LoginCodeStore { get; private set; } = null!;
+
     protected TelegramIntegrationTestBase()
     {
         this.connection = new SqliteConnection(ConnectionString);
@@ -97,7 +101,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         this.AiQueryServiceMock = new Mock<IAiQueryService>();
         this.AiQueryServiceMock
             .Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("AI response");
+            .ReturnsAsync(new AiQueryResult("AI response", []));
 
         var preferenceRepo = new Mock<IPreferenceRepository>();
         preferenceRepo.Setup(r => r.GetLanguageAsync(It.IsAny<long>(), It.IsAny<CancellationToken>()))
@@ -114,6 +118,10 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         var pendingAddService = new PendingAddService();
         var pendingEditService = new PendingEditService();
+        var aiSuggestionService = new AiSuggestionService();
+        this.AiSuggestionService = aiSuggestionService;
+        var loginCodeStore = new LoginCodeStore(TimeProvider.System);
+        this.LoginCodeStore = loginCodeStore;
 
         var listService = new ShoppingListService(this.GroupRepository, this.ItemRepository, localizer.Object);
         var undoService = new UndoService(this.HistoryRepository, this.ItemRepository, this.GroupRepository, Mock.Of<ILogger<UndoService>>());
@@ -149,12 +157,14 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         var aiHandler = new AiCommandHandler(
             this.BotMock.Object, this.GroupRepository, this.AiQueryServiceMock.Object,
-            new ConversationHistoryService(), localizer.Object, Mock.Of<ILogger<AiCommandHandler>>());
+            aiSuggestionService, new ConversationHistoryService(), localizer.Object, Mock.Of<ILogger<AiCommandHandler>>());
+
+        var loginHandler = new LoginCommandHandler(this.BotMock.Object, localizer.Object, loginCodeStore);
 
         var nonStartHandlers = new List<ICommandHandler>
         {
             buyHandler, listHandler, historyHandler, searchHandler, pricesHandler,
-            settingsHandler, languageHandler, undoCommandHandler, mealsHandler, aiHandler,
+            settingsHandler, languageHandler, undoCommandHandler, mealsHandler, aiHandler, loginHandler,
         };
 
         var scopeFactory = BuildScopeFactory(nonStartHandlers);
@@ -236,13 +246,22 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var itemCancelEditHandler = new ItemCancelEditCallbackHandler(
             this.BotMock.Object, pendingEditService, localizer.Object);
 
+        var aiAddItemHandler = new AiAddItemCallbackHandler(
+            this.BotMock.Object, aiSuggestionService, this.GroupRepository, this.ItemRepository,
+            this.HistoryRepository, localizer.Object, Mock.Of<ILogger<AiAddItemCallbackHandler>>());
+
+        var aiAddAllHandler = new AiAddAllCallbackHandler(
+            this.BotMock.Object, aiSuggestionService, this.GroupRepository, this.ItemRepository,
+            this.HistoryRepository, localizer.Object, Mock.Of<ILogger<AiAddAllCallbackHandler>>());
+
         var callbackHandlers = new List<ICallbackHandler>
         {
             shopDoneHandler, shopRemoveHandler, actionCancelHandler, langCallbackHandler,
             langSelectionHandler, buySkipHandler, buySkipExpiryHandler, buyConfirmHandler,
             buyEditHandler, buyCancelHandler, itemEditCallbackHandler, itemSaveHandler,
             itemCancelEditHandler, listNextHandler, listPrevHandler, undoInlineHandler,
-            priceSkipHandler, priceShopHandler, mealCallbackHandler,
+            priceSkipHandler, priceShopHandler, mealCallbackHandler, aiAddItemHandler,
+            aiAddAllHandler,
         };
 
         // Dialog handlers

@@ -5,15 +5,17 @@
 namespace ProductTrackerBot.Services;
 
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Localization;
+using ProductTrackerBot.Models;
 
 /// <summary>
 /// AI query service: Round 1 returns a planning document with zero or more APPLY_READ_SQL templates.
 /// Templates are resolved and substituted; Round 2 produces the final answer only when templates were present.
 /// </summary>
-public class AiQueryService : IAiQueryService
+public partial class AiQueryService : IAiQueryService
 {
     private readonly IOpenRouterClient openRouterClient;
     private readonly string connectionString;
@@ -45,8 +47,11 @@ public class AiQueryService : IAiQueryService
         this.model = options.Model;
     }
 
+    [GeneratedRegex(@"ADD_ITEM\s*\(\s*(?<name>[^,)]+?)(?:\s*,\s*(?<count>[^)]+?))?\s*\)", RegexOptions.IgnoreCase)]
+    private static partial Regex AddItemRegex();
+
     /// <inheritdoc/>
-    public async Task<string> AnswerAsync(long chatId, long groupId, string question, string recentContext, CancellationToken ct)
+    public async Task<AiQueryResult> AnswerAsync(long chatId, long groupId, string question, string recentContext, CancellationToken ct)
     {
         var systemPrompt = this.identityTemplate
             .Replace("{groupId}", groupId.ToString(), StringComparison.Ordinal)
@@ -57,6 +62,16 @@ public class AiQueryService : IAiQueryService
             systemPrompt += $"\n\n## Recent Conversation (last 15 min)\n{recentContext}";
         }
 
+        systemPrompt += """
+
+
+## Item Suggestion Syntax
+When your answer naturally leads to specific shopping items (e.g. you suggest a recipe, a meal plan, or a restocking list), you MAY append ADD_ITEM markers to your response — one per item:
+  ADD_ITEM(item name, quantity)
+  ADD_ITEM(item name)
+These will be rendered as "Add to list" buttons in Telegram. Only use them for concrete, buyable items. Place markers at the end of your response. Maximum 8 suggestions.
+""";
+
         // Round 1: get planning document or direct answer
         string? round1Response;
         try
@@ -66,17 +81,17 @@ public class AiQueryService : IAiQueryService
         catch (HttpRequestException ex)
         {
             this.logger.LogWarning(ex, "OpenRouter HTTP error in Round 1 for chat {ChatId}", chatId);
-            return this.localizer.Get(chatId, "ai.error.service-unavailable");
+            return new AiQueryResult(this.localizer.Get(chatId, "ai.error.service-unavailable"), []);
         }
         catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
         {
             this.logger.LogWarning(ex, "OpenRouter timeout in Round 1 for chat {ChatId}", chatId);
-            return this.localizer.Get(chatId, "ai.error.service-unavailable");
+            return new AiQueryResult(this.localizer.Get(chatId, "ai.error.service-unavailable"), []);
         }
 
         if (string.IsNullOrWhiteSpace(round1Response))
         {
-            return this.localizer.Get(chatId, "ai.error.no-result");
+            return new AiQueryResult(this.localizer.Get(chatId, "ai.error.no-result"), []);
         }
 
         var templates = ExtractTemplates(round1Response).ToList();
@@ -87,10 +102,10 @@ public class AiQueryService : IAiQueryService
             if (ContainsSql(round1Response))
             {
                 this.logger.LogWarning("Round 1 response contained raw SQL for chat {ChatId}", chatId);
-                return this.localizer.Get(chatId, "ai.error.sql-in-response");
+                return new AiQueryResult(this.localizer.Get(chatId, "ai.error.sql-in-response"), []);
             }
 
-            return round1Response;
+            return BuildResult(round1Response);
         }
 
         // Mode 2: resolve each template
@@ -131,21 +146,61 @@ public class AiQueryService : IAiQueryService
         catch (HttpRequestException ex)
         {
             this.logger.LogWarning(ex, "OpenRouter HTTP error in Round 2 for chat {ChatId}", chatId);
-            return this.localizer.Get(chatId, "ai.error.service-unavailable");
+            return new AiQueryResult(this.localizer.Get(chatId, "ai.error.service-unavailable"), []);
         }
         catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
         {
             this.logger.LogWarning(ex, "OpenRouter timeout in Round 2 for chat {ChatId}", chatId);
-            return this.localizer.Get(chatId, "ai.error.service-unavailable");
+            return new AiQueryResult(this.localizer.Get(chatId, "ai.error.service-unavailable"), []);
         }
 
         if (answer != null && ContainsSql(answer))
         {
             this.logger.LogWarning("Round 2 response contained raw SQL for chat {ChatId}", chatId);
-            return this.localizer.Get(chatId, "ai.error.sql-in-response");
+            return new AiQueryResult(this.localizer.Get(chatId, "ai.error.sql-in-response"), []);
         }
 
-        return answer ?? this.localizer.Get(chatId, "ai.error.no-result");
+        return answer is not null ? BuildResult(answer) : new AiQueryResult(this.localizer.Get(chatId, "ai.error.no-result"), []);
+    }
+
+    /// <summary>
+    /// Extracts ADD_ITEM suggestions from the AI response text.
+    /// </summary>
+    internal static IReadOnlyList<AiSuggestion> ExtractSuggestions(string text)
+    {
+        var matches = AddItemRegex().Matches(text);
+        if (matches.Count == 0)
+        {
+            return [];
+        }
+
+        var list = new List<AiSuggestion>(matches.Count);
+        foreach (Match m in matches)
+        {
+            var name = m.Groups["name"].Value.Trim();
+            var countGroup = m.Groups["count"];
+            var count = countGroup.Success ? countGroup.Value.Trim() : null;
+            list.Add(new AiSuggestion(name, count));
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// Strips ADD_ITEM markers from text, collapses extra blank lines, and trims.
+    /// </summary>
+    internal static string StripSuggestions(string text)
+    {
+        var stripped = AddItemRegex().Replace(text, string.Empty);
+        stripped = System.Text.RegularExpressions.Regex.Replace(stripped, @"\n{3,}", "\n\n");
+        return stripped.Trim();
+    }
+
+    private static AiQueryResult BuildResult(string answer)
+    {
+        var suggestions = ExtractSuggestions(answer);
+        var cleanedText = suggestions.Count > 0 ? StripSuggestions(answer) : answer;
+        return new AiQueryResult(cleanedText, suggestions);
     }
 
     /// <summary>

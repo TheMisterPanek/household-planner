@@ -4,6 +4,8 @@
 
 namespace ProductTrackerBot.Services;
 
+using ProductTrackerBot.Models;
+
 /// <summary>
 /// Translates a natural language question into SQL, executes it read-only, and returns a
 /// formatted natural language answer using a two-round AI interaction.
@@ -18,6 +20,6 @@ public interface IAiQueryService
     /// <param name="question">The user's natural language question.</param>
     /// <param name="recentContext">Recent conversation turns (last 15 min, ≤500 chars) for short-term memory. Empty string if none.</param>
     /// <param name="ct">Cancellation token.</param>
-    /// <returns>A natural language answer, or a localized error message on failure.</returns>
-    Task<string> AnswerAsync(long chatId, long groupId, string question, string recentContext, CancellationToken ct);
+    /// <returns>The answer text (cleaned of markers) and any item suggestions extracted from the AI response.</returns>
+    Task<AiQueryResult> AnswerAsync(long chatId, long groupId, string question, string recentContext, CancellationToken ct);
 }

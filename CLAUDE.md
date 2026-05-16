@@ -72,7 +72,8 @@ When proposing features:
 2. **Unit tests**: Every handler/service proposal must include explicit test tasks
 3. **Implementation**: Use `/openspec-apply-change` to work through tasks
 4. **Smoke test**: After implementation tasks, always append a manual e2e smoke test task as the final task in the breakdown. This task describes how to verify the feature end-to-end in a real Telegram chat (commands to send, expected bot responses, edge cases to check by hand). Claude must stop and leave this task open — do NOT mark it complete or proceed to archive until the user confirms the smoke test passed.
-5. **Archive**: When complete, use `/openspec-archive-change` to finalize
+5. **Landing page**: Every major feature must include a task to update the Landing page with a description of the new feature
+6. **Archive**: When complete, use `/openspec-archive-change` to finalize
 
 Example:
 ```
