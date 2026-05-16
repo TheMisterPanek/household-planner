@@ -1,213 +1,89 @@
-## Schema
+# Weekly Meal Plan — Design (v2)
 
-### New table: `DayMeals`
+## Overview
 
-Added in `DatabaseInitializer.StartAsync` using `CREATE TABLE IF NOT EXISTS`:
+Two-level day-based navigation for the `/week` command. Main view shows 7 day buttons only. Tapping a day shows its meals with per-meal management and an "Add ingredients to cart" action.
 
-```sql
-CREATE TABLE IF NOT EXISTS DayMeals (
-    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
-    GroupId   INTEGER NOT NULL REFERENCES Groups(Id),
-    DayOfWeek INTEGER NOT NULL CHECK(DayOfWeek BETWEEN 1 AND 7),  -- 1=Mon, 7=Sun
-    MealId    INTEGER NOT NULL REFERENCES Meals(Id),
-    UNIQUE(GroupId, DayOfWeek)
-);
+## UI Flow
+
+### Main View (`/week`)
 ```
-
-No date column. The plan is abstract (recurring Mon–Sun). `UpsertAsync` uses `INSERT OR REPLACE` to enforce the unique constraint.
-
----
-
-## Model: `DayMealEntry`
-
-```csharp
-// ProductTrackerBot/Models/DayMealEntry.cs
-public record DayMealEntry
-{
-    public int DayOfWeek { get; init; }   // 1=Mon … 7=Sun
-    public int MealId    { get; init; }
-    public string MealName { get; init; } = string.Empty;
-}
+📅 Meal plan:
+[Monday] [Tuesday] [Wednesday]
+[Thursday] [Friday] [Saturday] [Sunday]
 ```
+- Each button: `week:day:{day}` (1=Mon, 7=Sun)
+- 2-3 buttons per row for compact layout
+- Shows day names only, no meal details
 
----
-
-## Repository: `DayMealsRepository`
-
+### Day View (`week:day:{day}`)
 ```
-GetWeekAsync(int groupId) → Task<List<DayMealEntry>>
-    SELECT dm.DayOfWeek, dm.MealId, m.Name
-    FROM DayMeals dm JOIN Meals m ON dm.MealId = m.Id
-    WHERE dm.GroupId = @groupId
-    ORDER BY dm.DayOfWeek
-
-UpsertAsync(int groupId, int dayOfWeek, int mealId) → Task
-    INSERT OR REPLACE INTO DayMeals (GroupId, DayOfWeek, MealId)
-    VALUES (@groupId, @dayOfWeek, @mealId)
-
-ClearAsync(int groupId, int dayOfWeek) → Task
-    DELETE FROM DayMeals WHERE GroupId = @groupId AND DayOfWeek = @dayOfWeek
+📅 Monday:
+[Pasta]          [✕]
+[Soup]           [✕]
+[＋ Add meal]
+[← Back] [🛒 Add ingredients to cart]
 ```
+- Header: `📅 {dayName}:` with meal count
+- Each meal: label button (`week:noop`) + clear button (`week:clear:{day}:{mealId}`)
+- If under 10 meals: [＋ Add meal] button (`week:pick:{day}`)
+- Bottom row: [← Back] (`week:back`) + [🛒 Add ingredients to cart] (`week:to_cart:{day}`)
 
-All methods `virtual` for mockability. Registered as `builder.Services.AddScoped<DayMealsRepository>()`.
+### Meal Picker (`week:pick:{day}`)
+```
+Choose a meal for Monday:
+[Pasta] [Pizza] [Soup]
+[← Back]
+```
+- Same as current picker
+- After selection: returns to day view
 
----
+### Add to Cart (`week:to_cart:{day}`)
+- Collects ingredients from meals assigned to the **current day only**
+- Deduplicates by name (case-insensitive)
+- Skips items already on the shopping list
+- Adds via `ShoppingItemRepository.AddAsync`
+- Answers callback: "✓ Added N items" or "No ingredients to add"
 
 ## Callback Data Format
 
-All callbacks use the `week:` prefix. All fit well within the 64-byte Telegram limit.
+| Callback | Action |
+|---|---|
+| `week:day:{day}` | Show day detail view |
+| `week:pick:{day}` | Show meal picker for day |
+| `week:assign:{day}:{mealId}` | Assign meal to day, return to day view |
+| `week:clear:{day}:{mealId}` | Remove specific meal from day |
+| `week:to_cart:{day}` | Add day's ingredients to shopping list |
+| `week:back` | Return to main day list view |
+| `week:noop` | No-op (label buttons) |
 
-| Callback data | Example | Bytes | Meaning |
-|---|---|---|---|
-| `week:pick:{day}` | `week:pick:1` | 12 | Open meal picker for that day |
-| `week:assign:{day}:{mealId}` | `week:assign:3:42` | 17 | Assign meal to that day |
-| `week:clear:{day}` | `week:clear:7` | 13 | Remove assignment for that day |
-| `week:back` | `week:back` | 9 | Return to week view |
-| `week:noop` | `week:noop` | 9 | No-op for display-only buttons |
+## Data Access
 
-`{day}` is 1–7 (1=Monday). No date token needed.
-
----
-
-## Handler: `WeekCommandHandler`
-
-`Command = "/week"`, `Description = "View and plan meals for the week"`
-
-```
-HandleAsync(message):
-  if not group chat → reply localizer.Get(chatId, "common.group-only") and return
-  group = groupRepository.GetOrCreateAsync(chatId)
-  plan  = dayMealsRepository.GetWeekAsync(group.Id)   → dict DayOfWeek → DayMealEntry
-  meals = mealRepository.GetAllAsync(group.Id)
-  keyboard = BuildWeekKeyboard(plan, hasMeals: meals.Count > 0, localizer, chatId)
-  SendMessage(localizer.Get(chatId, "week.header"), replyMarkup: keyboard)
-```
-
-### `BuildWeekKeyboard` logic
-
-One row per day (1–7). Each row has:
-
-- **Day has a meal**: `[{DayName}: {MealName}]` (noop) + `[✕]` (`week:clear:{day}`)
-- **Day unset, group has meals**: `[{DayName}: —]` (noop) + `[＋ Set]` (`week:pick:{day}`)
-- **Day unset, no meals in library**: `[{DayName}: —]` (noop only, no Set button)
-
-Day names resolved via `localizer.Get(chatId, "week.day.{n}")` (1=Mon … 7=Sun).
-
----
-
-## Handler: `WeekCallbackHandler`
-
-`CallbackPrefix = "week:"`
-
-```
-HandleAsync(callbackQuery):
-  parts  = data.Split(':')
-  action = parts[1]   // "pick" | "assign" | "clear" | "back" | "noop"
-  chatId = callbackQuery.Message!.Chat.Id
-  group  = groupRepository.GetOrCreateAsync(chatId)
-
-  switch action:
-    "pick"   → HandlePickAsync(callbackQuery, group.Id, int.Parse(parts[2]))
-    "assign" → HandleAssignAsync(callbackQuery, group.Id, int.Parse(parts[2]), int.Parse(parts[3]))
-    "clear"  → HandleClearAsync(callbackQuery, group.Id, int.Parse(parts[2]))
-    "back"   → RenderWeekViewAsync(callbackQuery.Message, group.Id)
-    "noop"   → (answer only)
-  AnswerCallbackQuery()
-```
-
-### `HandlePickAsync(callbackQuery, groupId, dayOfWeek)`
-
-```
-meals = mealRepository.GetAllAsync(groupId)
-if meals.Count == 0:
-  AnswerCallbackQuery(localizer.Get(chatId, "week.no-meals"))
-  return
-keyboard = meals rows: [InlineKeyboardButton(m.Name, $"week:assign:{dayOfWeek}:{m.Id}")]
-         + [[localizer.Get("week.btn-back"), "week:back"]]
-dayName  = localizer.Get(chatId, $"week.day.{dayOfWeek}")
-EditMessageText(localizer.Get(chatId, "week.pick-prompt", dayName), keyboard)
-```
-
-### `HandleAssignAsync(callbackQuery, groupId, dayOfWeek, mealId)`
-
-```
-dayMealsRepository.UpsertAsync(groupId, dayOfWeek, mealId)
-RenderWeekViewAsync(callbackQuery.Message, groupId)
-```
-
-### `HandleClearAsync(callbackQuery, groupId, dayOfWeek)`
-
-```
-dayMealsRepository.ClearAsync(groupId, dayOfWeek)
-RenderWeekViewAsync(callbackQuery.Message, groupId)
-```
-
-### `RenderWeekViewAsync(message, groupId)` (private async helper)
-
-```
-plan  = dayMealsRepository.GetWeekAsync(groupId)
-meals = mealRepository.GetAllAsync(groupId)
-keyboard = BuildWeekKeyboard(plan, hasMeals: meals.Count > 0, localizer, chatId)
-EditMessageText(chatId, message.MessageId, localizer.Get(chatId, "week.header"), keyboard)
-```
-
----
-
-## Sequence Diagram: Assign a meal to a day
-
-```
-User         Bot              DayMealsRepo   MealRepo
- |               |                  |             |
- |--/week------> |                  |             |
- |               |--GetWeekAsync--> |             |
- |               |<--plan-----------|             |
- |               |--GetAllAsync-----|-----------> |
- |               |<--meals----------|<----------- |
- |               |--SendMessage                   |
- |<--week view---|                  |             |
- |               |                  |             |
- |--[＋ Set Mon] |  (week:pick:1)  |             |
- |               |--GetAllAsync-----|-----------> |
- |               |<--meals----------|<----------- |
- |               |--EditMessage                   |
- |<--meal picker |                  |             |
- |               |                  |             |
- |--[Pasta]----> | (week:assign:1:42)             |
- |               |--UpsertAsync---> |             |
- |               |--GetWeekAsync--> |             |
- |               |<--plan-----------|             |
- |               |--GetAllAsync-----|-----------> |
- |               |<--meals----------|<----------- |
- |               |--EditMessage                   |
- |<--week view---|                  |             |
-```
-
----
+- `DayMealsRepository.GetWeekAsync(groupId)` — already exists
+- `DayMealsRepository.InsertAsync(groupId, dayOfWeek, mealId)` — already exists
+- `DayMealsRepository.ClearMealAsync(groupId, dayOfWeek, mealId)` — already exists
+- `DayMealsRepository.GetCountAsync(groupId, dayOfWeek)` — already exists
+- `MealIngredientRepository.GetAllAsync(mealId)` — already exists (for collecting ingredients)
+- `ShoppingItemRepository.AddAsync(groupId, name, quantity, addedByName)` — already exists
+- `ShoppingItemRepository.GetAllAsync(groupId)` — already exists (for dedup check)
 
 ## Localization Keys
 
-Added to `Strings.en.json`, `Strings.ru.json`, `Strings.pl.json`:
+Keep existing: `week.header`, `week.pick-prompt`, `week.no-meals`, `week.btn-set`, `week.btn-clear`, `week.btn-back`, `week.day.1-7`, `week.max-meals`
 
-| Key | English value |
+New keys:
+- `week.btn-add-meal` — "＋ Add meal"
+- `week.btn-to-cart` — "🛒 Add ingredients to cart"
+- `week.cart-added` — "✓ Added {0} items to shopping list"
+- `week.cart-no-ingredients` — "No ingredients found for this day's meals"
+- `week.cart-no-meals` — "No meals assigned to this day"
+
+## File Changes
+
+| File | Change |
 |---|---|
-| `week.header` | `📅 Meal plan:` |
-| `week.pick-prompt` | `Choose a meal for {0}:` |
-| `week.no-meals` | `No meals in your library yet. Add meals with /meals first.` |
-| `week.btn-set` | `＋ Set` |
-| `week.btn-clear` | `✕` |
-| `week.btn-back` | `← Back` |
-| `week.day.1` | `Mon` |
-| `week.day.2` | `Tue` |
-| `week.day.3` | `Wed` |
-| `week.day.4` | `Thu` |
-| `week.day.5` | `Fri` |
-| `week.day.6` | `Sat` |
-| `week.day.7` | `Sun` |
-
----
-
-## AOT Compatibility Notes
-
-- No reflection used. `DayMealsRepository` uses raw `SqliteCommand` with parameterized queries.
-- `WeekCallbackHandler` parses callback data with `string.Split` and `int.Parse`; no `JsonSerializer` needed.
-- No new types need to be registered in `BotActionPayloadContext`.
+| `Handlers/WeekViewBuilder.cs` | Replace `BuildWeekKeyboard` with `BuildDayListKeyboard` and `BuildDayDetailKeyboard` |
+| `Handlers/WeekCallbackHandler.cs` | Add `day`, `to_cart` actions; update `back`; inject `MealIngredientRepository`, `ShoppingItemRepository` |
+| `Handlers/WeekCommandHandler.cs` | Use `BuildDayListKeyboard` |
+| `Localization/Strings.*.json` | Add 5 new keys |
+| `Tests/*` | Update all week tests |

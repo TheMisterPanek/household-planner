@@ -76,6 +76,26 @@
   "ai.suggestion-all-added-msg": "✅ Added {count} items to your list",
   "login.usage": "Send /login <code> with the code shown on the website.",
   "login.success": "Authenticated! You can return to the browser.",
-  "login.invalid": "Invalid or expired code. Reload the login page and try again."
+  "login.invalid": "Invalid or expired code. Reload the login page and try again.",
+  "common.group-only": "❌ This command only works in group chats.",
+  "week.header": "📅 Meal plan:",
+  "week.pick-prompt": "Choose a meal for {0}:",
+  "week.no-meals": "No meals in your library yet. Add meals with /meals first.",
+  "week.btn-set": "＋ Set",
+  "week.btn-clear": "✕",
+  "week.btn-back": "← Back",
+  "week.day.1": "Mon",
+  "week.day.2": "Tue",
+  "week.day.3": "Wed",
+  "week.day.4": "Thu",
+  "week.day.5": "Fri",
+  "week.day.6": "Sat",
+  "week.day.7": "Sun",
+  "week.max-meals": "Maximum 10 meals per day reached.",
+  "week.btn-add-meal": "＋ Add meal",
+  "week.btn-to-cart": "🛒 Add ingredients to cart",
+  "week.cart-added": "✓ Added {0} items to shopping list",
+  "week.cart-no-ingredients": "No ingredients found for this day's meals.",
+  "week.cart-no-meals": "No meals assigned to this day."
 }
 

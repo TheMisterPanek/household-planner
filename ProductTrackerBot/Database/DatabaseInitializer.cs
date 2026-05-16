@@ -139,6 +139,42 @@ public class DatabaseInitializer : IHostedService
         cmd8.CommandText = createMealSteps;
         await cmd8.ExecuteNonQueryAsync(cancellationToken);
 
+        var createDayMeals = @"
+            CREATE TABLE IF NOT EXISTS DayMeals (
+                Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                GroupId   INTEGER NOT NULL REFERENCES Groups(Id),
+                DayOfWeek INTEGER NOT NULL CHECK(DayOfWeek BETWEEN 1 AND 7),
+                MealId    INTEGER NOT NULL REFERENCES Meals(Id)
+            );";
+
+        await using var cmd9 = connection.CreateCommand();
+        cmd9.CommandText = createDayMeals;
+        await cmd9.ExecuteNonQueryAsync(cancellationToken);
+
+        // Migrate DayMeals: remove UNIQUE(GroupId, DayOfWeek) constraint if present.
+        // SQLite doesn't support ALTER TABLE DROP CONSTRAINT, so we recreate the table.
+        try
+        {
+            await using var migrateCmd = connection.CreateCommand();
+            migrateCmd.CommandText = @"
+                CREATE TABLE IF NOT EXISTS DayMeals_New (
+                    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    GroupId   INTEGER NOT NULL REFERENCES Groups(Id),
+                    DayOfWeek INTEGER NOT NULL CHECK(DayOfWeek BETWEEN 1 AND 7),
+                    MealId    INTEGER NOT NULL REFERENCES Meals(Id)
+                );
+                INSERT INTO DayMeals_New (Id, GroupId, DayOfWeek, MealId)
+                    SELECT Id, GroupId, DayOfWeek, MealId FROM DayMeals;
+                DROP TABLE DayMeals;
+                ALTER TABLE DayMeals_New RENAME TO DayMeals;";
+            await migrateCmd.ExecuteNonQueryAsync(cancellationToken);
+            this.logger.LogInformation("Migrated DayMeals table to remove UNIQUE constraint");
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException)
+        {
+            // Table may not exist yet or already migrated, ignore
+        }
+
         // Migrate Groups table: add LanguageCode column if it doesn't exist
         try
         {

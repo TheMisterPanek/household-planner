@@ -1,105 +1,59 @@
 ## 1. Add Localization Keys
 
-- [ ] 1.1 Add all `week.*` keys to `Strings.en.json`:
-  - `week.header`, `week.pick-prompt`, `week.no-meals`
-  - `week.btn-set`, `week.btn-clear`, `week.btn-back`
-  - `week.day.1` through `week.day.7` (Mon–Sun)
-- [ ] 1.2 Add the same keys with Russian translations to `Strings.ru.json`
-- [ ] 1.3 Add the same keys with Polish translations to `Strings.pl.json`
+- [x] 1.1 Add new `week.*` keys to `Strings.en.json`:
+  - `week.btn-add-meal`, `week.btn-to-cart`
+  - `week.cart-added`, `week.cart-no-ingredients`, `week.cart-no-meals`
+- [x] 1.2 Add the same keys with Russian translations to `Strings.ru.json`
+- [x] 1.3 Add the same keys with Polish translations to `Strings.pl.json`
 
-## 2. Database Schema
+## 2. Rework WeekViewBuilder
 
-- [ ] 2.1 In `DatabaseInitializer.StartAsync`, add the `DayMeals` table DDL after the existing `MealSteps` block:
-  ```sql
-  CREATE TABLE IF NOT EXISTS DayMeals (
-      Id        INTEGER PRIMARY KEY AUTOINCREMENT,
-      GroupId   INTEGER NOT NULL REFERENCES Groups(Id),
-      DayOfWeek INTEGER NOT NULL CHECK(DayOfWeek BETWEEN 1 AND 7),
-      MealId    INTEGER NOT NULL REFERENCES Meals(Id),
-      UNIQUE(GroupId, DayOfWeek)
-  );
-  ```
+- [x] 2.1 Replace `BuildWeekKeyboard` with `BuildDayListKeyboard` — 7 day buttons in rows (2-3 per row), `week:day:{day}` callback
+- [x] 2.2 Add `BuildDayDetailKeyboard(day, meals, hasMeals, localizer, chatId)` — meal rows with [✕] clear, [＋ Add meal] if under 10, [Back] + [Add to cart] bottom row
 
-## 3. DayMealsRepository
+## 3. Rework WeekCallbackHandler
 
-- [ ] 3.1 Create `ProductTrackerBot/Models/DayMealEntry.cs` — record with `int DayOfWeek`, `int MealId`, `string MealName`
-- [ ] 3.2 Create `ProductTrackerBot/Repositories/DayMealsRepository.cs`:
-  - `GetWeekAsync(int groupId) → Task<List<DayMealEntry>>` — JOIN with `Meals`, ORDER BY `DayOfWeek`
-  - `UpsertAsync(int groupId, int dayOfWeek, int mealId) → Task` — `INSERT OR REPLACE`
-  - `ClearAsync(int groupId, int dayOfWeek) → Task` — `DELETE`
-  - All methods `virtual` for mockability
-- [ ] 3.3 Register: `builder.Services.AddScoped<DayMealsRepository>()` in `Program.cs`
+- [x] 3.1 Add `day` action (`week:day:{day}`) — render day detail view via `RenderDayDetailViewAsync`
+- [x] 3.2 Add `to_cart` action (`week:to_cart:{day}`) — collect ingredients from day's meals, dedup against shopping list, add new items, answer callback with count
+- [x] 3.3 Update `back` action — return to main day list (not week view)
+- [x] 3.4 Update `assign` action — after assigning, return to day detail view
+- [x] 3.5 Inject `MealIngredientRepository` and `ShoppingItemRepository` into constructor
 
-## 4. WeekCommandHandler
+## 4. Update WeekCommandHandler
 
-- [ ] 4.1 Create `ProductTrackerBot/Handlers/WeekCommandHandler.cs` implementing `ICommandHandler`:
-  - `Command = "/week"`, `Description = "View and plan meals for the week"`
-  - Guard: non-group chats reply `localizer.Get(chatId, "common.group-only")` and return
-  - Fetch plan via `DayMealsRepository.GetWeekAsync`; fetch meals via `MealRepository.GetAllAsync`
-  - Build week keyboard via `BuildWeekKeyboard` (private static helper — see design.md for row logic)
-  - Send message with `localizer.Get(chatId, "week.header")` and the keyboard
-- [ ] 4.2 Register: `builder.Services.AddScoped<ICommandHandler, WeekCommandHandler>()` in `Program.cs`
+- [x] 4.1 Use `BuildDayListKeyboard` instead of `BuildWeekKeyboard` for the main `/week` response
 
-## 5. WeekCallbackHandler
+## 5. Update Unit Tests
 
-- [ ] 5.1 Create `ProductTrackerBot/Handlers/WeekCallbackHandler.cs` implementing `ICallbackHandler`:
-  - `CallbackPrefix = "week:"`
-  - Parse `data.Split(':')`, dispatch on `parts[1]`: `pick`, `assign`, `clear`, `back`, `noop`
-  - **`pick`**: fetch meals, build meal-picker keyboard (`week:assign:{day}:{mealId}` per meal + `week:back` back button), edit message
-  - **`assign`**: `UpsertAsync`, then `RenderWeekViewAsync`
-  - **`clear`**: `ClearAsync`, then `RenderWeekViewAsync`
-  - **`back`**: `RenderWeekViewAsync`
-  - **`noop`**: answer callback only
-  - `BuildWeekKeyboard` and `RenderWeekViewAsync` as private helpers (share keyboard logic with `WeekCommandHandler` via a static `WeekViewBuilder` internal class if desired)
-- [ ] 5.2 Register: `builder.Services.AddScoped<ICallbackHandler, WeekCallbackHandler>()` in `Program.cs`
+- [x] 5.1 `WeekCommandHandlerTests` — main view sends day buttons (7 day labels)
+- [x] 5.2 `WeekCallbackHandlerTests` — `day` action renders day detail with meals
+- [x] 5.3 `WeekCallbackHandlerTests` — `to_cart` adds ingredients, answers with count
+- [x] 5.4 `WeekCallbackHandlerTests` — `to_cart` with no meals answers with "no meals"
+- [x] 5.5 `WeekCallbackHandlerTests` — `to_cart` with meals but no ingredients answers with "no ingredients"
+- [x] 5.6 `WeekCallbackHandlerTests` — `back` returns to day list
+- [x] 5.7 `WeekCallbackHandlerTests` — `assign` returns to day detail (not main view)
 
-## 6. Unit Tests — DayMealsRepository
+## 6. Update Integration Tests
 
-- [ ] 6.1 `GetWeekAsync` returns empty list when no rows exist for the group
-- [ ] 6.2 `GetWeekAsync` returns correct entries with meal names for a seeded plan
-- [ ] 6.3 `UpsertAsync` inserts a new row; subsequent `GetWeekAsync` returns it
-- [ ] 6.4 `UpsertAsync` replaces existing row for same `(GroupId, DayOfWeek)` with a new `MealId`
-- [ ] 6.5 `ClearAsync` removes the row; subsequent `GetWeekAsync` does not return that day
+- [x] 6.1 `/week` in group → sends message with day buttons
+- [x] 6.2 `week:day:1` callback → edits to day detail view
+- [x] 6.3 `week:assign:1:{mealId}` → persists meal, shows day detail
+- [x] 6.4 `week:clear:1:{mealId}` → removes meal, shows day detail
+- [x] 6.5 `week:to_cart:1` with ingredients → adds to shopping list
+- [x] 6.6 `week:back` → returns to day list
 
-All tests use in-memory SQLite (`:memory:`) and must create `Groups`, `Meals`, and `DayMeals` tables in the arrange step.
+## 7. Update Design Spec
 
-## 7. Unit Tests — WeekCommandHandler
+- [x] 7.1 Update `design.md` with new two-level UI flow
 
-- [ ] 7.1 Private chat → replies "group chat only"; no repository calls
-- [ ] 7.2 Group with no meals and empty plan → sends message with header; day rows have no [＋ Set] button
-- [ ] 7.3 Group with meals and empty plan → sends message; each day row includes `week:pick:{day}` callback
-- [ ] 7.4 Group with a plan entry (Monday = "Pasta") → Monday row has `week:clear:1` callback; other days have `week:pick:{day}`
+## 8. Smoke Test (manual — do not mark complete without user confirmation)
 
-Use `Mock<DayMealsRepository>()` and `Mock<MealRepository>()`. `ILocalizer` mock returns key names.
-
-## 8. Unit Tests — WeekCallbackHandler
-
-- [ ] 8.1 **`noop`** → `AnswerCallbackQuery` called; no repository calls; no `EditMessageText`
-- [ ] 8.2 **`pick`, group has meals** → `EditMessageText` called; keyboard contains one `week:assign:{day}:{id}` button per meal and a `week:back` button
-- [ ] 8.3 **`pick`, no meals** → `AnswerCallbackQuery` called with `week.no-meals`; no `EditMessageText`
-- [ ] 8.4 **`assign`** → `UpsertAsync` called with correct args; `EditMessageText` called (week view re-rendered)
-- [ ] 8.5 **`clear`** → `ClearAsync` called with correct args; `EditMessageText` called (week view re-rendered)
-- [ ] 8.6 **`back`** → no repository write; `EditMessageText` called (week view re-rendered)
-
-## 9. Integration Test
-
-- [ ] 9.1 Wire `WeekCommandHandler`, `WeekCallbackHandler`, and `DayMealsRepository` into `TelegramIntegrationTestBase`
-- [ ] 9.2 `/week` in private chat → bot sends "group chat only" message
-- [ ] 9.3 `/week` in group with no meals → bot sends week view; no assign buttons present
-- [ ] 9.4 `/week` in group with one meal → bot sends week view; Monday row has `week:pick:1` callback
-- [ ] 9.5 Dispatch `week:pick:1` callback → bot edits message with meal-picker keyboard containing the meal
-- [ ] 9.6 Dispatch `week:assign:1:{mealId}` callback → `DayMealsRepository.GetWeekAsync` returns an entry for Monday; bot edits message to week view showing the meal name
-- [ ] 9.7 Dispatch `week:clear:1` callback → `DayMealsRepository.GetWeekAsync` returns no entry for Monday; bot edits message to week view showing "—"
-
-## 10. Smoke Test (manual — do not mark complete without user confirmation)
-
-- [ ] 10.1 `/week` in a private chat → "group only" response
-- [ ] 10.2 `/week` in group with no meals → 7-day view; no [＋ Set] buttons
-- [ ] 10.3 `/week` in group with at least one meal → 7-day view; each day has [＋ Set]
-- [ ] 10.4 Tap [＋ Set] on Wednesday → meal picker appears with group meals + [← Back]
-- [ ] 10.5 Tap a meal in picker → week view refreshed, Wednesday shows meal name + [✕]
-- [ ] 10.6 Tap [✕] on Wednesday → week view refreshed, Wednesday shows "—" + [＋ Set]
-- [ ] 10.7 Tap [← Back] in picker → week view unchanged
-- [ ] 10.8 Send `/week` again → persisted assignments still visible
-- [ ] 10.9 Assign different meal to same day → previous meal replaced (INSERT OR REPLACE)
-- [ ] 10.10 Existing commands (`/meals`, `/buy`, `/list`, `/history`, `/ai`) unaffected
+- [ ] 8.1 `/week` in private chat → "group only" response
+- [ ] 8.2 `/week` in group → 7 day buttons, no meal details
+- [ ] 8.3 Tap a day → day detail view with meals + [✕] buttons
+- [ ] 8.4 Tap [＋ Add meal] → meal picker; select meal → returns to day detail
+- [ ] 8.5 Tap [✕] on a meal → meal removed, day detail refreshed
+- [ ] 8.6 Tap [← Back] → returns to main day list
+- [ ] 8.7 Tap [🛒 Add ingredients to cart] → ingredients added to shopping list
+- [ ] 8.8 Tap [🛒] when no meals assigned → "no meals" toast
+- [ ] 8.9 Tap [🛒] when meals have no ingredients → "no ingredients" toast
