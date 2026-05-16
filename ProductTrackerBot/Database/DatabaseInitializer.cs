@@ -144,8 +144,7 @@ public class DatabaseInitializer : IHostedService
                 Id        INTEGER PRIMARY KEY AUTOINCREMENT,
                 GroupId   INTEGER NOT NULL REFERENCES Groups(Id),
                 DayOfWeek INTEGER NOT NULL CHECK(DayOfWeek BETWEEN 1 AND 7),
-                MealId    INTEGER NOT NULL REFERENCES Meals(Id),
-                UNIQUE(GroupId, DayOfWeek)
+                MealId    INTEGER NOT NULL REFERENCES Meals(Id)
             );";
 
         await using var cmd9 = connection.CreateCommand();

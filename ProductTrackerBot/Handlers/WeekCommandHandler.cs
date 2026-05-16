@@ -67,8 +67,8 @@ public class WeekCommandHandler : ICommandHandler
         var plan = await this.dayMealsRepository.GetWeekAsync(group.Id);
         var meals = await this.mealRepository.GetAllAsync(group.Id);
 
-        var planDict = plan.ToDictionary(e => e.DayOfWeek, e => e);
-        var keyboard = WeekViewBuilder.BuildWeekKeyboard(planDict, meals.Count > 0, this.localizer, chatId);
+        var planLookup = plan.ToLookup(e => e.DayOfWeek);
+        var keyboard = WeekViewBuilder.BuildWeekKeyboard(planLookup, meals.Count > 0, this.localizer, chatId);
 
         await this.botClient.SendMessage(
             chatId,

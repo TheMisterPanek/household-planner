@@ -127,14 +127,15 @@ public class WeekCallbackHandlerTests
     }
 
     [Fact]
-    public async Task Assign_Upserts_And_Renders_Week()
+    public async Task Assign_Inserts_And_Renders_Week()
     {
         var (bot, _, editedTexts) = CreateBotMock();
         var groupRepo = new Mock<GroupRepository>(MockBehavior.Default, "cs");
         groupRepo.Setup(r => r.GetOrCreateAsync(-100L)).ReturnsAsync(new Group { Id = 1, ChatId = -100 });
 
         var dayMealsRepo = new Mock<DayMealsRepository>("cs");
-        dayMealsRepo.Setup(r => r.UpsertAsync(1, 3, 42)).Returns(Task.CompletedTask);
+        dayMealsRepo.Setup(r => r.GetCountAsync(1, 3)).ReturnsAsync(0);
+        dayMealsRepo.Setup(r => r.InsertAsync(1, 3, 42)).Returns(Task.CompletedTask);
         dayMealsRepo.Setup(r => r.GetWeekAsync(1)).ReturnsAsync(new List<DayMealEntry>
         {
             new() { DayOfWeek = 3, MealId = 42, MealName = "Pasta" },
@@ -160,20 +161,43 @@ public class WeekCallbackHandlerTests
         var handler = CreateHandler(bot, groupRepo.Object, dayMealsRepo.Object, mealRepo.Object, localizer);
         await handler.HandleAsync(CreateCallback("week:assign:3:42"), CancellationToken.None);
 
-        dayMealsRepo.Verify(r => r.UpsertAsync(1, 3, 42), Times.Once);
+        dayMealsRepo.Verify(r => r.InsertAsync(1, 3, 42), Times.Once);
         Assert.Single(editedTexts);
         Assert.Equal("Plan:", editedTexts[0]);
     }
 
     [Fact]
-    public async Task Clear_Removes_And_Renders_Week()
+    public async Task Assign_At_Max_Meals_Answers_Callback_With_MaxMeals()
     {
         var (bot, _, editedTexts) = CreateBotMock();
         var groupRepo = new Mock<GroupRepository>(MockBehavior.Default, "cs");
         groupRepo.Setup(r => r.GetOrCreateAsync(-100L)).ReturnsAsync(new Group { Id = 1, ChatId = -100 });
 
         var dayMealsRepo = new Mock<DayMealsRepository>("cs");
-        dayMealsRepo.Setup(r => r.ClearAsync(1, 5)).Returns(Task.CompletedTask);
+        dayMealsRepo.Setup(r => r.GetCountAsync(1, 3)).ReturnsAsync(10);
+
+        var localizer = Mock.Of<ILocalizer>(l =>
+            l.Get(It.IsAny<long>(), "week.max-meals") == "Max 10 meals");
+
+        var handler = CreateHandler(bot, groupRepo.Object, dayMealsRepo.Object, localizer: localizer);
+        await handler.HandleAsync(CreateCallback("week:assign:3:42"), CancellationToken.None);
+
+        bot.Verify(b => b.SendRequest(
+            It.Is<AnswerCallbackQueryRequest>(r => r.Text == "Max 10 meals"),
+            It.IsAny<CancellationToken>()), Times.Once);
+        dayMealsRepo.Verify(r => r.InsertAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+        Assert.Empty(editedTexts);
+    }
+
+    [Fact]
+    public async Task Clear_Removes_Specific_Meal_And_Renders_Week()
+    {
+        var (bot, _, editedTexts) = CreateBotMock();
+        var groupRepo = new Mock<GroupRepository>(MockBehavior.Default, "cs");
+        groupRepo.Setup(r => r.GetOrCreateAsync(-100L)).ReturnsAsync(new Group { Id = 1, ChatId = -100 });
+
+        var dayMealsRepo = new Mock<DayMealsRepository>("cs");
+        dayMealsRepo.Setup(r => r.ClearMealAsync(1, 5, 42)).Returns(Task.CompletedTask);
         dayMealsRepo.Setup(r => r.GetWeekAsync(1)).ReturnsAsync(new List<DayMealEntry>());
 
         var mealRepo = new Mock<MealRepository>("cs");
@@ -190,9 +214,9 @@ public class WeekCallbackHandlerTests
             l.Get(It.IsAny<long>(), "week.day.7") == "Sun");
 
         var handler = CreateHandler(bot, groupRepo.Object, dayMealsRepo.Object, mealRepo.Object, localizer);
-        await handler.HandleAsync(CreateCallback("week:clear:5"), CancellationToken.None);
+        await handler.HandleAsync(CreateCallback("week:clear:5:42"), CancellationToken.None);
 
-        dayMealsRepo.Verify(r => r.ClearAsync(1, 5), Times.Once);
+        dayMealsRepo.Verify(r => r.ClearMealAsync(1, 5, 42), Times.Once);
         Assert.Single(editedTexts);
         Assert.Equal("Plan:", editedTexts[0]);
     }

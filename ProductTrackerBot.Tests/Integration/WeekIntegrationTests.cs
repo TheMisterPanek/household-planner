@@ -60,10 +60,10 @@ public class WeekIntegrationTests : TelegramIntegrationTestBase
         // Create a meal and assign it
         var group = await GroupRepository.GetOrCreateAsync(-100);
         var meal = await MealRepository.AddAsync(group.Id, "Pasta");
-        await DayMealsRepository.UpsertAsync(group.Id, 3, meal.Id);
+        await DayMealsRepository.InsertAsync(group.Id, 3, meal.Id);
 
-        // Clear Wednesday (day 3)
-        await DispatchAsync(CallbackUpdate(-100, 42, 99, "week:clear:3"));
+        // Clear Wednesday (day 3) — specific meal
+        await DispatchAsync(CallbackUpdate(-100, 42, 99, $"week:clear:3:{meal.Id}"));
 
         var plan = await DayMealsRepository.GetWeekAsync(group.Id);
         Assert.Empty(plan);

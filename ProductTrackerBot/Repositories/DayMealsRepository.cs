@@ -38,7 +38,7 @@ public class DayMealsRepository
             SELECT dm.DayOfWeek, dm.MealId, m.Name
             FROM DayMeals dm JOIN Meals m ON dm.MealId = m.Id
             WHERE dm.GroupId = @groupId
-            ORDER BY dm.DayOfWeek";
+            ORDER BY dm.DayOfWeek, dm.Id";
         cmd.Parameters.AddWithValue("@groupId", groupId);
 
         var entries = new List<DayMealEntry>();
@@ -57,19 +57,19 @@ public class DayMealsRepository
     }
 
     /// <summary>
-    /// Inserts or replaces a meal assignment for a specific day.
+    /// Inserts a meal assignment for a specific day.
     /// </summary>
     /// <param name="groupId">The group ID.</param>
     /// <param name="dayOfWeek">The day of week (1=Monday, 7=Sunday).</param>
     /// <param name="mealId">The meal ID.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public virtual async Task UpsertAsync(int groupId, int dayOfWeek, int mealId)
+    public virtual async Task InsertAsync(int groupId, int dayOfWeek, int mealId)
     {
         await using var connection = new SqliteConnection(this.connectionString);
         await connection.OpenAsync();
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "INSERT OR REPLACE INTO DayMeals (GroupId, DayOfWeek, MealId) VALUES (@groupId, @dayOfWeek, @mealId)";
+        cmd.CommandText = "INSERT INTO DayMeals (GroupId, DayOfWeek, MealId) VALUES (@groupId, @dayOfWeek, @mealId)";
         cmd.Parameters.AddWithValue("@groupId", groupId);
         cmd.Parameters.AddWithValue("@dayOfWeek", dayOfWeek);
         cmd.Parameters.AddWithValue("@mealId", mealId);
@@ -78,7 +78,26 @@ public class DayMealsRepository
     }
 
     /// <summary>
-    /// Removes a meal assignment for a specific day.
+    /// Counts the number of meals assigned to a specific day.
+    /// </summary>
+    /// <param name="groupId">The group ID.</param>
+    /// <param name="dayOfWeek">The day of week (1=Monday, 7=Sunday).</param>
+    /// <returns>The count of meals for that day.</returns>
+    public virtual async Task<int> GetCountAsync(int groupId, int dayOfWeek)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM DayMeals WHERE GroupId = @groupId AND DayOfWeek = @dayOfWeek";
+        cmd.Parameters.AddWithValue("@groupId", groupId);
+        cmd.Parameters.AddWithValue("@dayOfWeek", dayOfWeek);
+
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+    }
+
+    /// <summary>
+    /// Removes all meal assignments for a specific day.
     /// </summary>
     /// <param name="groupId">The group ID.</param>
     /// <param name="dayOfWeek">The day of week (1=Monday, 7=Sunday).</param>
@@ -92,6 +111,27 @@ public class DayMealsRepository
         cmd.CommandText = "DELETE FROM DayMeals WHERE GroupId = @groupId AND DayOfWeek = @dayOfWeek";
         cmd.Parameters.AddWithValue("@groupId", groupId);
         cmd.Parameters.AddWithValue("@dayOfWeek", dayOfWeek);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Removes a specific meal from a specific day.
+    /// </summary>
+    /// <param name="groupId">The group ID.</param>
+    /// <param name="dayOfWeek">The day of week (1=Monday, 7=Sunday).</param>
+    /// <param name="mealId">The meal ID to remove.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public virtual async Task ClearMealAsync(int groupId, int dayOfWeek, int mealId)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "DELETE FROM DayMeals WHERE GroupId = @groupId AND DayOfWeek = @dayOfWeek AND MealId = @mealId";
+        cmd.Parameters.AddWithValue("@groupId", groupId);
+        cmd.Parameters.AddWithValue("@dayOfWeek", dayOfWeek);
+        cmd.Parameters.AddWithValue("@mealId", mealId);
 
         await cmd.ExecuteNonQueryAsync();
     }

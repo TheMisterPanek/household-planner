@@ -84,9 +84,9 @@ public class WeekCallbackHandler : ICallbackHandler
 
                     break;
                 case "clear":
-                    if (parts.Length >= 3 && int.TryParse(parts[2], out var clearDay))
+                    if (parts.Length >= 4 && int.TryParse(parts[2], out var clearDay) && int.TryParse(parts[3], out var clearMealId))
                     {
-                        await this.HandleClearAsync(callbackQuery, group.Id, chatId, clearDay, cancellationToken);
+                        await this.HandleClearMealAsync(callbackQuery, group.Id, chatId, clearDay, clearMealId, cancellationToken);
                     }
 
                     break;
@@ -145,13 +145,23 @@ public class WeekCallbackHandler : ICallbackHandler
 
     private async Task HandleAssignAsync(CallbackQuery callbackQuery, int groupId, long chatId, int dayOfWeek, int mealId, CancellationToken cancellationToken)
     {
-        await this.dayMealsRepository.UpsertAsync(groupId, dayOfWeek, mealId);
+        var count = await this.dayMealsRepository.GetCountAsync(groupId, dayOfWeek);
+        if (count >= WeekViewBuilder.MaxMealsPerDay)
+        {
+            await this.botClient.AnswerCallbackQuery(
+                callbackQuery.Id,
+                this.localizer.Get(chatId, "week.max-meals"),
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        await this.dayMealsRepository.InsertAsync(groupId, dayOfWeek, mealId);
         await this.RenderWeekViewAsync(callbackQuery.Message!, groupId, chatId, cancellationToken);
     }
 
-    private async Task HandleClearAsync(CallbackQuery callbackQuery, int groupId, long chatId, int dayOfWeek, CancellationToken cancellationToken)
+    private async Task HandleClearMealAsync(CallbackQuery callbackQuery, int groupId, long chatId, int dayOfWeek, int mealId, CancellationToken cancellationToken)
     {
-        await this.dayMealsRepository.ClearAsync(groupId, dayOfWeek);
+        await this.dayMealsRepository.ClearMealAsync(groupId, dayOfWeek, mealId);
         await this.RenderWeekViewAsync(callbackQuery.Message!, groupId, chatId, cancellationToken);
     }
 
@@ -160,8 +170,8 @@ public class WeekCallbackHandler : ICallbackHandler
         var plan = await this.dayMealsRepository.GetWeekAsync(groupId);
         var meals = await this.mealRepository.GetAllAsync(groupId);
 
-        var planDict = plan.ToDictionary(e => e.DayOfWeek, e => e);
-        var keyboard = WeekViewBuilder.BuildWeekKeyboard(planDict, meals.Count > 0, this.localizer, chatId);
+        var planLookup = plan.ToLookup(e => e.DayOfWeek);
+        var keyboard = WeekViewBuilder.BuildWeekKeyboard(planLookup, meals.Count > 0, this.localizer, chatId);
 
         await this.botClient.EditMessageText(
             chatId,

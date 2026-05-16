@@ -32,8 +32,7 @@ public class DayMealsRepositoryTests : IDisposable
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 GroupId INTEGER NOT NULL REFERENCES Groups(Id),
                 DayOfWeek INTEGER NOT NULL CHECK(DayOfWeek BETWEEN 1 AND 7),
-                MealId INTEGER NOT NULL REFERENCES Meals(Id),
-                UNIQUE(GroupId, DayOfWeek)
+                MealId INTEGER NOT NULL REFERENCES Meals(Id)
             );";
         cmd.ExecuteNonQuery();
 
@@ -72,8 +71,8 @@ public class DayMealsRepositoryTests : IDisposable
     {
         var pasta = await this.mealRepository.AddAsync(1, "Pasta");
         var pizza = await this.mealRepository.AddAsync(1, "Pizza");
-        await this.repository.UpsertAsync(1, 1, pasta.Id);
-        await this.repository.UpsertAsync(1, 3, pizza.Id);
+        await this.repository.InsertAsync(1, 1, pasta.Id);
+        await this.repository.InsertAsync(1, 3, pizza.Id);
 
         var result = await this.repository.GetWeekAsync(1);
 
@@ -85,10 +84,10 @@ public class DayMealsRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task UpsertAsync_Inserts_New_Entry()
+    public async Task InsertAsync_Inserts_New_Entry()
     {
         var meal = await this.mealRepository.AddAsync(1, "Soup");
-        await this.repository.UpsertAsync(1, 5, meal.Id);
+        await this.repository.InsertAsync(1, 5, meal.Id);
 
         var result = await this.repository.GetWeekAsync(1);
         Assert.Single(result);
@@ -97,26 +96,59 @@ public class DayMealsRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task UpsertAsync_Replaces_Existing_Entry()
+    public async Task InsertAsync_Allows_Multiple_Meals_Per_Day()
     {
         var meal1 = await this.mealRepository.AddAsync(1, "Soup");
         var meal2 = await this.mealRepository.AddAsync(1, "Salad");
-        await this.repository.UpsertAsync(1, 2, meal1.Id);
-        await this.repository.UpsertAsync(1, 2, meal2.Id);
+        await this.repository.InsertAsync(1, 2, meal1.Id);
+        await this.repository.InsertAsync(1, 2, meal2.Id);
 
         var result = await this.repository.GetWeekAsync(1);
-        Assert.Single(result);
-        Assert.Equal("Salad", result[0].MealName);
+        Assert.Equal(2, result.Count);
+        Assert.All(result, r => Assert.Equal(2, r.DayOfWeek));
+        Assert.Equal("Soup", result[0].MealName);
+        Assert.Equal("Salad", result[1].MealName);
     }
 
     [Fact]
-    public async Task ClearAsync_Removes_Entry()
+    public async Task GetCountAsync_Returns_Count_For_Day()
     {
-        var meal = await this.mealRepository.AddAsync(1, "Steak");
-        await this.repository.UpsertAsync(1, 4, meal.Id);
+        var meal1 = await this.mealRepository.AddAsync(1, "Soup");
+        var meal2 = await this.mealRepository.AddAsync(1, "Salad");
+        await this.repository.InsertAsync(1, 3, meal1.Id);
+        await this.repository.InsertAsync(1, 3, meal2.Id);
+
+        var count = await this.repository.GetCountAsync(1, 3);
+        Assert.Equal(2, count);
+
+        var emptyCount = await this.repository.GetCountAsync(1, 5);
+        Assert.Equal(0, emptyCount);
+    }
+
+    [Fact]
+    public async Task ClearAsync_Removes_All_Meals_For_Day()
+    {
+        var meal1 = await this.mealRepository.AddAsync(1, "Steak");
+        var meal2 = await this.mealRepository.AddAsync(1, "Soup");
+        await this.repository.InsertAsync(1, 4, meal1.Id);
+        await this.repository.InsertAsync(1, 4, meal2.Id);
         await this.repository.ClearAsync(1, 4);
 
         var result = await this.repository.GetWeekAsync(1);
         Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task ClearMealAsync_Removes_Specific_Meal()
+    {
+        var meal1 = await this.mealRepository.AddAsync(1, "Steak");
+        var meal2 = await this.mealRepository.AddAsync(1, "Soup");
+        await this.repository.InsertAsync(1, 4, meal1.Id);
+        await this.repository.InsertAsync(1, 4, meal2.Id);
+        await this.repository.ClearMealAsync(1, 4, meal1.Id);
+
+        var result = await this.repository.GetWeekAsync(1);
+        Assert.Single(result);
+        Assert.Equal("Soup", result[0].MealName);
     }
 }
