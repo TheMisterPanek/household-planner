@@ -91,7 +91,7 @@ builder.Services.AddHttpClient("openrouter", (sp, client) =>
 {
     var opts = sp.GetRequiredService<AiQueryOptions>();
     client.BaseAddress = new Uri(opts.BaseUrl);
-    client.Timeout = TimeSpan.FromSeconds(30);
+    client.Timeout = TimeSpan.FromMinutes(2);
     if (!string.IsNullOrEmpty(opts.ApiKey))
     {
         client.DefaultRequestHeaders.Authorization =
