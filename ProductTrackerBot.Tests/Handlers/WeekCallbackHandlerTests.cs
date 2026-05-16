@@ -257,6 +257,9 @@ public class WeekCallbackHandlerTests
         var groupRepo = new Mock<GroupRepository>(MockBehavior.Default, "cs");
         groupRepo.Setup(r => r.GetOrCreateAsync(-100L)).ReturnsAsync(new Group { Id = 1, ChatId = -100 });
 
+        var dayMealsRepo = new Mock<DayMealsRepository>("cs");
+        dayMealsRepo.Setup(r => r.GetWeekAsync(1)).ReturnsAsync(new List<DayMealEntry>());
+
         var localizer = Mock.Of<ILocalizer>(l =>
             l.Get(It.IsAny<long>(), "week.header") == "Plan:" &&
             l.Get(It.IsAny<long>(), "week.day.1") == "Mon" &&
@@ -267,11 +270,13 @@ public class WeekCallbackHandlerTests
             l.Get(It.IsAny<long>(), "week.day.6") == "Sat" &&
             l.Get(It.IsAny<long>(), "week.day.7") == "Sun");
 
-        var handler = CreateHandler(bot, groupRepo.Object, localizer: localizer);
+        var handler = CreateHandler(bot, groupRepo.Object, dayMealsRepo.Object, localizer: localizer);
         await handler.HandleAsync(CreateCallback("week:back"), CancellationToken.None);
 
         Assert.Single(editedTexts);
-        Assert.Equal("Plan:", editedTexts[0]);
+        Assert.StartsWith("Plan:", editedTexts[0]);
+        Assert.Contains("Mon: —", editedTexts[0]);
+        Assert.Contains("Sun: —", editedTexts[0]);
     }
 
     [Fact]

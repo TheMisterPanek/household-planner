@@ -7,6 +7,7 @@ namespace ProductTrackerBot.Handlers;
 using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using Telegram.Bot.Types.ReplyMarkups;
+using System.Text;
 
 /// <summary>
 /// Shared keyboard-building logic for the weekly meal plan view.
@@ -17,6 +18,35 @@ internal static class WeekViewBuilder
     /// Maximum number of meals that can be assigned to a single day.
     /// </summary>
     internal const int MaxMealsPerDay = 10;
+
+    /// <summary>
+    /// Builds the week summary message text showing all 7 days with their assigned meals.
+    /// </summary>
+    /// <param name="allPlan">All day-meal entries for the week.</param>
+    /// <param name="localizer">The localizer.</param>
+    /// <param name="chatId">The chat ID for localization.</param>
+    /// <returns>Formatted summary string.</returns>
+    internal static string BuildWeekSummaryText(IReadOnlyList<DayMealEntry> allPlan, ILocalizer localizer, long chatId)
+    {
+        var byDay = allPlan.GroupBy(e => e.DayOfWeek).ToDictionary(g => g.Key, g => g.Select(e => e.MealName).ToList());
+        var sb = new StringBuilder(localizer.Get(chatId, "week.header"));
+        sb.AppendLine();
+        for (int day = 1; day <= 7; day++)
+        {
+            var dayName = localizer.Get(chatId, $"week.day.{day}");
+            sb.AppendLine();
+            if (byDay.TryGetValue(day, out var meals) && meals.Count > 0)
+            {
+                sb.Append($"• {dayName}: {string.Join(", ", meals)}");
+            }
+            else
+            {
+                sb.Append($"• {dayName}: —");
+            }
+        }
+
+        return sb.ToString();
+    }
 
     /// <summary>
     /// Builds the main day-list keyboard (7 day buttons).

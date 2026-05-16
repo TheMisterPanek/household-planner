@@ -106,12 +106,6 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             .Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiQueryResult("AI response", []));
 
-        var preferenceRepo = new Mock<IPreferenceRepository>();
-        preferenceRepo.Setup(r => r.GetLanguageAsync(It.IsAny<long>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string?)null);
-        preferenceRepo.Setup(r => r.SaveLanguageAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
         var buyDialogService = new PendingDialogService<BuyDialogState>();
         var editItemDialogService = new PendingDialogService<EditItemDialogState>();
         var priceDialogService = new PendingDialogService<PriceCaptureDialogState>();
@@ -165,7 +159,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var loginHandler = new LoginCommandHandler(this.BotMock.Object, localizer.Object, loginCodeStore);
 
         var weekHandler = new WeekCommandHandler(
-            this.BotMock.Object, this.GroupRepository,
+            this.BotMock.Object, this.GroupRepository, this.DayMealsRepository,
             localizer.Object, Mock.Of<ILogger<WeekCommandHandler>>());
 
         var nonStartHandlers = new List<ICommandHandler>
@@ -197,7 +191,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             this.BotMock.Object, this.GroupRepository, localizer.Object);
 
         var langSelectionHandler = new LanguageSelectionHandler(
-            this.BotMock.Object, preferenceRepo.Object, this.HistoryRepository,
+            this.BotMock.Object, this.GroupRepository, this.HistoryRepository,
             localizer.Object, Mock.Of<ILogger<LanguageSelectionHandler>>());
 
         var buySkipHandler = new BuySkipCallbackHandler(

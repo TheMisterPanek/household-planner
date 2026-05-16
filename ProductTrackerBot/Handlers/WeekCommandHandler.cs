@@ -9,6 +9,7 @@ using ProductTrackerBot.Localization;
 using ProductTrackerBot.Repositories;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using System.Collections.Generic;
 
 /// <summary>
 /// Handles the /week command — displays the day list for the weekly meal plan.
@@ -17,6 +18,7 @@ public class WeekCommandHandler : ICommandHandler
 {
     private readonly ITelegramBotClient botClient;
     private readonly GroupRepository groupRepository;
+    private readonly DayMealsRepository dayMealsRepository;
     private readonly ILocalizer localizer;
     private readonly ILogger<WeekCommandHandler> logger;
 
@@ -26,11 +28,13 @@ public class WeekCommandHandler : ICommandHandler
     public WeekCommandHandler(
         ITelegramBotClient botClient,
         GroupRepository groupRepository,
+        DayMealsRepository dayMealsRepository,
         ILocalizer localizer,
         ILogger<WeekCommandHandler> logger)
     {
         this.botClient = botClient;
         this.groupRepository = groupRepository;
+        this.dayMealsRepository = dayMealsRepository;
         this.localizer = localizer;
         this.logger = logger;
     }
@@ -55,12 +59,14 @@ public class WeekCommandHandler : ICommandHandler
             return;
         }
 
-        await this.groupRepository.GetOrCreateAsync(chatId);
+        var group = await this.groupRepository.GetOrCreateAsync(chatId);
+        var allPlan = await this.dayMealsRepository.GetWeekAsync(group.Id);
         var keyboard = WeekViewBuilder.BuildDayListKeyboard(this.localizer, chatId);
+        var text = WeekViewBuilder.BuildWeekSummaryText(allPlan, this.localizer, chatId);
 
         await this.botClient.SendMessage(
             chatId,
-            this.localizer.Get(chatId, "week.header"),
+            text,
             replyMarkup: keyboard,
             cancellationToken: cancellationToken);
     }

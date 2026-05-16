@@ -21,15 +21,19 @@ public class WeekIntegrationTests : TelegramIntegrationTestBase
     }
 
     [Fact]
-    public async Task Week_In_Group_Sends_Header_With_Day_Buttons()
+    public async Task Week_In_Group_Sends_Week_Summary_With_Day_Buttons()
     {
         await ClearDataAsync();
+
+        await GroupRepository.GetOrCreateAsync(-100);
 
         await DispatchAsync(CommandUpdate(-100, 42, "/week"));
 
         BotMock.Verify(
             b => b.SendRequest(
-                It.Is<SendMessageRequest>(r => r.Text == "week.header"),
+                It.Is<SendMessageRequest>(r =>
+                    r.Text.StartsWith("week.header") &&
+                    r.Text.Contains("week.day.1")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -133,7 +137,9 @@ public class WeekIntegrationTests : TelegramIntegrationTestBase
 
         BotMock.Verify(
             b => b.SendRequest(
-                It.Is<EditMessageTextRequest>(r => r.Text == "week.header"),
+                It.Is<EditMessageTextRequest>(r =>
+                    r.Text.StartsWith("week.header") &&
+                    r.Text.Contains("week.day.1")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

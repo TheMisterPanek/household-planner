@@ -229,12 +229,15 @@ public class WeekCallbackHandler : ICallbackHandler
 
     private async Task RenderDayListViewAsync(Message message, long chatId, CancellationToken cancellationToken)
     {
+        var group = await this.groupRepository.GetOrCreateAsync(chatId);
+        var allPlan = await this.dayMealsRepository.GetWeekAsync(group.Id);
         var keyboard = WeekViewBuilder.BuildDayListKeyboard(this.localizer, chatId);
+        var text = WeekViewBuilder.BuildWeekSummaryText(allPlan, this.localizer, chatId);
 
         await this.botClient.EditMessageText(
             chatId,
             message.MessageId,
-            this.localizer.Get(chatId, "week.header"),
+            text,
             replyMarkup: keyboard,
             cancellationToken: cancellationToken);
     }

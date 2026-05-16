@@ -63,14 +63,16 @@ public class WeekCommandHandlerTests
     private static WeekCommandHandler CreateHandler(
         Mock<ITelegramBotClient> bot,
         GroupRepository? groupRepo = null,
+        DayMealsRepository? dayMealsRepo = null,
         ILocalizer? localizer = null)
     {
         var gr = groupRepo ?? new Mock<GroupRepository>(MockBehavior.Default, "cs").Object;
+        var dr = dayMealsRepo ?? new Mock<DayMealsRepository>("cs").Object;
         var loc = localizer ?? Mock.Of<ILocalizer>(l =>
             l.Get(It.IsAny<long>(), It.IsAny<string>()) == "key");
 
         return new WeekCommandHandler(
-            bot.Object, gr, loc,
+            bot.Object, gr, dr, loc,
             Mock.Of<ILogger<WeekCommandHandler>>());
     }
 
@@ -89,11 +91,14 @@ public class WeekCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_Sends_Header_With_Day_Buttons()
+    public async Task HandleAsync_Sends_Week_Summary_With_Day_Buttons()
     {
         var (bot, sentTexts) = CreateBotMock();
         var groupRepo = new Mock<GroupRepository>(MockBehavior.Default, "cs");
         groupRepo.Setup(r => r.GetOrCreateAsync(-100L)).ReturnsAsync(new Models.Group { Id = 1, ChatId = -100 });
+
+        var dayMealsRepo = new Mock<DayMealsRepository>("cs");
+        dayMealsRepo.Setup(r => r.GetWeekAsync(1)).ReturnsAsync(new List<Models.DayMealEntry>());
 
         var localizer = Mock.Of<ILocalizer>(l =>
             l.Get(It.IsAny<long>(), "week.header") == "Plan:" &&
@@ -105,10 +110,12 @@ public class WeekCommandHandlerTests
             l.Get(It.IsAny<long>(), "week.day.6") == "Sat" &&
             l.Get(It.IsAny<long>(), "week.day.7") == "Sun");
 
-        var handler = CreateHandler(bot, groupRepo.Object, localizer);
+        var handler = CreateHandler(bot, groupRepo.Object, dayMealsRepo.Object, localizer);
         await handler.HandleAsync(CreateGroupMessage("/week"), CancellationToken.None);
 
         Assert.Single(sentTexts);
-        Assert.Equal("Plan:", sentTexts[0]);
+        Assert.StartsWith("Plan:", sentTexts[0]);
+        Assert.Contains("Mon: —", sentTexts[0]);
+        Assert.Contains("Sun: —", sentTexts[0]);
     }
 }
