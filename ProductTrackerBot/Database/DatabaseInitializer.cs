@@ -257,6 +257,19 @@ public class DatabaseInitializer : IHostedService
             this.logger.LogInformation("reverted_at column already exists on BotActionHistory table");
         }
 
+        // Migrate DayMeals: add WeekStartDate column if it doesn't exist
+        try
+        {
+            await using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE DayMeals ADD COLUMN WeekStartDate TEXT NOT NULL DEFAULT ''";
+            await alterCmd.ExecuteNonQueryAsync(cancellationToken);
+            this.logger.LogInformation("Added WeekStartDate column to DayMeals table");
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 1)
+        {
+            this.logger.LogInformation("WeekStartDate column already exists on DayMeals table");
+        }
+
         this.logger.LogInformation("Database schema initialized successfully");
     }
 

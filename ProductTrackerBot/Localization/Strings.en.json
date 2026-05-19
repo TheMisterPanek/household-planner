@@ -96,6 +96,21 @@
   "week.btn-to-cart": "🛒 Add ingredients to cart",
   "week.cart-added": "✓ Added {0} items to shopping list",
   "week.cart-no-ingredients": "No ingredients found for this day's meals.",
-  "week.cart-no-meals": "No meals assigned to this day."
+  "week.cart-no-meals": "No meals assigned to this day.",
+  "week.btn-prev-week": "← {0}",
+  "week.btn-next-week": "{0} →",
+  "week.day-header": "📅 {0}, {1}:",
+  "week.month.1": "Jan",
+  "week.month.2": "Feb",
+  "week.month.3": "Mar",
+  "week.month.4": "Apr",
+  "week.month.5": "May",
+  "week.month.6": "Jun",
+  "week.month.7": "Jul",
+  "week.month.8": "Aug",
+  "week.month.9": "Sep",
+  "week.month.10": "Oct",
+  "week.month.11": "Nov",
+  "week.month.12": "Dec"
 }
 

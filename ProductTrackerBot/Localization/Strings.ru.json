@@ -96,5 +96,20 @@
   "week.btn-to-cart": "🛒 Добавить продукты в корзину",
   "week.cart-added": "✓ Добавлено {0} товаров в список покупок",
   "week.cart-no-ingredients": "Ингредиенты не найдены для блюд этого дня.",
-  "week.cart-no-meals": "На этот день не назначены блюда."
+  "week.cart-no-meals": "На этот день не назначены блюда.",
+  "week.btn-prev-week": "← {0}",
+  "week.btn-next-week": "{0} →",
+  "week.day-header": "📅 {0}, {1}:",
+  "week.month.1": "янв",
+  "week.month.2": "фев",
+  "week.month.3": "мар",
+  "week.month.4": "апр",
+  "week.month.5": "май",
+  "week.month.6": "июн",
+  "week.month.7": "июл",
+  "week.month.8": "авг",
+  "week.month.9": "сен",
+  "week.month.10": "окт",
+  "week.month.11": "ноя",
+  "week.month.12": "дек"
 }

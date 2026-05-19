@@ -96,5 +96,20 @@
   "week.btn-to-cart": "🛒 Dodaj składniki do koszyka",
   "week.cart-added": "✓ Dodano {0} produktów do listy zakupów",
   "week.cart-no-ingredients": "Nie znaleziono składników dla posiłków tego dnia.",
-  "week.cart-no-meals": "Brak posiłków przypisanych do tego dnia."
+  "week.cart-no-meals": "Brak posiłków przypisanych do tego dnia.",
+  "week.btn-prev-week": "← {0}",
+  "week.btn-next-week": "{0} →",
+  "week.day-header": "📅 {0}, {1}:",
+  "week.month.1": "sty",
+  "week.month.2": "lut",
+  "week.month.3": "mar",
+  "week.month.4": "kwi",
+  "week.month.5": "maj",
+  "week.month.6": "cze",
+  "week.month.7": "lip",
+  "week.month.8": "sie",
+  "week.month.9": "wrz",
+  "week.month.10": "paź",
+  "week.month.11": "lis",
+  "week.month.12": "gru"
 }

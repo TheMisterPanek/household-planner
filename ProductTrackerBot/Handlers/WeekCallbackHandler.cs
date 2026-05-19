@@ -75,43 +75,61 @@ public class WeekCallbackHandler : ICallbackHandler
         {
             switch (action)
             {
-                case "day":
-                    if (parts.Length >= 3 && int.TryParse(parts[2], out var dayNum))
+                case "nav":
+                    // week:nav:{weekStart}
+                    if (parts.Length >= 3 && DateOnly.TryParseExact(parts[2], "yyyy-MM-dd", out var navMonday))
                     {
-                        await this.RenderDayDetailViewAsync(callbackQuery.Message!, group.Id, chatId, dayNum, cancellationToken);
+                        await this.RenderDayListViewAsync(callbackQuery.Message!, chatId, navMonday, cancellationToken);
+                    }
+
+                    break;
+                case "day":
+                    // week:day:{weekStart}:{day}
+                    if (parts.Length >= 4 && int.TryParse(parts[3], out var dayNum))
+                    {
+                        await this.RenderDayDetailViewAsync(callbackQuery.Message!, group.Id, chatId, dayNum, parts[2], cancellationToken);
                     }
 
                     break;
                 case "pick":
-                    if (parts.Length >= 3 && int.TryParse(parts[2], out var pickDay))
+                    // week:pick:{weekStart}:{day}
+                    if (parts.Length >= 4 && int.TryParse(parts[3], out var pickDay))
                     {
-                        await this.HandlePickAsync(callbackQuery, group.Id, chatId, pickDay, cancellationToken);
+                        await this.HandlePickAsync(callbackQuery, group.Id, chatId, pickDay, parts[2], cancellationToken);
                     }
 
                     break;
                 case "assign":
-                    if (parts.Length >= 4 && int.TryParse(parts[2], out var assignDay) && int.TryParse(parts[3], out var assignMealId))
+                    // week:assign:{weekStart}:{day}:{mealId}
+                    if (parts.Length >= 5 && int.TryParse(parts[3], out var assignDay) && int.TryParse(parts[4], out var assignMealId))
                     {
-                        await this.HandleAssignAsync(callbackQuery, group.Id, chatId, assignDay, assignMealId, cancellationToken);
+                        await this.HandleAssignAsync(callbackQuery, group.Id, chatId, assignDay, assignMealId, parts[2], cancellationToken);
                     }
 
                     break;
                 case "clear":
-                    if (parts.Length >= 4 && int.TryParse(parts[2], out var clearDay) && int.TryParse(parts[3], out var clearMealId))
+                    // week:clear:{weekStart}:{day}:{mealId}
+                    if (parts.Length >= 5 && int.TryParse(parts[3], out var clearDay) && int.TryParse(parts[4], out var clearMealId))
                     {
-                        await this.HandleClearMealAsync(callbackQuery, group.Id, chatId, clearDay, clearMealId, cancellationToken);
+                        await this.HandleClearMealAsync(callbackQuery, group.Id, chatId, clearDay, clearMealId, parts[2], cancellationToken);
                     }
 
                     break;
                 case "to_cart":
-                    if (parts.Length >= 3 && int.TryParse(parts[2], out var cartDay))
+                    // week:to_cart:{weekStart}:{day}
+                    if (parts.Length >= 4 && int.TryParse(parts[3], out var cartDay))
                     {
-                        await this.HandleAddToCartAsync(callbackQuery, group.Id, chatId, cartDay, cancellationToken);
+                        await this.HandleAddToCartAsync(callbackQuery, group.Id, chatId, cartDay, parts[2], cancellationToken);
                     }
 
                     break;
                 case "back":
-                    await this.RenderDayListViewAsync(callbackQuery.Message!, chatId, cancellationToken);
+                    // week:back:{weekStart}
+                    if (parts.Length >= 3 && DateOnly.TryParseExact(parts[2], "yyyy-MM-dd", out var backMonday))
+                    {
+                        await this.RenderDayListViewAsync(callbackQuery.Message!, chatId, backMonday, cancellationToken);
+                    }
+
                     break;
                 case "noop":
                     break;
@@ -125,7 +143,7 @@ public class WeekCallbackHandler : ICallbackHandler
         await this.botClient.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: cancellationToken);
     }
 
-    private async Task HandlePickAsync(CallbackQuery callbackQuery, int groupId, long chatId, int dayOfWeek, CancellationToken cancellationToken)
+    private async Task HandlePickAsync(CallbackQuery callbackQuery, int groupId, long chatId, int dayOfWeek, string weekStartDate, CancellationToken cancellationToken)
     {
         var meals = await this.mealRepository.GetAllAsync(groupId);
 
@@ -143,13 +161,13 @@ public class WeekCallbackHandler : ICallbackHandler
         {
             keyboard.Add(new List<InlineKeyboardButton>
             {
-                InlineKeyboardButton.WithCallbackData(meal.Name, $"week:assign:{dayOfWeek}:{meal.Id}"),
+                InlineKeyboardButton.WithCallbackData(meal.Name, $"week:assign:{weekStartDate}:{dayOfWeek}:{meal.Id}"),
             });
         }
 
         keyboard.Add(new List<InlineKeyboardButton>
         {
-            InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "week.btn-back"), $"week:day:{dayOfWeek}"),
+            InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "week.btn-back"), $"week:day:{weekStartDate}:{dayOfWeek}"),
         });
 
         var dayName = this.localizer.Get(chatId, $"week.day.{dayOfWeek}");
@@ -163,9 +181,9 @@ public class WeekCallbackHandler : ICallbackHandler
             cancellationToken: cancellationToken);
     }
 
-    private async Task HandleAssignAsync(CallbackQuery callbackQuery, int groupId, long chatId, int dayOfWeek, int mealId, CancellationToken cancellationToken)
+    private async Task HandleAssignAsync(CallbackQuery callbackQuery, int groupId, long chatId, int dayOfWeek, int mealId, string weekStartDate, CancellationToken cancellationToken)
     {
-        var count = await this.dayMealsRepository.GetCountAsync(groupId, dayOfWeek);
+        var count = await this.dayMealsRepository.GetCountAsync(groupId, dayOfWeek, weekStartDate);
         if (count >= WeekViewBuilder.MaxMealsPerDay)
         {
             await this.botClient.AnswerCallbackQuery(
@@ -175,19 +193,19 @@ public class WeekCallbackHandler : ICallbackHandler
             return;
         }
 
-        await this.dayMealsRepository.InsertAsync(groupId, dayOfWeek, mealId);
-        await this.RenderDayDetailViewAsync(callbackQuery.Message!, groupId, chatId, dayOfWeek, cancellationToken);
+        await this.dayMealsRepository.InsertAsync(groupId, dayOfWeek, mealId, weekStartDate);
+        await this.RenderDayDetailViewAsync(callbackQuery.Message!, groupId, chatId, dayOfWeek, weekStartDate, cancellationToken);
     }
 
-    private async Task HandleClearMealAsync(CallbackQuery callbackQuery, int groupId, long chatId, int dayOfWeek, int mealId, CancellationToken cancellationToken)
+    private async Task HandleClearMealAsync(CallbackQuery callbackQuery, int groupId, long chatId, int dayOfWeek, int mealId, string weekStartDate, CancellationToken cancellationToken)
     {
-        await this.dayMealsRepository.ClearMealAsync(groupId, dayOfWeek, mealId);
-        await this.RenderDayDetailViewAsync(callbackQuery.Message!, groupId, chatId, dayOfWeek, cancellationToken);
+        await this.dayMealsRepository.ClearMealAsync(groupId, dayOfWeek, mealId, weekStartDate);
+        await this.RenderDayDetailViewAsync(callbackQuery.Message!, groupId, chatId, dayOfWeek, weekStartDate, cancellationToken);
     }
 
-    private async Task HandleAddToCartAsync(CallbackQuery callbackQuery, int groupId, long chatId, int dayOfWeek, CancellationToken cancellationToken)
+    private async Task HandleAddToCartAsync(CallbackQuery callbackQuery, int groupId, long chatId, int dayOfWeek, string weekStartDate, CancellationToken cancellationToken)
     {
-        var dayMeals = await this.dayMealsRepository.GetWeekAsync(groupId);
+        var dayMeals = await this.dayMealsRepository.GetWeekAsync(groupId, weekStartDate);
         var mealsForDay = dayMeals.Where(e => e.DayOfWeek == dayOfWeek).ToList();
 
         if (mealsForDay.Count == 0)
@@ -227,12 +245,13 @@ public class WeekCallbackHandler : ICallbackHandler
             cancellationToken: cancellationToken);
     }
 
-    private async Task RenderDayListViewAsync(Message message, long chatId, CancellationToken cancellationToken)
+    private async Task RenderDayListViewAsync(Message message, long chatId, DateOnly monday, CancellationToken cancellationToken)
     {
         var group = await this.groupRepository.GetOrCreateAsync(chatId);
-        var allPlan = await this.dayMealsRepository.GetWeekAsync(group.Id);
-        var keyboard = WeekViewBuilder.BuildDayListKeyboard(this.localizer, chatId);
-        var text = WeekViewBuilder.BuildWeekSummaryText(allPlan, this.localizer, chatId);
+        var weekStartDate = monday.ToString("yyyy-MM-dd");
+        var allPlan = await this.dayMealsRepository.GetWeekAsync(group.Id, weekStartDate);
+        var keyboard = WeekViewBuilder.BuildDayListKeyboard(this.localizer, chatId, monday);
+        var text = WeekViewBuilder.BuildWeekSummaryText(allPlan, this.localizer, chatId, monday);
 
         await this.botClient.EditMessageText(
             chatId,
@@ -242,14 +261,17 @@ public class WeekCallbackHandler : ICallbackHandler
             cancellationToken: cancellationToken);
     }
 
-    private async Task RenderDayDetailViewAsync(Message message, int groupId, long chatId, int dayOfWeek, CancellationToken cancellationToken)
+    private async Task RenderDayDetailViewAsync(Message message, int groupId, long chatId, int dayOfWeek, string weekStartDate, CancellationToken cancellationToken)
     {
-        var allPlan = await this.dayMealsRepository.GetWeekAsync(groupId);
+        var allPlan = await this.dayMealsRepository.GetWeekAsync(groupId, weekStartDate);
         var dayMeals = allPlan.Where(e => e.DayOfWeek == dayOfWeek).ToList();
         var meals = await this.mealRepository.GetAllAsync(groupId);
 
+        var monday = DateOnly.ParseExact(weekStartDate, "yyyy-MM-dd");
         var dayName = this.localizer.Get(chatId, $"week.day.{dayOfWeek}");
-        var sb = new System.Text.StringBuilder($"📅 {dayName}:");
+        var dayDate = WeekViewBuilder.FormatDayDate(monday, dayOfWeek, this.localizer, chatId);
+        var headerFormat = this.localizer.Get(chatId, "week.day-header");
+        var sb = new System.Text.StringBuilder(string.Format(headerFormat, dayName, dayDate));
 
         if (dayMeals.Count > 0)
         {
@@ -261,7 +283,7 @@ public class WeekCallbackHandler : ICallbackHandler
             }
         }
 
-        var keyboard = WeekViewBuilder.BuildDayDetailKeyboard(dayOfWeek, dayMeals, meals.Count > 0, this.localizer, chatId);
+        var keyboard = WeekViewBuilder.BuildDayDetailKeyboard(dayOfWeek, dayMeals, meals.Count > 0, this.localizer, chatId, weekStartDate);
 
         await this.botClient.EditMessageText(
             chatId,

@@ -60,9 +60,11 @@ public class WeekCommandHandler : ICommandHandler
         }
 
         var group = await this.groupRepository.GetOrCreateAsync(chatId);
-        var allPlan = await this.dayMealsRepository.GetWeekAsync(group.Id);
-        var keyboard = WeekViewBuilder.BuildDayListKeyboard(this.localizer, chatId);
-        var text = WeekViewBuilder.BuildWeekSummaryText(allPlan, this.localizer, chatId);
+        var monday = WeekViewBuilder.GetWeekMonday(DateOnly.FromDateTime(DateTime.UtcNow));
+        var weekStartDate = monday.ToString("yyyy-MM-dd");
+        var allPlan = await this.dayMealsRepository.GetWeekAsync(group.Id, weekStartDate);
+        var keyboard = WeekViewBuilder.BuildDayListKeyboard(this.localizer, chatId, monday);
+        var text = WeekViewBuilder.BuildWeekSummaryText(allPlan, this.localizer, chatId, monday);
 
         await this.botClient.SendMessage(
             chatId,
