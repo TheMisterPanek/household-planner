@@ -5,6 +5,7 @@
 namespace ProductTrackerBot.Localization;
 
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Repositories;
 
@@ -14,17 +15,17 @@ using ProductTrackerBot.Repositories;
 public class Localizer : ILocalizer
 {
     private readonly Dictionary<string, Dictionary<string, string>> translations = new();
-    private readonly GroupRepository groupRepository;
+    private readonly IServiceScopeFactory scopeFactory;
     private readonly ILogger<Localizer> logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Localizer"/> class.
     /// </summary>
-    /// <param name="groupRepository">The group repository for looking up chat language.</param>
+    /// <param name="scopeFactory">The scope factory for creating short-lived scopes.</param>
     /// <param name="logger">The logger.</param>
-    public Localizer(GroupRepository groupRepository, ILogger<Localizer> logger)
+    public Localizer(IServiceScopeFactory scopeFactory, ILogger<Localizer> logger)
     {
-        this.groupRepository = groupRepository;
+        this.scopeFactory = scopeFactory;
         this.logger = logger;
         this.LoadTranslations();
     }
@@ -32,8 +33,9 @@ public class Localizer : ILocalizer
     /// <inheritdoc/>
     public string Get(long chatId, string key)
     {
-        // Get the language for this chat
-        var languageTask = this.groupRepository.GetOrCreateAsync(chatId);
+        using var scope = this.scopeFactory.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<GroupRepository>();
+        var languageTask = repo.GetOrCreateAsync(chatId);
         languageTask.Wait();
         var group = languageTask.Result;
         var languageCode = group.LanguageCode ?? "en";
@@ -44,7 +46,9 @@ public class Localizer : ILocalizer
     /// <inheritdoc/>
     public async Task<string> GetAsync(long chatId, string key, CancellationToken cancellationToken)
     {
-        var group = await this.groupRepository.GetOrCreateAsync(chatId);
+        using var scope = this.scopeFactory.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<GroupRepository>();
+        var group = await repo.GetOrCreateAsync(chatId);
         var languageCode = group.LanguageCode ?? "en";
         return this.GetTranslation(languageCode, key);
     }

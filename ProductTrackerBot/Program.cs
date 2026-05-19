@@ -119,7 +119,7 @@ builder.Services.AddHostedService<BotHostedService>();
 
 // Register pending session services
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<LoginCodeStore>();
+builder.Services.AddSingleton(sp => new LoginCodeStore(connectionString, sp.GetRequiredService<TimeProvider>()));
 
 builder.Services.AddSingleton<PendingAddService>();
 builder.Services.AddSingleton<PendingEditService>();
@@ -159,8 +159,7 @@ builder.Services.AddSingleton<ILocalizer, Localizer>();
 var notifyTimeUtc = Environment.GetEnvironmentVariable("NOTIFY_TIME_UTC") ?? "09:00";
 builder.Services.AddSingleton(sp => new ExpiryNotificationJob(
     sp.GetRequiredService<ITelegramBotClient>(),
-    sp.GetRequiredService<GroupRepository>(),
-    sp.GetRequiredService<ExpiryNotificationService>(),
+    sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<ILogger<ExpiryNotificationJob>>(),
     notifyTimeUtc));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ExpiryNotificationJob>());

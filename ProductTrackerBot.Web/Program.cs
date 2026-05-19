@@ -86,7 +86,7 @@ builder.Services.AddSingleton<IUpdateHandler, UpdateDispatcher>();
 
 // ── Shared singletons ─────────────────────────────────────────────────────────
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<LoginCodeStore>();
+builder.Services.AddSingleton(sp => new LoginCodeStore(connectionString, sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton<PendingAddService>();
 builder.Services.AddSingleton<PendingEditService>();
 builder.Services.AddSingleton<ConversationHistoryService>();
@@ -123,8 +123,7 @@ builder.Services.AddSingleton<ILocalizer, Localizer>();
 var notifyTimeUtc = Environment.GetEnvironmentVariable("NOTIFY_TIME_UTC") ?? "09:00";
 builder.Services.AddSingleton(sp => new ExpiryNotificationJob(
     sp.GetRequiredService<ITelegramBotClient>(),
-    sp.GetRequiredService<GroupRepository>(),
-    sp.GetRequiredService<ExpiryNotificationService>(),
+    sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<ILogger<ExpiryNotificationJob>>(),
     notifyTimeUtc));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ExpiryNotificationJob>());
@@ -189,7 +188,8 @@ builder.Services.AddAuthorization();
 
 // ── Blazor ────────────────────────────────────────────────────────────────────
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options => options.DetailedErrors = builder.Environment.IsDevelopment())
+    .AddHubOptions(o => o.DisableImplicitFromServicesParameters = true);
 
 // ─────────────────────────────────────────────────────────────────────────────
 var app = builder.Build();

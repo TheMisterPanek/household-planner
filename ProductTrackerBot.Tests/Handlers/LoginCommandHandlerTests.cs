@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Data.Sqlite;
 using Moq;
 using ProductTrackerBot.Handlers;
 using ProductTrackerBot.Localization;
@@ -9,7 +10,7 @@ using Telegram.Bot.Types;
 
 namespace ProductTrackerBot.Tests.Handlers;
 
-public class LoginCommandHandlerTests
+public class LoginCommandHandlerTests : IDisposable
 {
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -17,12 +18,25 @@ public class LoginCommandHandlerTests
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
     };
 
+    private readonly SqliteConnection keepAlive;
+    private readonly string connStr;
+
+    public LoginCommandHandlerTests()
+    {
+        var db = $"LoginHandlerTests_{Guid.NewGuid():N}";
+        this.connStr = $"Data Source=file:{db}?mode=memory&cache=shared";
+        this.keepAlive = new SqliteConnection(this.connStr);
+        this.keepAlive.Open();
+    }
+
+    public void Dispose() => this.keepAlive.Dispose();
+
     private static Message MakeMessage(string text) =>
         JsonSerializer.Deserialize<Message>(
             $"{{\"message_id\":1,\"from\":{{\"id\":42,\"first_name\":\"Alice\"}},\"chat\":{{\"id\":100}},\"text\":\"{text}\"}}",
             JsonOpts)!;
 
-    private static (LoginCommandHandler handler, Mock<ITelegramBotClient> botMock, LoginCodeStore store) CreateHandler()
+    private (LoginCommandHandler handler, Mock<ITelegramBotClient> botMock, LoginCodeStore store) CreateHandler()
     {
         var botMock = new Mock<ITelegramBotClient>();
         botMock.Setup(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
@@ -32,7 +46,7 @@ public class LoginCommandHandlerTests
         localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
             .Returns<long, string>((_, key) => key);
 
-        var store = new LoginCodeStore(TimeProvider.System);
+        var store = new LoginCodeStore(this.connStr, TimeProvider.System);
         var handler = new LoginCommandHandler(botMock.Object, localizer.Object, store);
         return (handler, botMock, store);
     }

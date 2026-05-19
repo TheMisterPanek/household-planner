@@ -5,6 +5,7 @@
 namespace ProductTrackerBot.Services;
 
 using System.Threading;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Repositories;
@@ -16,8 +17,7 @@ using Telegram.Bot;
 public class ExpiryNotificationJob : IHostedService
 {
     private readonly ITelegramBotClient botClient;
-    private readonly GroupRepository groupRepository;
-    private readonly ExpiryNotificationService notificationService;
+    private readonly IServiceScopeFactory scopeFactory;
     private readonly ILogger<ExpiryNotificationJob> logger;
     private readonly string notifyTimeUtc;
     private Timer? timer;
@@ -27,20 +27,17 @@ public class ExpiryNotificationJob : IHostedService
     /// Initializes a new instance of the <see cref="ExpiryNotificationJob"/> class.
     /// </summary>
     /// <param name="botClient">The Telegram bot client.</param>
-    /// <param name="groupRepository">The group repository.</param>
-    /// <param name="notificationService">The expiry notification service.</param>
+    /// <param name="scopeFactory">The scope factory for creating short-lived scopes.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="notifyTimeUtc">The UTC time to fire the job (default "09:00").</param>
     public ExpiryNotificationJob(
         ITelegramBotClient botClient,
-        GroupRepository groupRepository,
-        ExpiryNotificationService notificationService,
+        IServiceScopeFactory scopeFactory,
         ILogger<ExpiryNotificationJob> logger,
         string notifyTimeUtc = "09:00")
     {
         this.botClient = botClient;
-        this.groupRepository = groupRepository;
-        this.notificationService = notificationService;
+        this.scopeFactory = scopeFactory;
         this.logger = logger;
         this.notifyTimeUtc = notifyTimeUtc;
     }
@@ -93,18 +90,21 @@ public class ExpiryNotificationJob : IHostedService
         }
     }
 
-    private async Task ExecuteNotificationAsync(CancellationToken cancellationToken)
+    internal async Task ExecuteNotificationAsync(CancellationToken cancellationToken)
     {
         this.logger.LogInformation("ExpiryNotificationJob executing at {UtcNow}", DateTime.UtcNow);
 
+        using var scope = this.scopeFactory.CreateScope();
+        var groupRepository = scope.ServiceProvider.GetRequiredService<GroupRepository>();
+        var notificationService = scope.ServiceProvider.GetRequiredService<ExpiryNotificationService>();
         var today = DateOnly.FromDateTime(DateTime.Now);
-        var groups = await this.groupRepository.GetAllAsync();
+        var groups = await groupRepository.GetAllAsync();
 
         foreach (var group in groups)
         {
             try
             {
-                var summary = await this.notificationService.BuildSummaryAsync(group.ChatId, group.Id, today);
+                var summary = await notificationService.BuildSummaryAsync(group.ChatId, group.Id, today);
                 if (summary is not null)
                 {
                     await this.botClient.SendMessage(

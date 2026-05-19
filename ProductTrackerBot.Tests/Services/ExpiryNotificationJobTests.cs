@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Localization;
@@ -13,6 +14,18 @@ namespace ProductTrackerBot.Tests.Services;
 
 public class ExpiryNotificationJobTests
 {
+    private static IServiceScopeFactory CreateScopeFactory(GroupRepository groupRepo, ExpiryNotificationService notificationService)
+    {
+        var sp = new Mock<IServiceProvider>();
+        sp.Setup(x => x.GetService(typeof(GroupRepository))).Returns(groupRepo);
+        sp.Setup(x => x.GetService(typeof(ExpiryNotificationService))).Returns(notificationService);
+        var scope = new Mock<IServiceScope>();
+        scope.Setup(x => x.ServiceProvider).Returns(sp.Object);
+        var factory = new Mock<IServiceScopeFactory>();
+        factory.Setup(x => x.CreateScope()).Returns(scope.Object);
+        return factory.Object;
+    }
+
     private static (Mock<ITelegramBotClient> Bot, List<long> SentChatIds) CreateBotMock()
     {
         var botMock = new Mock<ITelegramBotClient>();
@@ -60,27 +73,17 @@ public class ExpiryNotificationJobTests
             }.AsReadOnly());
 
         var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=:memory:");
+        purchaseRepo.Setup(r => r.GetItemsWithExpiryAsync(It.IsAny<int>()))
+            .ReturnsAsync(new List<(string, string?, DateOnly)>().AsReadOnly());
         var notificationService = new ExpiryNotificationService(itemRepo.Object, purchaseRepo.Object, Mock.Of<ILocalizer>());
 
         var job = new ExpiryNotificationJob(
             botClient.Object,
-            groupRepo.Object,
-            notificationService,
+            CreateScopeFactory(groupRepo.Object, notificationService),
             Mock.Of<ILogger<ExpiryNotificationJob>>(),
             "09:00");
 
-        var cts = new CancellationTokenSource();
-        cts.CancelAfter(100);
-
-        try
-        {
-            await job.StartAsync(cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-
-        await job.StopAsync(CancellationToken.None);
+        await job.ExecuteNotificationAsync(CancellationToken.None);
 
         groupRepo.Verify(r => r.GetAllAsync(), Times.AtLeastOnce);
     }
@@ -108,17 +111,17 @@ public class ExpiryNotificationJobTests
             }.AsReadOnly());
 
         var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=:memory:");
+        purchaseRepo.Setup(r => r.GetItemsWithExpiryAsync(It.IsAny<int>()))
+            .ReturnsAsync(new List<(string, string?, DateOnly)>().AsReadOnly());
         var notificationService = new ExpiryNotificationService(itemRepo.Object, purchaseRepo.Object, Mock.Of<ILocalizer>());
 
         var job = new ExpiryNotificationJob(
             botClient.Object,
-            groupRepo.Object,
-            notificationService,
+            CreateScopeFactory(groupRepo.Object, notificationService),
             Mock.Of<ILogger<ExpiryNotificationJob>>(),
             "09:00");
 
-        await job.StartAsync(CancellationToken.None);
-        await job.StopAsync(CancellationToken.None);
+        await job.ExecuteNotificationAsync(CancellationToken.None);
 
         Assert.Empty(sentChatIds);
     }
@@ -141,15 +144,16 @@ public class ExpiryNotificationJobTests
         var sentChatIds = new List<long>();
 
         botClient
-            .Setup(b => b.SendRequest(It.Is<SendMessageRequest>(r => r.ChatId.Identifier == 100L), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Send failed"));
-
-        botClient
-            .Setup(b => b.SendRequest(It.Is<SendMessageRequest>(r => r.ChatId.Identifier == 200L), It.IsAny<CancellationToken>()))
+            .Setup(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
             .Callback<IRequest<Message>, CancellationToken>((req, _) =>
             {
-                if (req is SendMessageRequest smr && smr.ChatId.Identifier.HasValue)
-                    sentChatIds.Add(smr.ChatId.Identifier.Value);
+                if (req is SendMessageRequest smr)
+                {
+                    var id = smr.ChatId.Identifier ?? smr.ChatId.Username?.GetHashCode() ?? 0;
+                    if (id == 100L)
+                        throw new InvalidOperationException("Send failed");
+                    sentChatIds.Add(id);
+                }
             })
             .ReturnsAsync(new Message());
 
@@ -161,17 +165,17 @@ public class ExpiryNotificationJobTests
             }.AsReadOnly());
 
         var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=:memory:");
+        purchaseRepo.Setup(r => r.GetItemsWithExpiryAsync(It.IsAny<int>()))
+            .ReturnsAsync(new List<(string, string?, DateOnly)>().AsReadOnly());
         var notificationService = new ExpiryNotificationService(itemRepo.Object, purchaseRepo.Object, Mock.Of<ILocalizer>());
 
         var job = new ExpiryNotificationJob(
             botClient.Object,
-            groupRepo.Object,
-            notificationService,
+            CreateScopeFactory(groupRepo.Object, notificationService),
             Mock.Of<ILogger<ExpiryNotificationJob>>(),
             "09:00");
 
-        await job.StartAsync(CancellationToken.None);
-        await job.StopAsync(CancellationToken.None);
+        await job.ExecuteNotificationAsync(CancellationToken.None);
 
         Assert.Contains(200L, sentChatIds);
     }

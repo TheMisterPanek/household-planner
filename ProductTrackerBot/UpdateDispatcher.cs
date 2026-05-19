@@ -4,7 +4,7 @@
 
 namespace ProductTrackerBot;
 
-using System.Collections.Generic;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Handlers;
 using Telegram.Bot;
@@ -17,27 +17,19 @@ using Telegram.Bot.Types.Enums;
 /// </summary>
 public class UpdateDispatcher : IUpdateHandler
 {
-    private readonly IEnumerable<ICommandHandler> commandHandlers;
-    private readonly IEnumerable<ICallbackHandler> callbackHandlers;
-    private readonly IEnumerable<IDialogMessageHandler> dialogHandlers;
+    private readonly IServiceScopeFactory scopeFactory;
     private readonly ILogger<UpdateDispatcher> logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="UpdateDispatcher"/> class.
     /// </summary>
-    /// <param name="commandHandlers">All registered command handlers.</param>
-    /// <param name="callbackHandlers">All registered callback handlers.</param>
-    /// <param name="dialogHandlers">All registered dialog message handlers.</param>
+    /// <param name="scopeFactory">The scope factory used to create a DI scope per update.</param>
     /// <param name="logger">The logger.</param>
     public UpdateDispatcher(
-        IEnumerable<ICommandHandler> commandHandlers,
-        IEnumerable<ICallbackHandler> callbackHandlers,
-        IEnumerable<IDialogMessageHandler> dialogHandlers,
+        IServiceScopeFactory scopeFactory,
         ILogger<UpdateDispatcher> logger)
     {
-        this.commandHandlers = commandHandlers;
-        this.callbackHandlers = callbackHandlers;
-        this.dialogHandlers = dialogHandlers;
+        this.scopeFactory = scopeFactory;
         this.logger = logger;
     }
 
@@ -47,16 +39,21 @@ public class UpdateDispatcher : IUpdateHandler
         Update update,
         CancellationToken cancellationToken)
     {
+        using var scope = this.scopeFactory.CreateScope();
+        var commandHandlers = scope.ServiceProvider.GetServices<ICommandHandler>();
+        var callbackHandlers = scope.ServiceProvider.GetServices<ICallbackHandler>();
+        var dialogHandlers = scope.ServiceProvider.GetServices<IDialogMessageHandler>();
+
         try
         {
             switch (update.Type)
             {
                 case UpdateType.Message:
-                    await this.HandleMessageAsync(update.Message!, cancellationToken);
+                    await this.HandleMessageAsync(update.Message!, commandHandlers, dialogHandlers, cancellationToken);
                     break;
 
                 case UpdateType.CallbackQuery:
-                    await this.HandleCallbackQueryAsync(update.CallbackQuery!, cancellationToken);
+                    await this.HandleCallbackQueryAsync(update.CallbackQuery!, callbackHandlers, cancellationToken);
                     break;
 
                 default:
@@ -81,7 +78,11 @@ public class UpdateDispatcher : IUpdateHandler
         await Task.CompletedTask;
     }
 
-    private async Task HandleMessageAsync(Message message, CancellationToken cancellationToken)
+    private async Task HandleMessageAsync(
+        Message message,
+        IEnumerable<ICommandHandler> commandHandlers,
+        IEnumerable<IDialogMessageHandler> dialogHandlers,
+        CancellationToken cancellationToken)
     {
         if (message.Text is null)
         {
@@ -91,7 +92,7 @@ public class UpdateDispatcher : IUpdateHandler
 
         if (!message.Text.StartsWith('/'))
         {
-            await this.TryHandleDialogMessageAsync(message, cancellationToken);
+            await this.TryHandleDialogMessageAsync(message, dialogHandlers, cancellationToken);
             return;
         }
 
@@ -103,7 +104,7 @@ public class UpdateDispatcher : IUpdateHandler
             command = command[..atIndex]; // Strip bot username suffix
         }
 
-        var handler = this.FindCommandHandler(command);
+        var handler = FindCommandHandler(command, commandHandlers);
         if (handler is null)
         {
             this.logger.LogDebug("No command handler for command: {Command}", command);
@@ -114,7 +115,10 @@ public class UpdateDispatcher : IUpdateHandler
         await handler.HandleAsync(message, cancellationToken);
     }
 
-    private async Task HandleCallbackQueryAsync(CallbackQuery callbackQuery, CancellationToken cancellationToken)
+    private async Task HandleCallbackQueryAsync(
+        CallbackQuery callbackQuery,
+        IEnumerable<ICallbackHandler> callbackHandlers,
+        CancellationToken cancellationToken)
     {
         if (callbackQuery.Data is null)
         {
@@ -122,7 +126,7 @@ public class UpdateDispatcher : IUpdateHandler
             return;
         }
 
-        var handler = this.FindCallbackHandler(callbackQuery.Data);
+        var handler = FindCallbackHandler(callbackQuery.Data, callbackHandlers);
         if (handler is null)
         {
             this.logger.LogDebug("No callback handler for data prefix: {Data}", callbackQuery.Data);
@@ -137,14 +141,17 @@ public class UpdateDispatcher : IUpdateHandler
         await handler.HandleAsync(callbackQuery, cancellationToken);
     }
 
-    private async Task TryHandleDialogMessageAsync(Message message, CancellationToken cancellationToken)
+    private async Task TryHandleDialogMessageAsync(
+        Message message,
+        IEnumerable<IDialogMessageHandler> dialogHandlers,
+        CancellationToken cancellationToken)
     {
         if (message.From is null)
         {
             return;
         }
 
-        foreach (var handler in this.dialogHandlers)
+        foreach (var handler in dialogHandlers)
         {
             if (handler.CanHandle(message.Chat.Id, message.From.Id))
             {
@@ -159,9 +166,9 @@ public class UpdateDispatcher : IUpdateHandler
         this.logger.LogDebug("No dialog handler for message from user {UserId}", message.From.Id);
     }
 
-    private ICommandHandler? FindCommandHandler(string command)
+    private static ICommandHandler? FindCommandHandler(string command, IEnumerable<ICommandHandler> handlers)
     {
-        foreach (var handler in this.commandHandlers)
+        foreach (var handler in handlers)
         {
             if (string.Equals(handler.Command, command, StringComparison.OrdinalIgnoreCase))
             {
@@ -172,9 +179,9 @@ public class UpdateDispatcher : IUpdateHandler
         return null;
     }
 
-    private ICallbackHandler? FindCallbackHandler(string data)
+    private static ICallbackHandler? FindCallbackHandler(string data, IEnumerable<ICallbackHandler> handlers)
     {
-        foreach (var handler in this.callbackHandlers)
+        foreach (var handler in handlers)
         {
             if (data.StartsWith(handler.CallbackPrefix, StringComparison.Ordinal))
             {

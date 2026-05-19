@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Localization;
@@ -38,11 +39,25 @@ public class LocalizerTests : IDisposable
         this.loggerMock = new Mock<ILogger<Localizer>>();
     }
 
+    private Localizer CreateLocalizer() =>
+        new Localizer(CreateScopeFactory(this.repository), this.loggerMock.Object);
+
+    private static IServiceScopeFactory CreateScopeFactory(GroupRepository repo)
+    {
+        var sp = new Mock<IServiceProvider>();
+        sp.Setup(x => x.GetService(typeof(GroupRepository))).Returns(repo);
+        var scope = new Mock<IServiceScope>();
+        scope.Setup(x => x.ServiceProvider).Returns(sp.Object);
+        var factory = new Mock<IServiceScopeFactory>();
+        factory.Setup(x => x.CreateScope()).Returns(scope.Object);
+        return factory.Object;
+    }
+
     [Fact]
     public async Task Get_ReturnsCorrectString_For_Known_Locale_And_Key()
     {
         // Arrange
-        var localizer = new Localizer(this.repository, this.loggerMock.Object);
+        var localizer = CreateLocalizer();
         var chatId = 12345L;
         var group = await this.repository.GetOrCreateAsync(chatId);
         await this.repository.SetLanguageAsync(chatId, "en");
@@ -58,7 +73,7 @@ public class LocalizerTests : IDisposable
     public async Task Get_FallsBackToEnglish_For_Unknown_Locale()
     {
         // Arrange
-        var localizer = new Localizer(this.repository, this.loggerMock.Object);
+        var localizer = CreateLocalizer();
         var chatId = 12345L;
         var group = await this.repository.GetOrCreateAsync(chatId);
         await this.repository.SetLanguageAsync(chatId, "unknown");
@@ -82,7 +97,7 @@ public class LocalizerTests : IDisposable
     public async Task Get_ReturnsKeyName_And_Logs_Warning_For_Missing_Key()
     {
         // Arrange
-        var localizer = new Localizer(this.repository, this.loggerMock.Object);
+        var localizer = CreateLocalizer();
         var chatId = 12345L;
         var group = await this.repository.GetOrCreateAsync(chatId);
         await this.repository.SetLanguageAsync(chatId, "en");
@@ -113,7 +128,7 @@ public class LocalizerTests : IDisposable
         await this.repository.SetLanguageAsync(chatId, "en");
 
         // Assert - Read it back
-        var localizer = new Localizer(this.repository, this.loggerMock.Object);
+        var localizer = CreateLocalizer();
         var result = localizer.Get(chatId, "buy.what-to-buy");
         Assert.Equal("What do you want to buy?", result);
 

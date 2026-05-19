@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProductTrackerBot.Handlers;
@@ -156,10 +157,14 @@ public class UpdateDispatcherTests
         IEnumerable<ICommandHandler> commandHandlers,
         IEnumerable<ICallbackHandler> callbackHandlers)
     {
-        return new UpdateDispatcher(
-            commandHandlers,
-            callbackHandlers,
-            Enumerable.Empty<IDialogMessageHandler>(),
-            this.loggerMock.Object);
+        var sp = new Mock<IServiceProvider>();
+        sp.Setup(x => x.GetService(typeof(IEnumerable<ICommandHandler>))).Returns(commandHandlers);
+        sp.Setup(x => x.GetService(typeof(IEnumerable<ICallbackHandler>))).Returns(callbackHandlers);
+        sp.Setup(x => x.GetService(typeof(IEnumerable<IDialogMessageHandler>))).Returns(Enumerable.Empty<IDialogMessageHandler>());
+        var scope = new Mock<IServiceScope>();
+        scope.Setup(x => x.ServiceProvider).Returns(sp.Object);
+        var factory = new Mock<IServiceScopeFactory>();
+        factory.Setup(x => x.CreateScope()).Returns(scope.Object);
+        return new UpdateDispatcher(factory.Object, this.loggerMock.Object);
     }
 }

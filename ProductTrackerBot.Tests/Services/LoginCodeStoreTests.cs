@@ -1,17 +1,25 @@
+using Microsoft.Data.Sqlite;
 using ProductTrackerBot.Services;
 
 namespace ProductTrackerBot.Tests.Services;
 
-public class LoginCodeStoreTests
+public class LoginCodeStoreTests : IDisposable
 {
-    private static LoginCodeStore MakeStore(DateTimeOffset? fakeNow = null)
-    {
-        if (fakeNow is null)
-            return new LoginCodeStore(TimeProvider.System);
+    private readonly SqliteConnection keepAlive;
+    private readonly string connStr;
 
-        var fakeTime = new FakeTimeProvider(fakeNow.Value);
-        return new LoginCodeStore(fakeTime);
+    public LoginCodeStoreTests()
+    {
+        var db = $"LoginCodeStoreTests_{Guid.NewGuid():N}";
+        this.connStr = $"Data Source=file:{db}?mode=memory&cache=shared";
+        this.keepAlive = new SqliteConnection(this.connStr);
+        this.keepAlive.Open();
     }
+
+    public void Dispose() => this.keepAlive.Dispose();
+
+    private LoginCodeStore MakeStore(TimeProvider? time = null) =>
+        new LoginCodeStore(this.connStr, time ?? TimeProvider.System);
 
     [Fact]
     public void GenerateCode_Returns6DigitCodeAndNonEmptyToken()
@@ -70,7 +78,7 @@ public class LoginCodeStoreTests
     {
         var now = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var fakeTime = new FakeTimeProvider(now);
-        var store = new LoginCodeStore(fakeTime);
+        var store = MakeStore(fakeTime);
 
         var code = store.GenerateCode(out var token);
         store.TryVerify(code, chatId: 1L);

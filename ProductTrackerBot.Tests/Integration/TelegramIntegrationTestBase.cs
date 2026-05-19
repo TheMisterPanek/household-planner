@@ -117,7 +117,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var pendingEditService = new PendingEditService();
         var aiSuggestionService = new AiSuggestionService();
         this.AiSuggestionService = aiSuggestionService;
-        var loginCodeStore = new LoginCodeStore(TimeProvider.System);
+        var loginCodeStore = new LoginCodeStore(ConnectionString, TimeProvider.System);
         this.LoginCodeStore = loginCodeStore;
 
         var listService = new ShoppingListService(this.GroupRepository, this.ItemRepository, localizer.Object);
@@ -293,9 +293,15 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             buyStepHandler, priceCaptureHandler, mealDialogHandler, itemEditStepHandler,
         };
 
-        this.dispatcher = new UpdateDispatcher(
-            commandHandlers, callbackHandlers, dialogHandlers,
-            Mock.Of<ILogger<UpdateDispatcher>>());
+        var dispatcherSp = new Mock<IServiceProvider>();
+        dispatcherSp.Setup(x => x.GetService(typeof(IEnumerable<ICommandHandler>))).Returns(commandHandlers);
+        dispatcherSp.Setup(x => x.GetService(typeof(IEnumerable<ICallbackHandler>))).Returns(callbackHandlers);
+        dispatcherSp.Setup(x => x.GetService(typeof(IEnumerable<IDialogMessageHandler>))).Returns(dialogHandlers);
+        var dispatcherScope = new Mock<IServiceScope>();
+        dispatcherScope.Setup(x => x.ServiceProvider).Returns(dispatcherSp.Object);
+        var dispatcherScopeFactory = new Mock<IServiceScopeFactory>();
+        dispatcherScopeFactory.Setup(x => x.CreateScope()).Returns(dispatcherScope.Object);
+        this.dispatcher = new UpdateDispatcher(dispatcherScopeFactory.Object, Mock.Of<ILogger<UpdateDispatcher>>());
     }
 
     protected Task DispatchAsync(Update update) =>
