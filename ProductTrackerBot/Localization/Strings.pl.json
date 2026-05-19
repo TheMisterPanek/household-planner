@@ -23,6 +23,7 @@
   "buy.expiry-date": "Dni do wygaśnięcia? (na przykład: 5, \"1 tydzień\", \"2 miesiące\")",
   "buy.invalid-date": "Nieprawidłowy format. Wprowadź liczbę dni (na przykład 5) lub wariant (na przykład 1 tydzień, 2 miesiące) lub kliknij Pomiń.",
   "buy.skip": "Pomiń",
+  "shop.bulk-added": "✓ {User} dodał(a) {Count} pozycji: {Items}",
   "shop.done-confirmation": "✓ Zakupy ukończone!",
   "shop.expiry-prompt": "📅 Data ważności {item}? Wprowadź dni (na przykład 30) lub wariant (na przykład 1 tydzień, 2 miesiące) lub kliknij Pomiń.",
   "shop.skip": "Pomiń",

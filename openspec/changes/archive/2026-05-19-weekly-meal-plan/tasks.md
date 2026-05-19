@@ -48,12 +48,12 @@
 
 ## 8. Smoke Test (manual — do not mark complete without user confirmation)
 
-- [ ] 8.1 `/week` in private chat → "group only" response
-- [ ] 8.2 `/week` in group → 7 day buttons, no meal details
-- [ ] 8.3 Tap a day → day detail view with meals + [✕] buttons
-- [ ] 8.4 Tap [＋ Add meal] → meal picker; select meal → returns to day detail
-- [ ] 8.5 Tap [✕] on a meal → meal removed, day detail refreshed
-- [ ] 8.6 Tap [← Back] → returns to main day list
-- [ ] 8.7 Tap [🛒 Add ingredients to cart] → ingredients added to shopping list
-- [ ] 8.8 Tap [🛒] when no meals assigned → "no meals" toast
-- [ ] 8.9 Tap [🛒] when meals have no ingredients → "no ingredients" toast
+- [x] 8.1 `/week` in private chat → "group only" response
+- [x] 8.2 `/week` in group → 7 day buttons, no meal details
+- [x] 8.3 Tap a day → day detail view with meals + [✕] buttons
+- [x] 8.4 Tap [＋ Add meal] → meal picker; select meal → returns to day detail
+- [x] 8.5 Tap [✕] on a meal → meal removed, day detail refreshed
+- [x] 8.6 Tap [← Back] → returns to main day list
+- [x] 8.7 Tap [🛒 Add ingredients to cart] → ingredients added to shopping list
+- [x] 8.8 Tap [🛒] when no meals assigned → "no meals" toast
+- [x] 8.9 Tap [🛒] when meals have no ingredients → "no ingredients" toast

@@ -1,6 +1,7 @@
-.PHONY: run build test up down logs restart deploy
+.PHONY: run build test up down logs restart deploy up-dev down-dev logs-dev restart-dev
 
-COMPOSE := docker compose
+COMPOSE      := docker compose
+COMPOSE_DEV  := docker compose -f docker-compose.dev.yml
 
 run:
 	dotnet run --project ProductTrackerBot
@@ -11,6 +12,7 @@ build:
 test:
 	dotnet test
 
+# --- Production ---
 up:
 	$(COMPOSE) up --build -d
 
@@ -25,3 +27,16 @@ restart:
 
 deploy:
 	git push
+
+# --- Development ---
+up-dev:
+	$(COMPOSE_DEV) up --build -d
+
+down-dev:
+	$(COMPOSE_DEV) down
+
+logs-dev:
+	$(COMPOSE_DEV) logs -f
+
+restart-dev:
+	$(COMPOSE_DEV) up --build -d --force-recreate

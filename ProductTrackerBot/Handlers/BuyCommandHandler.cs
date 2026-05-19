@@ -4,6 +4,8 @@
 
 namespace ProductTrackerBot.Handlers;
 
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Repositories;
@@ -14,6 +16,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 
 /// <summary>
 /// Handles the /buy command — shows a review step (/buy name qty) or initiates a 2-step dialog.
+/// Supports comma-separated bulk input: /buy item1, item2 qty, item3
 /// </summary>
 public class BuyCommandHandler : ICommandHandler
 {
@@ -22,6 +25,9 @@ public class BuyCommandHandler : ICommandHandler
     private readonly PendingDialogService<BuyDialogState> dialogService;
     private readonly PendingAddService pendingAddService;
     private readonly ILocalizer localizer;
+    private readonly ShoppingListService shoppingListService;
+    private readonly IHistoryRepository historyRepository;
+    private readonly ILogger<BuyCommandHandler> logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BuyCommandHandler"/> class.
@@ -31,18 +37,27 @@ public class BuyCommandHandler : ICommandHandler
     /// <param name="dialogService">The dialog state service.</param>
     /// <param name="pendingAddService">The pending add session service.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
+    /// <param name="shoppingListService">The shopping list service for bulk adds.</param>
+    /// <param name="historyRepository">The history repository.</param>
+    /// <param name="logger">The logger.</param>
     public BuyCommandHandler(
         ITelegramBotClient botClient,
         GroupRepository groupRepository,
         PendingDialogService<BuyDialogState> dialogService,
         PendingAddService pendingAddService,
-        ILocalizer localizer)
+        ILocalizer localizer,
+        ShoppingListService shoppingListService,
+        IHistoryRepository historyRepository,
+        ILogger<BuyCommandHandler> logger)
     {
         this.botClient = botClient;
         this.groupRepository = groupRepository;
         this.dialogService = dialogService;
         this.pendingAddService = pendingAddService;
         this.localizer = localizer;
+        this.shoppingListService = shoppingListService;
+        this.historyRepository = historyRepository;
+        this.logger = logger;
     }
 
     /// <inheritdoc/>
@@ -60,6 +75,12 @@ public class BuyCommandHandler : ICommandHandler
         var inlineArgs = ExtractInlineArgs(message.Text);
         if (inlineArgs is not null)
         {
+            if (inlineArgs.Contains(','))
+            {
+                await this.HandleBulkAddAsync(message, group, displayName, inlineArgs, cancellationToken);
+                return;
+            }
+
             var (name, quantity) = BuyInputParser.Parse(inlineArgs);
             var token = this.pendingAddService.Store(new PendingAddItem(
                 ChatId: message.Chat.Id,
@@ -105,6 +126,51 @@ public class BuyCommandHandler : ICommandHandler
         await this.botClient.SendMessage(
             chatId: message.Chat.Id,
             text: this.localizer.Get(message.Chat.Id, "buy.what-to-buy"),
+            replyParameters: new ReplyParameters { MessageId = message.MessageId },
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleBulkAddAsync(
+        Message message,
+        Group group,
+        string displayName,
+        string rawCsv,
+        CancellationToken cancellationToken)
+    {
+        var addedItems = await this.shoppingListService.AddItemsAsync(rawCsv, group.Id, displayName);
+
+        foreach (var item in addedItems)
+        {
+            try
+            {
+                var payload = new ItemPayload(item.Name, item.Quantity);
+                var payloadJson = JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.ItemPayload);
+                await this.historyRepository.RecordAsync(
+                    chatId: message.Chat.Id,
+                    userId: message.From!.Id,
+                    userName: displayName,
+                    actionType: BotActionType.ItemAdded,
+                    payloadJson: payloadJson,
+                    revertPayloadJson: null,
+                    ct: cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                this.logger.LogWarning(ex, "Failed to record history for bulk ItemAdded");
+            }
+        }
+
+        var itemLabels = addedItems.Select(i =>
+            i.Quantity is not null ? $"{i.Name} {i.Quantity}" : i.Name);
+
+        var confirmText = this.localizer.Get(message.Chat.Id, "shop.bulk-added")
+            .Replace("{User}", displayName)
+            .Replace("{Count}", addedItems.Count.ToString())
+            .Replace("{Items}", string.Join(", ", itemLabels));
+
+        await this.botClient.SendMessage(
+            chatId: message.Chat.Id,
+            text: confirmText,
             replyParameters: new ReplyParameters { MessageId = message.MessageId },
             cancellationToken: cancellationToken);
     }

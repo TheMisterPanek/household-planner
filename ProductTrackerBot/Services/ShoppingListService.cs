@@ -15,6 +15,8 @@ using Telegram.Bot.Types.ReplyMarkups;
 /// </summary>
 public class ShoppingListService
 {
+    private const int BulkItemLimit = 20;
+
     private readonly GroupRepository groupRepository;
     private readonly ShoppingItemRepository itemRepository;
     private readonly ILocalizer localizer;
@@ -30,6 +32,34 @@ public class ShoppingListService
         this.groupRepository = groupRepository;
         this.itemRepository = itemRepository;
         this.localizer = localizer;
+    }
+
+    /// <summary>
+    /// Parses a comma-separated bulk input string and adds each item to the shopping list.
+    /// Trims whitespace, filters empty segments, and enforces a 20-item cap.
+    /// </summary>
+    /// <param name="rawCsv">The raw user input (e.g. "Молоко 2л, Яйца 6, Хлеб").</param>
+    /// <param name="groupId">The owning group ID.</param>
+    /// <param name="addedByName">The display name of the user adding the items.</param>
+    /// <returns>The list of added shopping items.</returns>
+    public virtual async Task<IReadOnlyList<ShoppingItem>> AddItemsAsync(string rawCsv, int groupId, string addedByName)
+    {
+        var segments = rawCsv
+            .Split(',')
+            .Select(s => s.Trim())
+            .Where(s => !string.IsNullOrEmpty(s))
+            .Take(BulkItemLimit)
+            .ToList();
+
+        var added = new List<ShoppingItem>(segments.Count);
+        foreach (var segment in segments)
+        {
+            var (name, quantity) = BuyInputParser.Parse(segment);
+            var item = await this.itemRepository.AddAsync(groupId, name, quantity, addedByName, expDate: null);
+            added.Add(item);
+        }
+
+        return added.AsReadOnly();
     }
 
     /// <summary>

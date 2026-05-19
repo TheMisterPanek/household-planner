@@ -1,12 +1,12 @@
 ## 1. Localization
 
-- [ ] 1.1 Add `shop.bulk-added` key to `Localization/Strings.en.json` with template: "{User} added {Count} items: {Items}"
-- [ ] 1.2 Add `shop.bulk-added` key to `Localization/Strings.ru.json` with appropriate Russian pluralization
-- [ ] 1.3 Add `shop.bulk-added` key to `Localization/Strings.pl.json` with appropriate Polish pluralization
+- [x] 1.1 Add `shop.bulk-added` key to `Localization/Strings.en.json` with template: "{User} added {Count} items: {Items}"
+- [x] 1.2 Add `shop.bulk-added` key to `Localization/Strings.ru.json` with appropriate Russian pluralization
+- [x] 1.3 Add `shop.bulk-added` key to `Localization/Strings.pl.json` with appropriate Polish pluralization
 
 ## 2. Unit Tests
 
-- [ ] 2.1 Create `ProductTrackerBot.Tests/Services/ShoppingListServiceTests.cs` with unit tests for CSV parsing:
+- [x] 2.1 Create `ProductTrackerBot.Tests/Services/ShoppingListServiceTests.cs` with unit tests for CSV parsing:
   - Test single item (no comma): `/buy Молоко` → one item, no quantity
   - Test single item with quantity: `/buy Молоко 2л` → one item with quantity
   - Test comma-separated items without quantities: `/buy Молоко, Яйца, Хлеб` → three items
@@ -15,7 +15,7 @@
   - Test item limit (max 20): `/buy item1, item2, ... item21` → only first 20 added
   - Test empty segments after split: `/buy Молоко,,Яйца` → handles gracefully
 
-- [ ] 2.2 Create `ProductTrackerBot.Tests/Handlers/BuyCommandHandlerTests.cs` with unit tests for handler:
+- [x] 2.2 Create `ProductTrackerBot.Tests/Handlers/BuyCommandHandlerTests.cs` with unit tests for handler:
   - Test handler routes single item to service as before
   - Test handler routes CSV items to service
   - Test handler calls history repository for each item
@@ -24,9 +24,9 @@
 
 ## 3. Core Implementation
 
-- [ ] 3.1 Update `ShoppingListService.AddItemAsync()` to accept optional parameter for parsing CSV input (or create new overload `AddItemsAsync()` for bulk)
+- [x] 3.1 Update `ShoppingListService.AddItemAsync()` to accept optional parameter for parsing CSV input (or create new overload `AddItemsAsync()` for bulk)
 
-- [ ] 3.2 Implement CSV parsing logic in `ShoppingListService`:
+- [x] 3.2 Implement CSV parsing logic in `ShoppingListService`:
   - Split input by comma
   - Trim whitespace from each segment
   - Filter empty segments
@@ -34,18 +34,18 @@
   - Enforce 20-item limit
   - Call existing `AddItemAsync()` for each parsed item
 
-- [ ] 3.3 Update `BuyCommandHandler.Handle()` to:
+- [x] 3.3 Update `BuyCommandHandler.Handle()` to:
   - Detect comma in inline argument
   - If comma present, invoke bulk add path
   - If no comma, use existing single-item path (backward compatibility)
   - Pass necessary context (chat ID, user ID, group) to service
 
-- [ ] 3.4 Update `BuyCommandHandler.Handle()` to generate correct confirmation message:
+- [x] 3.4 Update `BuyCommandHandler.Handle()` to generate correct confirmation message:
   - For single item: reuse existing "User добавил(а) Item Qty" message
   - For multiple items: use new `shop.bulk-added` localization key with item count and list
   - Truncate item list if too long (optional, but recommended for readability)
 
-- [ ] 3.5 Update `BuyCommandHandler.Handle()` to record history for each added item:
+- [x] 3.5 Update `BuyCommandHandler.Handle()` to record history for each added item:
   - Call `IHistoryRepository.RecordAsync()` once per item (not bulk)
   - Wrap in try/catch per existing pattern
   - Log at Warning on failure
@@ -53,7 +53,7 @@
 
 ## 4. Integration Tests
 
-- [ ] 4.1 Add to `ProductTrackerBot.Tests/Integration/BuyCommandHandlerIntegrationTests.cs`:
+- [x] 4.1 Add to `ProductTrackerBot.Tests/Integration/BuyCommandHandlerIntegrationTests.cs`:
   - Test `/buy Молоко, Яйца, Хлеб` creates three items with no quantity
   - Test `/buy Молоко 2л, Яйца 6` creates two items with respective quantities
   - Test `/buy Молоко  ,  Яйца` trims whitespace and creates two items
@@ -62,7 +62,7 @@
   - Test bulk confirmation message uses correct localization key
   - Test existing single-item flows still work (no regression)
 
-- [ ] 4.2 Verify integration tests run without errors: `make test`
+- [x] 4.2 Verify integration tests run without errors: `make test`
 
 ## 5. Manual Smoke Test
 

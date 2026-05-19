@@ -202,6 +202,88 @@ public class ShoppingListServiceTests
         Assert.Equal(1, actualPage);
     }
 
+    [Fact]
+    public async Task AddItemsAsync_SingleItem_NoComma_AddsOneItem()
+    {
+        var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
+        var added = await service.AddItemsAsync("Молоко", groupId: 10, addedByName: "Ivan");
+        Assert.Single(added);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Ivan", null), Times.Once);
+    }
+
+    [Fact]
+    public async Task AddItemsAsync_SingleItemWithQuantity_AddsItemWithQty()
+    {
+        var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
+        var added = await service.AddItemsAsync("Молоко 2л", groupId: 10, addedByName: "Ivan");
+        Assert.Single(added);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Ivan", null), Times.Once);
+    }
+
+    [Fact]
+    public async Task AddItemsAsync_CsvNoQuantities_AddsThreeItems()
+    {
+        var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
+        var added = await service.AddItemsAsync("Молоко, Яйца, Хлеб", groupId: 10, addedByName: "Ivan");
+        Assert.Equal(3, added.Count);
+        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), null, "Ivan", null), Times.Exactly(3));
+    }
+
+    [Fact]
+    public async Task AddItemsAsync_CsvWithQuantities_ParsesEachCorrectly()
+    {
+        var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
+        var added = await service.AddItemsAsync("Молоко 2л, Яйца 6, Хлеб", groupId: 10, addedByName: "Ivan");
+        Assert.Equal(3, added.Count);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Ivan", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Яйца", "6", "Ivan", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Хлеб", null, "Ivan", null), Times.Once);
+    }
+
+    [Fact]
+    public async Task AddItemsAsync_WhitespacePadding_TrimsCorrectly()
+    {
+        var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
+        var added = await service.AddItemsAsync("  Молоко  ,  Яйца  ,  Хлеб  ", groupId: 10, addedByName: "Ivan");
+        Assert.Equal(3, added.Count);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Ivan", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Яйца", null, "Ivan", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Хлеб", null, "Ivan", null), Times.Once);
+    }
+
+    [Fact]
+    public async Task AddItemsAsync_MoreThan20Items_OnlyFirst20Added()
+    {
+        var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
+        var csv = string.Join(", ", Enumerable.Range(1, 21).Select(i => $"Item{i}"));
+        var added = await service.AddItemsAsync(csv, groupId: 10, addedByName: "Ivan");
+        Assert.Equal(20, added.Count);
+        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), It.IsAny<string?>(), "Ivan", null), Times.Exactly(20));
+    }
+
+    [Fact]
+    public async Task AddItemsAsync_EmptySegments_SkipsEmpty()
+    {
+        var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
+        var added = await service.AddItemsAsync("Молоко,,Яйца", groupId: 10, addedByName: "Ivan");
+        Assert.Equal(2, added.Count);
+        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), It.IsAny<string?>(), "Ivan", null), Times.Exactly(2));
+    }
+
+    private static (ShoppingListService Service, Mock<ShoppingItemRepository> ItemRepo) CreateServiceWithItemRepo(int groupId)
+    {
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
+        itemRepo
+            .Setup(r => r.AddAsync(groupId, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
+            .ReturnsAsync((int gid, string name, string? qty, string by, DateOnly? exp) =>
+                new ShoppingItem { Id = 1, GroupId = gid, Name = name, Quantity = qty, AddedByName = by });
+
+        var groupRepo = new Mock<GroupRepository>("Data Source=file::memory:?cache=shared");
+        var localizer = CreateLocalizerMock();
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+        return (service, itemRepo);
+    }
+
     private static Mock<GroupRepository> CreateGroupRepoMock(long chatId, int groupId)
     {
         var mock = new Mock<GroupRepository>("Data Source=file::memory:?cache=shared");

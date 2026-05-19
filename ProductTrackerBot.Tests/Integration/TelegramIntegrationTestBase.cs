@@ -126,7 +126,8 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         // Command handlers
         var buyHandler = new BuyCommandHandler(
-            this.BotMock.Object, this.GroupRepository, buyDialogService, pendingAddService, localizer.Object);
+            this.BotMock.Object, this.GroupRepository, buyDialogService, pendingAddService, localizer.Object,
+            listService, this.HistoryRepository, Mock.Of<ILogger<BuyCommandHandler>>());
 
         var listHandler = new ListCommandHandler(
             this.BotMock.Object, listService, this.GroupRepository, this.HistoryRepository,

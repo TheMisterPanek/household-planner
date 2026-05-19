@@ -50,7 +50,13 @@ public class BuyCommandHandlerHistoryTests
             groupRepo,
             new PendingDialogService<BuyDialogState>(),
             pendingAddService,
-            localizer.Object);
+            localizer.Object,
+            new ShoppingListService(
+                new Mock<GroupRepository>("Data Source=file::memory:").Object,
+                new Mock<ShoppingItemRepository>("Data Source=file::memory:").Object,
+                localizer.Object),
+            Mock.Of<IHistoryRepository>(),
+            Mock.Of<Microsoft.Extensions.Logging.ILogger<BuyCommandHandler>>());
     }
 
     [Fact]

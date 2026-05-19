@@ -145,7 +145,13 @@ public class LocalizationHandlerTests
             groupRepo.Object,
             new PendingDialogService<BuyDialogState>(),
             new PendingAddService(),
-            localizer.Object);
+            localizer.Object,
+            new ShoppingListService(
+                new Mock<GroupRepository>("Data Source=file::memory:").Object,
+                new Mock<ShoppingItemRepository>("Data Source=file::memory:").Object,
+                localizer.Object),
+            Mock.Of<IHistoryRepository>(),
+            Mock.Of<ILogger<BuyCommandHandler>>());
 
         var message = CreateGroupMessage("/buy");
 
