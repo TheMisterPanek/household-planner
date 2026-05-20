@@ -56,11 +56,11 @@ public class ExpiryNotificationService
         }
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("📋 Сводка по срокам годности:");
+        sb.AppendLine(this.localizer.Get(chatId, "notify.header"));
 
         if (expired.Count > 0)
         {
-            sb.AppendLine("\n🔴 Просроченные:");
+            sb.AppendLine($"\n{this.localizer.Get(chatId, "notify.section-expired")}");
             foreach (var item in expired)
             {
                 sb.AppendLine($"• {item.Name}{(item.Quantity is not null ? $" {item.Quantity}" : string.Empty)}");
@@ -69,7 +69,7 @@ public class ExpiryNotificationService
 
         if (expiringToday.Count > 0)
         {
-            sb.AppendLine("\n🟡 Истекает сегодня:");
+            sb.AppendLine($"\n{this.localizer.Get(chatId, "notify.section-today")}");
             foreach (var item in expiringToday)
             {
                 sb.AppendLine($"• {item.Name}{(item.Quantity is not null ? $" {item.Quantity}" : string.Empty)} ({item.ExpDate:dd.MM.yyyy})");
@@ -78,7 +78,7 @@ public class ExpiryNotificationService
 
         if (expiringSoon.Count > 0)
         {
-            sb.AppendLine("\n🟠 Истекает скоро (до 3 дней):");
+            sb.AppendLine($"\n{this.localizer.Get(chatId, "notify.section-soon")}");
             foreach (var item in expiringSoon)
             {
                 sb.AppendLine($"• {item.Name}{(item.Quantity is not null ? $" {item.Quantity}" : string.Empty)} ({item.ExpDate:dd.MM.yyyy})");
@@ -87,7 +87,7 @@ public class ExpiryNotificationService
 
         if (expiringThisWeek.Count > 0)
         {
-            sb.AppendLine("\n📅 Истекает на этой неделе (4–7 дней):");
+            sb.AppendLine($"\n{this.localizer.Get(chatId, "notify.section-week")}");
             foreach (var item in expiringThisWeek)
             {
                 sb.AppendLine($"• {item.Name}{(item.Quantity is not null ? $" {item.Quantity}" : string.Empty)} ({item.ExpDate:dd.MM.yyyy})");

@@ -20,8 +20,8 @@ public class ExpiryNotificationJob : IHostedService
     private readonly IServiceScopeFactory scopeFactory;
     private readonly ILogger<ExpiryNotificationJob> logger;
     private readonly string notifyTimeUtc;
-    private Timer? timer;
-    private CancellationTokenSource? timerCts;
+    private Task? task;
+    private CancellationTokenSource? cts;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ExpiryNotificationJob"/> class.
@@ -46,47 +46,45 @@ public class ExpiryNotificationJob : IHostedService
     public Task StartAsync(CancellationToken cancellationToken)
     {
         this.logger.LogInformation("ExpiryNotificationJob starting, notify time: {NotifyTimeUtc}", this.notifyTimeUtc);
-
-        var (hour, minute) = this.ParseNotifyTime();
-        var now = DateTime.UtcNow;
-        var nextFireTime = new DateTime(now.Year, now.Month, now.Day, hour, minute, 0, DateTimeKind.Utc);
-
-        if (nextFireTime <= now)
-        {
-            nextFireTime = nextFireTime.AddDays(1);
-        }
-
-        var initialDelay = nextFireTime - now;
-        this.logger.LogInformation("ExpiryNotificationJob next fire in {DelaySeconds} seconds at {NextFireTime} UTC", initialDelay.TotalSeconds, nextFireTime);
-
-        this.timerCts = new CancellationTokenSource();
-        this.timer = new Timer(
-            this.TimerCallback,
-            null,
-            initialDelay,
-            TimeSpan.FromHours(24));
-
+        this.cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        this.task = this.RunAsync(this.cts.Token);
         return Task.CompletedTask;
     }
 
     /// <inheritdoc/>
-    public Task StopAsync(CancellationToken cancellationToken)
+    public async Task StopAsync(CancellationToken cancellationToken)
     {
-        this.timer?.Dispose();
-        this.timerCts?.Cancel();
-        this.timerCts?.Dispose();
-        return Task.CompletedTask;
+        this.cts?.Cancel();
+        await (this.task ?? Task.CompletedTask);
     }
 
-    private void TimerCallback(object? state)
+    private async Task RunAsync(CancellationToken ct)
     {
         try
         {
-            _ = this.ExecuteNotificationAsync(this.timerCts?.Token ?? CancellationToken.None);
+            var (hour, minute) = this.ParseNotifyTime();
+            var now = DateTime.UtcNow;
+            var nextFireTime = new DateTime(now.Year, now.Month, now.Day, hour, minute, 0, DateTimeKind.Utc);
+            if (nextFireTime <= now)
+            {
+                nextFireTime = nextFireTime.AddDays(1);
+            }
+
+            var initialDelay = nextFireTime - now;
+            this.logger.LogInformation("ExpiryNotificationJob next fire in {DelaySeconds} seconds at {NextFireTime} UTC", initialDelay.TotalSeconds, nextFireTime);
+
+            await Task.Delay(initialDelay, ct);
+
+            using var timer = new PeriodicTimer(TimeSpan.FromHours(24));
+            while (true)
+            {
+                await this.ExecuteNotificationAsync(ct);
+                await timer.WaitForNextTickAsync(ct);
+            }
         }
-        catch (Exception ex)
+        catch (OperationCanceledException)
         {
-            this.logger.LogError(ex, "ExpiryNotificationJob execution failed");
+            this.logger.LogInformation("ExpiryNotificationJob stopped.");
         }
     }
 
