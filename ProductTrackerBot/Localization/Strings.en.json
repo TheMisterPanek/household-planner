@@ -117,6 +117,11 @@
   "week.month.9": "Sep",
   "week.month.10": "Oct",
   "week.month.11": "Nov",
-  "week.month.12": "Dec"
+  "week.month.12": "Dec",
+  "bought.what-did-you-buy": "What did you buy? (e.g. milk 1L)",
+  "bought.expiry-prompt": "📅 Expiry date for {item}? Enter days (e.g. 14) or a variant (e.g. 1 week, 2 months) or click Skip.",
+  "bought.skip-expiry": "Skip",
+  "bought.done": "✓ {item} registered",
+  "bought.done-with-expiry": "✓ {item} registered, expires {expiry}"
 }
 

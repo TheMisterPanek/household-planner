@@ -140,7 +140,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
     private async Task HandleStep3Async(Message message, PriceCaptureDialogState state, CancellationToken cancellationToken)
     {
         var input = message.Text!.Trim();
-        var expDate = this.ParseExpiryInput(input);
+        var expDate = ExpiryInputParser.Parse(input);
 
         if (expDate is null)
         {
@@ -222,31 +222,4 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
             cancellationToken: cancellationToken);
     }
 
-    private DateOnly? ParseExpiryInput(string input)
-    {
-        var normalized = input.Trim().ToLowerInvariant();
-
-        if (int.TryParse(normalized, out var days) && days > 0 && days <= 365)
-        {
-            return DateOnly.FromDateTime(DateTime.Now).AddDays(days);
-        }
-
-        var parts = normalized.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length >= 2)
-        {
-            if (int.TryParse(parts[0], out var count) && count > 0)
-            {
-                var unit = parts[1];
-                return unit switch
-                {
-                    "день" or "дня" or "дней" or "day" or "days" => DateOnly.FromDateTime(DateTime.Now).AddDays(count),
-                    "неделя" or "недели" or "недель" or "week" or "weeks" => DateOnly.FromDateTime(DateTime.Now).AddDays(count * 7),
-                    "месяц" or "месяца" or "месяцев" or "month" or "months" => DateOnly.FromDateTime(DateTime.Now).AddMonths(count),
-                    _ => null,
-                };
-            }
-        }
-
-        return null;
-    }
 }

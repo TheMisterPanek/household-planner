@@ -117,5 +117,10 @@
   "week.month.9": "сен",
   "week.month.10": "окт",
   "week.month.11": "ноя",
-  "week.month.12": "дек"
+  "week.month.12": "дек",
+  "bought.what-did-you-buy": "Что вы купили? (например: молоко 1л)",
+  "bought.expiry-prompt": "📅 Срок годности для {item}? Введите дни (например: 14) или вариант (1 неделя, 2 месяца) или нажмите Пропустить.",
+  "bought.skip-expiry": "Пропустить",
+  "bought.done": "✓ {item} зарегистрировано",
+  "bought.done-with-expiry": "✓ {item} зарегистрировано, срок до {expiry}"
 }

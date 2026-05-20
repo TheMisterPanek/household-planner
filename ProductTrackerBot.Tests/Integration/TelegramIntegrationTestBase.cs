@@ -53,6 +53,8 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
     protected Mock<IAiQueryService> AiQueryServiceMock { get; }
 
+    protected PendingDialogService<BoughtDialogState> BoughtDialogService { get; private set; } = null!;
+
     protected AiSuggestionService AiSuggestionService { get; private set; } = null!;
 
     protected LoginCodeStore LoginCodeStore { get; private set; } = null!;
@@ -112,6 +114,8 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var mealCreateDialogService = new PendingDialogService<MealCreateDialogState>();
         var mealIngredientDialogService = new PendingDialogService<MealAddIngredientDialogState>();
         var mealStepDialogService = new PendingDialogService<MealAddStepDialogState>();
+        var boughtDialogService = new PendingDialogService<BoughtDialogState>();
+        this.BoughtDialogService = boughtDialogService;
 
         var pendingAddService = new PendingAddService();
         var pendingEditService = new PendingEditService();
@@ -163,10 +167,14 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             this.BotMock.Object, this.GroupRepository, this.DayMealsRepository,
             localizer.Object, Mock.Of<ILogger<WeekCommandHandler>>());
 
+        var boughtHandler = new BoughtCommandHandler(
+            this.BotMock.Object, this.GroupRepository, boughtDialogService, localizer.Object);
+
         var nonStartHandlers = new List<ICommandHandler>
         {
             buyHandler, listHandler, historyHandler, searchHandler, pricesHandler,
             settingsHandler, languageHandler, undoCommandHandler, mealsHandler, aiHandler, loginHandler, weekHandler,
+            boughtHandler,
         };
 
         var scopeFactory = BuildScopeFactory(nonStartHandlers);
@@ -261,6 +269,10 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             this.BotMock.Object, aiSuggestionService, this.GroupRepository, this.ItemRepository,
             this.HistoryRepository, localizer.Object, Mock.Of<ILogger<AiAddAllCallbackHandler>>());
 
+        var boughtSkipExpiryCallbackHandler = new BoughtSkipExpiryCallbackHandler(
+            this.BotMock.Object, boughtDialogService, this.PurchaseRepository, this.HistoryRepository,
+            localizer.Object, Mock.Of<ILogger<BoughtSkipExpiryCallbackHandler>>());
+
         var callbackHandlers = new List<ICallbackHandler>
         {
             shopDoneHandler, shopRemoveHandler, actionCancelHandler, langCallbackHandler,
@@ -268,7 +280,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             buyEditHandler, buyCancelHandler, itemEditCallbackHandler, itemSaveHandler,
             itemCancelEditHandler, listNextHandler, listPrevHandler, undoInlineHandler,
             priceSkipHandler, priceShopHandler, mealCallbackHandler, aiAddItemHandler,
-            aiAddAllHandler, weekCallbackHandler,
+            aiAddAllHandler, weekCallbackHandler, boughtSkipExpiryCallbackHandler,
         };
 
         // Dialog handlers
@@ -288,9 +300,13 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var itemEditStepHandler = new ItemEditStepHandler(
             this.BotMock.Object, editItemDialogService, pendingEditService, localizer.Object);
 
+        var boughtStepHandler = new BoughtStepHandler(
+            this.BotMock.Object, boughtDialogService, this.PurchaseRepository, this.HistoryRepository,
+            localizer.Object, Mock.Of<ILogger<BoughtStepHandler>>());
+
         var dialogHandlers = new List<IDialogMessageHandler>
         {
-            buyStepHandler, priceCaptureHandler, mealDialogHandler, itemEditStepHandler,
+            buyStepHandler, priceCaptureHandler, mealDialogHandler, itemEditStepHandler, boughtStepHandler,
         };
 
         var dispatcherSp = new Mock<IServiceProvider>();

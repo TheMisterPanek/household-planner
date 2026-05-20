@@ -20,6 +20,7 @@ public class ExpiryNotificationJob : IHostedService
     private readonly IServiceScopeFactory scopeFactory;
     private readonly ILogger<ExpiryNotificationJob> logger;
     private readonly string notifyTimeUtc;
+    private readonly int? notifyIntervalMinutes;
     private Task? task;
     private CancellationTokenSource? cts;
 
@@ -30,16 +31,19 @@ public class ExpiryNotificationJob : IHostedService
     /// <param name="scopeFactory">The scope factory for creating short-lived scopes.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="notifyTimeUtc">The UTC time to fire the job (default "09:00").</param>
+    /// <param name="notifyIntervalMinutes">If set, overrides the daily schedule with a repeating interval (dev use).</param>
     public ExpiryNotificationJob(
         ITelegramBotClient botClient,
         IServiceScopeFactory scopeFactory,
         ILogger<ExpiryNotificationJob> logger,
-        string notifyTimeUtc = "09:00")
+        string notifyTimeUtc = "09:00",
+        int? notifyIntervalMinutes = null)
     {
         this.botClient = botClient;
         this.scopeFactory = scopeFactory;
         this.logger = logger;
         this.notifyTimeUtc = notifyTimeUtc;
+        this.notifyIntervalMinutes = notifyIntervalMinutes;
     }
 
     /// <inheritdoc/>
@@ -62,24 +66,38 @@ public class ExpiryNotificationJob : IHostedService
     {
         try
         {
-            var (hour, minute) = this.ParseNotifyTime();
-            var now = DateTime.UtcNow;
-            var nextFireTime = new DateTime(now.Year, now.Month, now.Day, hour, minute, 0, DateTimeKind.Utc);
-            if (nextFireTime <= now)
+            if (this.notifyIntervalMinutes.HasValue)
             {
-                nextFireTime = nextFireTime.AddDays(1);
+                var interval = TimeSpan.FromMinutes(this.notifyIntervalMinutes.Value);
+                this.logger.LogInformation("ExpiryNotificationJob running in interval mode: every {Minutes} minutes", this.notifyIntervalMinutes.Value);
+                using var timer = new PeriodicTimer(interval);
+                while (true)
+                {
+                    await this.ExecuteNotificationAsync(ct);
+                    await timer.WaitForNextTickAsync(ct);
+                }
             }
-
-            var initialDelay = nextFireTime - now;
-            this.logger.LogInformation("ExpiryNotificationJob next fire in {DelaySeconds} seconds at {NextFireTime} UTC", initialDelay.TotalSeconds, nextFireTime);
-
-            await Task.Delay(initialDelay, ct);
-
-            using var timer = new PeriodicTimer(TimeSpan.FromHours(24));
-            while (true)
+            else
             {
-                await this.ExecuteNotificationAsync(ct);
-                await timer.WaitForNextTickAsync(ct);
+                var (hour, minute) = this.ParseNotifyTime();
+                var now = DateTime.UtcNow;
+                var nextFireTime = new DateTime(now.Year, now.Month, now.Day, hour, minute, 0, DateTimeKind.Utc);
+                if (nextFireTime <= now)
+                {
+                    nextFireTime = nextFireTime.AddDays(1);
+                }
+
+                var initialDelay = nextFireTime - now;
+                this.logger.LogInformation("ExpiryNotificationJob next fire in {DelaySeconds} seconds at {NextFireTime} UTC", initialDelay.TotalSeconds, nextFireTime);
+
+                await Task.Delay(initialDelay, ct);
+
+                using var timer = new PeriodicTimer(TimeSpan.FromHours(24));
+                while (true)
+                {
+                    await this.ExecuteNotificationAsync(ct);
+                    await timer.WaitForNextTickAsync(ct);
+                }
             }
         }
         catch (OperationCanceledException)

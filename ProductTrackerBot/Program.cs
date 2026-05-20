@@ -133,6 +133,7 @@ builder.Services.AddSingleton<PendingDialogService<PriceCaptureDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<MealCreateDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<MealAddIngredientDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<MealAddStepDialogState>>();
+builder.Services.AddSingleton<PendingDialogService<BoughtDialogState>>();
 
 // Register repositories
 builder.Services.AddScoped<GroupRepository>();
@@ -157,11 +158,13 @@ builder.Services.AddSingleton<ILocalizer, Localizer>();
 
 // Register hosted services for background jobs
 var notifyTimeUtc = Environment.GetEnvironmentVariable("NOTIFY_TIME_UTC") ?? "09:00";
+var notifyIntervalMinutes = int.TryParse(Environment.GetEnvironmentVariable("NOTIFY_INTERVAL_MINUTES"), out var nim) ? nim : (int?)null;
 builder.Services.AddSingleton(sp => new ExpiryNotificationJob(
     sp.GetRequiredService<ITelegramBotClient>(),
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<ILogger<ExpiryNotificationJob>>(),
-    notifyTimeUtc));
+    notifyTimeUtc,
+    notifyIntervalMinutes));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ExpiryNotificationJob>());
 
 builder.Services.AddScoped<ICommandHandler, AiCommandHandler>();
@@ -179,12 +182,14 @@ builder.Services.AddScoped<ICommandHandler, SettingsCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, StartCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, UndoCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, WeekCommandHandler>();
+builder.Services.AddScoped<ICommandHandler, BoughtCommandHandler>();
 
 // Register dialog message handlers
 builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler, PriceCaptureStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler, MealDialogStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler, ItemEditStepHandler>();
+builder.Services.AddScoped<IDialogMessageHandler, BoughtStepHandler>();
 
 // Register callback handlers
 builder.Services.AddScoped<ICallbackHandler, BuySkipCallbackHandler>();
@@ -207,6 +212,7 @@ builder.Services.AddScoped<ICallbackHandler, UndoInlineCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, AiAddItemCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, AiAddAllCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, WeekCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, BoughtSkipExpiryCallbackHandler>();
 
 var host = builder.Build();
 await host.RunAsync();

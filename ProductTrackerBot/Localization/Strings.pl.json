@@ -117,5 +117,10 @@
   "week.month.9": "wrz",
   "week.month.10": "paź",
   "week.month.11": "lis",
-  "week.month.12": "gru"
+  "week.month.12": "gru",
+  "bought.what-did-you-buy": "Co kupiłeś? (np. mleko 1L)",
+  "bought.expiry-prompt": "📅 Data ważności dla {item}? Podaj dni (np. 14) lub wariant (1 tydzień, 2 miesiące) lub kliknij Pomiń.",
+  "bought.skip-expiry": "Pomiń",
+  "bought.done": "✓ {item} zarejestrowano",
+  "bought.done-with-expiry": "✓ {item} zarejestrowano, wygasa {expiry}"
 }
