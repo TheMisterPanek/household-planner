@@ -16,7 +16,7 @@ public class LoginCommandHandler : ICommandHandler
 {
     private readonly ITelegramBotClient botClient;
     private readonly ILocalizer localizer;
-    private readonly LoginCodeStore loginCodeStore;
+    private readonly ILoginCodeStore loginCodeStore;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LoginCommandHandler"/> class.
@@ -24,7 +24,7 @@ public class LoginCommandHandler : ICommandHandler
     public LoginCommandHandler(
         ITelegramBotClient botClient,
         ILocalizer localizer,
-        LoginCodeStore loginCodeStore)
+        ILoginCodeStore loginCodeStore)
     {
         this.botClient = botClient;
         this.localizer = localizer;

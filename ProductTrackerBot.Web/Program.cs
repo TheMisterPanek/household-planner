@@ -86,7 +86,7 @@ builder.Services.AddSingleton<IUpdateHandler, UpdateDispatcher>();
 
 // ── Shared singletons ─────────────────────────────────────────────────────────
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton(sp => new LoginCodeStore(connectionString, sp.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton<ILoginCodeStore>(sp => new LoginCodeStore(connectionString, sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton<PendingAddService>();
 builder.Services.AddSingleton<PendingEditService>();
 builder.Services.AddSingleton<ConversationHistoryService>();
@@ -202,12 +202,12 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
-app.MapGet("/api/auth/status", (string token, LoginCodeStore store) =>
+app.MapGet("/api/auth/status", (string token, ILoginCodeStore store) =>
     store.TryGetSession(token, out var chatId)
         ? Results.Ok(new { valid = true, chatId })
         : Results.Ok(new { valid = false, chatId = 0L }));
 
-app.MapGet("/api/auth/complete", async (HttpContext ctx, string token, LoginCodeStore store) =>
+app.MapGet("/api/auth/complete", async (HttpContext ctx, string token, ILoginCodeStore store) =>
 {
     if (!store.TryGetSession(token, out var chatId))
         return Results.Redirect("/login");
@@ -216,10 +216,13 @@ app.MapGet("/api/auth/complete", async (HttpContext ctx, string token, LoginCode
     var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
     var principal = new ClaimsPrincipal(identity);
     await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
-    return Results.Redirect("/");
+    return Results.Redirect("/list");
 });
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 await app.RunAsync();
+
+// Make Program accessible to the E2E test project
+public partial class Program { }

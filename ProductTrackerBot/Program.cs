@@ -119,7 +119,7 @@ builder.Services.AddHostedService<BotHostedService>();
 
 // Register pending session services
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton(sp => new LoginCodeStore(connectionString, sp.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton<ILoginCodeStore>(sp => new LoginCodeStore(connectionString, sp.GetRequiredService<TimeProvider>()));
 
 builder.Services.AddSingleton<PendingAddService>();
 builder.Services.AddSingleton<PendingEditService>();

@@ -1,6 +1,6 @@
 @page "/login"
 @using ProductTrackerBot.Services
-@inject LoginCodeStore CodeStore
+@inject ILoginCodeStore CodeStore
 @inject NavigationManager Nav
 @inject IConfiguration Config
 @rendermode InteractiveServer
@@ -49,8 +49,8 @@
         var ct = cts_.Token;
 
         code_ = CodeStore.GenerateCode(out token_);
-        countdown_ = 300;
-        expired_ = false;
+        countdown_ = CodeStore.GetRemainingSeconds(code_);
+        expired_ = countdown_ <= 0;
 
         _ = CountdownLoopAsync(ct);
         _ = PollLoopAsync(ct);

@@ -11,7 +11,7 @@ using Microsoft.Data.Sqlite;
 /// SQLite-backed store for login codes and session tokens, shared across all processes
 /// that connect to the same database file.
 /// </summary>
-public sealed class LoginCodeStore
+public sealed class LoginCodeStore : ILoginCodeStore
 {
     private readonly string connectionString;
     private readonly TimeProvider time;
@@ -52,6 +52,20 @@ public sealed class LoginCodeStore
         cmd.ExecuteNonQuery();
 
         return code;
+    }
+
+    /// <inheritdoc/>
+    public int GetRemainingSeconds(string code)
+    {
+        using var conn = this.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT ExpiresUtc FROM LoginCodes WHERE Code = @code";
+        cmd.Parameters.AddWithValue("@code", code);
+        using var reader = cmd.ExecuteReader();
+        if (!reader.Read())
+            return 0;
+        var remaining = reader.GetInt64(0) - ToUnixSeconds(this.time.GetUtcNow().UtcDateTime);
+        return (int)Math.Max(0, remaining);
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-.PHONY: run build test up down logs restart deploy up-dev down-dev logs-dev restart-dev
+.PHONY: run build test test-e2e up down logs restart deploy up-dev down-dev logs-dev restart-dev
 
 COMPOSE      := docker compose
 COMPOSE_DEV  := docker compose -f docker-compose.dev.yml
@@ -10,7 +10,10 @@ build:
 	dotnet build
 
 test:
-	dotnet test
+	dotnet test ProductTrackerBot.Tests
+
+test-e2e:
+	dotnet test ProductTrackerBot.Web.Tests.E2E
 
 # --- Production ---
 up:
