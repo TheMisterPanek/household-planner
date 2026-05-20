@@ -109,6 +109,7 @@ builder.Services.AddScoped<PriceLogRepository>();
 builder.Services.AddScoped<MealRepository>();
 builder.Services.AddScoped<MealIngredientRepository>();
 builder.Services.AddScoped<MealStepRepository>();
+builder.Services.AddScoped<DayMealsRepository>();
 builder.Services.AddSingleton<IPreferenceRepository, PreferenceRepository>();
 
 // ── Services ──────────────────────────────────────────────────────────────────

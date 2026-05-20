@@ -137,6 +137,83 @@ public class PurchaseHistoryRepository
     }
 
     /// <summary>
+    /// Retrieves a paginated, filtered page of purchase records for a group.
+    /// </summary>
+    /// <param name="groupId">The group ID.</param>
+    /// <param name="page">1-based page number.</param>
+    /// <param name="pageSize">Records per page.</param>
+    /// <param name="nameFilter">Substring filter on ItemName (empty = all).</param>
+    /// <param name="dateFrom">Inclusive lower date bound (null = no lower bound).</param>
+    /// <param name="dateTo">Inclusive upper date bound (null = no upper bound).</param>
+    /// <returns>Matching records for the requested page and total matching count.</returns>
+    public virtual async Task<(List<PurchaseRecord> Items, int TotalCount)> GetPageAsync(
+        int groupId,
+        int page,
+        int pageSize,
+        string nameFilter,
+        DateOnly? dateFrom,
+        DateOnly? dateTo)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        var filter = string.IsNullOrEmpty(nameFilter) ? string.Empty : nameFilter;
+        var fromStr = dateFrom?.ToString("yyyy-MM-dd");
+        var toStr = dateTo?.ToString("yyyy-MM-dd");
+        var offset = (page - 1) * pageSize;
+
+        await using var countCmd = connection.CreateCommand();
+        countCmd.CommandText = @"
+            SELECT COUNT(*) FROM PurchaseHistory
+            WHERE GroupId = @groupId
+              AND (@nameFilter = '' OR LOWER(ItemName) LIKE '%' || LOWER(@nameFilter) || '%')
+              AND (@dateFrom IS NULL OR PurchasedAt >= @dateFrom)
+              AND (@dateTo IS NULL OR PurchasedAt <= @dateTo || 'T23:59:59')";
+        countCmd.Parameters.AddWithValue("@groupId", groupId);
+        countCmd.Parameters.AddWithValue("@nameFilter", filter);
+        countCmd.Parameters.AddWithValue("@dateFrom", (object?)fromStr ?? DBNull.Value);
+        countCmd.Parameters.AddWithValue("@dateTo", (object?)toStr ?? DBNull.Value);
+        var totalCount = (int)(long)(await countCmd.ExecuteScalarAsync())!;
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT Id, GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName
+            FROM PurchaseHistory
+            WHERE GroupId = @groupId
+              AND (@nameFilter = '' OR LOWER(ItemName) LIKE '%' || LOWER(@nameFilter) || '%')
+              AND (@dateFrom IS NULL OR PurchasedAt >= @dateFrom)
+              AND (@dateTo IS NULL OR PurchasedAt <= @dateTo || 'T23:59:59')
+            ORDER BY PurchasedAt DESC
+            LIMIT @pageSize OFFSET @offset";
+        cmd.Parameters.AddWithValue("@groupId", groupId);
+        cmd.Parameters.AddWithValue("@nameFilter", filter);
+        cmd.Parameters.AddWithValue("@dateFrom", (object?)fromStr ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@dateTo", (object?)toStr ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@pageSize", pageSize);
+        cmd.Parameters.AddWithValue("@offset", offset);
+
+        var records = new List<PurchaseRecord>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            records.Add(new PurchaseRecord
+            {
+                Id = reader.GetInt32(0),
+                GroupId = reader.GetInt32(1),
+                UserId = reader.GetInt64(2),
+                ItemName = reader.GetString(3),
+                Quantity = reader.IsDBNull(4) ? null : reader.GetString(4),
+                StoreName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                Price = reader.IsDBNull(6) ? null : reader.GetDecimal(6),
+                PurchasedAt = DateTime.Parse(reader.GetString(7), null, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal),
+                BoughtByName = reader.GetString(8),
+            });
+        }
+
+        return (records, totalCount);
+    }
+
+    /// <summary>
     /// Retrieves all bought items with non-null expiry dates for a group.
     /// </summary>
     /// <param name="groupId">The group ID to filter by.</param>

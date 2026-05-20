@@ -1,0 +1,157 @@
+@page "/prices"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using ProductTrackerBot.Models
+@using ProductTrackerBot.Repositories
+@inherits AuthenticatedPageBase
+
+@inject GroupRepository Groups
+@inject PriceLogRepository PriceLog
+
+<PageTitle>Price Log — Household Planner</PageTitle>
+
+<h1 class="text-2xl font-bold text-gray-900 mb-6">Price Log</h1>
+
+@if (_error is not null)
+{
+    <div class="text-red-600 text-sm mt-2">@_error</div>
+}
+
+@if (_loading)
+{
+    <p class="text-gray-400 text-sm">Loading…</p>
+}
+else if (_grouped.Count == 0)
+{
+    <p class="text-gray-400 text-sm">No price records yet.</p>
+}
+else
+{
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        @foreach (var (itemName, entries) in _grouped)
+        {
+            var sorted = entries.OrderBy(e => e.LoggedAt).ToList();
+            var lastPrice = sorted.Last().Price;
+            var trend = GetTrend(sorted);
+            var isExpanded = _expandedItem == itemName;
+
+            <div @onclick="() => ToggleExpand(itemName)"
+                 class="border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow @(isExpanded ? "border-indigo-400 shadow-md" : "border-gray-200")">
+                <div class="font-medium text-gray-800 truncate mb-1">@itemName</div>
+                <div class="text-sm text-gray-500 mb-2">Last: @lastPrice.ToString("0.00")</div>
+                <div class="flex items-center gap-2">
+                    <span class="text-lg @TrendClass(trend)">@TrendArrow(trend)</span>
+                    <svg width="60" height="24" class="flex-shrink-0">
+                        @if (sorted.Count == 1)
+                        {
+                            <circle cx="30" cy="12" r="3" fill="indigo" />
+                        }
+                        else
+                        {
+                            var points = BuildSparklinePoints(sorted);
+                            <polyline points="@points" stroke="#6366f1" fill="none" stroke-width="1.5" />
+                        }
+                    </svg>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (_expandedItem is not null && _grouped.TryGetValue(_expandedItem, out var expandedEntries))
+    {
+        var sorted = expandedEntries.OrderByDescending(e => e.LoggedAt).ToList();
+        <div class="mt-6 border rounded-lg p-4 bg-gray-50">
+            <h2 class="font-semibold text-gray-800 mb-3">@_expandedItem — price history</h2>
+            <ul class="text-sm space-y-1">
+                @foreach (var entry in sorted)
+                {
+                    <li class="flex gap-4 text-gray-600">
+                        <span class="w-28 text-gray-400">@entry.LoggedAt.ToLocalTime().ToString("MMM d, yyyy")</span>
+                        <span class="font-medium text-gray-800">@entry.Price.ToString("0.00")</span>
+                        <span>@(entry.StoreName ?? "—")</span>
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+}
+
+@code {
+    private Dictionary<string, List<PriceLogEntry>> _grouped = new();
+    private string? _expandedItem;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated) return;
+        _loading = true;
+        _error = null;
+        try
+        {
+            var group = await Groups.GetOrCreateAsync(Session.ChatId);
+            var entries = await PriceLog.GetAllAsync(group.Id);
+            _grouped = entries
+                .GroupBy(e => e.ItemName, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void ToggleExpand(string itemName)
+    {
+        _expandedItem = _expandedItem == itemName ? null : itemName;
+    }
+
+    private enum Trend { Up, Down, Flat }
+
+    private static Trend GetTrend(List<PriceLogEntry> sorted)
+    {
+        if (sorted.Count < 2) return Trend.Flat;
+        var last = sorted[sorted.Count - 1].Price;
+        var prev = sorted[sorted.Count - 2].Price;
+        return last > prev ? Trend.Up : last < prev ? Trend.Down : Trend.Flat;
+    }
+
+    private static string TrendArrow(Trend t) => t switch
+    {
+        Trend.Up => "↑",
+        Trend.Down => "↓",
+        _ => "→",
+    };
+
+    private static string TrendClass(Trend t) => t switch
+    {
+        Trend.Up => "text-red-500",
+        Trend.Down => "text-green-500",
+        _ => "text-gray-400",
+    };
+
+    private static string BuildSparklinePoints(List<PriceLogEntry> sorted)
+    {
+        if (sorted.Count == 0) return string.Empty;
+
+        var prices = sorted.Select(e => (double)e.Price).ToList();
+        var min = prices.Min();
+        var max = prices.Max();
+        var range = max - min;
+
+        var points = new System.Text.StringBuilder();
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            var x = sorted.Count == 1 ? 30.0 : i * (60.0 / (sorted.Count - 1));
+            var normalized = range > 0 ? (prices[i] - min) / range : 0.5;
+            var y = 24.0 - normalized * 24.0;
+            if (i > 0) points.Append(' ');
+            points.Append($"{x:0.#},{y:0.#}");
+        }
+
+        return points.ToString();
+    }
+}

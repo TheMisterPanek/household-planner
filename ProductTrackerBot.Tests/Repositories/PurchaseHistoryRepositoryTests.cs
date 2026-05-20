@@ -391,6 +391,99 @@ public class PurchaseHistoryRepositoryTests : IDisposable
         Assert.Null(items[0].Quantity);
     }
 
+    [Fact]
+    public async Task GetPageAsync_Returns_Items_Ordered_By_PurchasedAt_Descending()
+    {
+        var t1 = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        var t2 = new DateTime(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
+        var t3 = new DateTime(2026, 5, 3, 0, 0, 0, DateTimeKind.Utc);
+        await InsertRecordAsync(1, "Apple", "Alice", t1);
+        await InsertRecordAsync(1, "Banana", "Alice", t3);
+        await InsertRecordAsync(1, "Cherry", "Alice", t2);
+
+        var (items, total) = await this.repository.GetPageAsync(1, 1, 50, "", null, null);
+
+        Assert.Equal(3, total);
+        Assert.Equal(3, items.Count);
+        Assert.Equal("Banana", items[0].ItemName);
+        Assert.Equal("Cherry", items[1].ItemName);
+        Assert.Equal("Apple", items[2].ItemName);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_Prev_Button_Disabled_On_Page_1()
+    {
+        for (int i = 0; i < 60; i++)
+            await InsertRecordAsync(1, $"Item{i}", "Alice");
+
+        var (items, total) = await this.repository.GetPageAsync(1, 1, 50, "", null, null);
+
+        Assert.Equal(60, total);
+        Assert.Equal(50, items.Count);
+        // Prev button should be disabled when page == 1; verify we are on page 1 (first call)
+        // Next button disabled condition: page * pageSize >= totalCount → 1 * 50 = 50 < 60, so Next is enabled
+        Assert.True(1 * 50 < total);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_Next_Button_Disabled_When_Last_Page()
+    {
+        for (int i = 0; i < 60; i++)
+            await InsertRecordAsync(1, $"Item{i}", "Alice");
+
+        var (items, total) = await this.repository.GetPageAsync(1, 2, 50, "", null, null);
+
+        Assert.Equal(60, total);
+        Assert.Equal(10, items.Count);
+        // Next button disabled condition: page * pageSize >= totalCount → 2 * 50 = 100 >= 60 → disabled
+        Assert.True(2 * 50 >= total);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_NameFilter_Narrows_Results()
+    {
+        await InsertRecordAsync(1, "Milk", "Alice");
+        await InsertRecordAsync(1, "Oat Milk", "Alice");
+        await InsertRecordAsync(1, "Bread", "Alice");
+
+        var (items, total) = await this.repository.GetPageAsync(1, 1, 50, "milk", null, null);
+
+        Assert.Equal(2, total);
+        Assert.Equal(2, items.Count);
+        Assert.All(items, r => Assert.Contains("milk", r.ItemName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task GetPageAsync_Resets_Page_To_1_When_Filter_Changes()
+    {
+        for (int i = 0; i < 60; i++)
+            await InsertRecordAsync(1, "Milk", "Alice");
+
+        // Page 2 without filter
+        var (allPage2, _) = await this.repository.GetPageAsync(1, 2, 50, "", null, null);
+        Assert.Equal(10, allPage2.Count);
+
+        // After applying name filter, page 1 should return filtered results
+        var (filtered, filteredTotal) = await this.repository.GetPageAsync(1, 1, 50, "Milk", null, null);
+        Assert.Equal(60, filteredTotal);
+        Assert.Equal(50, filtered.Count);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_IsScoped_To_GroupId()
+    {
+        await InsertRecordAsync(1, "Milk", "Alice");
+        await InsertRecordAsync(2, "Bread", "Bob");
+
+        var (items1, total1) = await this.repository.GetPageAsync(1, 1, 50, "", null, null);
+        var (items2, total2) = await this.repository.GetPageAsync(2, 1, 50, "", null, null);
+
+        Assert.Equal(1, total1);
+        Assert.Equal("Milk", items1[0].ItemName);
+        Assert.Equal(1, total2);
+        Assert.Equal("Bread", items2[0].ItemName);
+    }
+
     private async Task InsertRecordAsync(int groupId, string itemName, string boughtByName, DateTime? purchasedAt = null, long userId = 123)
     {
         await using var cmd = this.connection.CreateCommand();

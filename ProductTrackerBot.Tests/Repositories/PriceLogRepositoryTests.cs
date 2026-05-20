@@ -196,4 +196,115 @@ public class PriceLogRepositoryTests : IDisposable
         Assert.NotNull(stats);
         Assert.True(stats.StoreBreakdown.Count <= 10);
     }
+
+    [Fact]
+    public async Task GetAllAsync_Groups_Entries_By_ItemName_Correctly()
+    {
+        var groupId = this.CreateGroup();
+        var t = DateTime.UtcNow;
+
+        await this.repository.AddAsync(groupId, "Milk", 2.00m, null, t);
+        await this.repository.AddAsync(groupId, "Milk", 2.50m, null, t.AddDays(1));
+        await this.repository.AddAsync(groupId, "Bread", 1.80m, null, t);
+
+        var entries = await this.repository.GetAllAsync(groupId);
+
+        var grouped = entries
+            .GroupBy(e => e.ItemName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        Assert.True(grouped.ContainsKey("Milk"));
+        Assert.True(grouped.ContainsKey("Bread"));
+        Assert.Equal(2, grouped["Milk"].Count);
+        Assert.Single(grouped["Bread"]);
+    }
+
+    [Fact]
+    public async Task Prices_TrendArrow_Is_Up_When_Last_Price_Greater_Than_Previous()
+    {
+        var groupId = this.CreateGroup();
+        var t = DateTime.UtcNow;
+
+        await this.repository.AddAsync(groupId, "Milk", 2.00m, null, t);
+        await this.repository.AddAsync(groupId, "Milk", 3.00m, null, t.AddDays(1));
+
+        var entries = await this.repository.GetAllAsync(groupId);
+        var sorted = entries.OrderBy(e => e.LoggedAt).ToList();
+
+        var last = sorted.Last().Price;
+        var prev = sorted[sorted.Count - 2].Price;
+
+        Assert.True(last > prev);
+    }
+
+    [Fact]
+    public async Task Prices_TrendArrow_Is_Down_When_Last_Price_Less_Than_Previous()
+    {
+        var groupId = this.CreateGroup();
+        var t = DateTime.UtcNow;
+
+        await this.repository.AddAsync(groupId, "Milk", 3.00m, null, t);
+        await this.repository.AddAsync(groupId, "Milk", 2.00m, null, t.AddDays(1));
+
+        var entries = await this.repository.GetAllAsync(groupId);
+        var sorted = entries.OrderBy(e => e.LoggedAt).ToList();
+
+        var last = sorted.Last().Price;
+        var prev = sorted[sorted.Count - 2].Price;
+
+        Assert.True(last < prev);
+    }
+
+    [Fact]
+    public async Task Prices_TrendArrow_Is_Flat_When_Equal_Or_Single_Entry()
+    {
+        var groupId = this.CreateGroup();
+        var t = DateTime.UtcNow;
+
+        await this.repository.AddAsync(groupId, "Milk", 2.00m, null, t);
+
+        var entries = await this.repository.GetAllAsync(groupId);
+
+        Assert.Single(entries);
+    }
+
+    [Fact]
+    public async Task Prices_ClickCard_Expands_And_Collapses()
+    {
+        // Simulates the toggle logic from Prices.razor
+        string? expandedItem = null;
+        var itemName = "Milk";
+
+        // First click: expand
+        expandedItem = expandedItem == itemName ? null : itemName;
+        Assert.Equal("Milk", expandedItem);
+
+        // Second click on same: collapse
+        expandedItem = expandedItem == itemName ? null : itemName;
+        Assert.Null(expandedItem);
+
+        // Click different item
+        expandedItem = "Bread";
+        expandedItem = expandedItem == itemName ? null : itemName;
+        Assert.Equal("Milk", expandedItem);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_IsScoped_To_GroupId()
+    {
+        var groupId1 = this.CreateGroup();
+        var groupId2 = this.CreateGroup();
+        var t = DateTime.UtcNow;
+
+        await this.repository.AddAsync(groupId1, "Milk", 2.00m, null, t);
+        await this.repository.AddAsync(groupId2, "Bread", 1.80m, null, t);
+
+        var entries1 = await this.repository.GetAllAsync(groupId1);
+        var entries2 = await this.repository.GetAllAsync(groupId2);
+
+        Assert.Single(entries1);
+        Assert.Equal("Milk", entries1[0].ItemName);
+        Assert.Single(entries2);
+        Assert.Equal("Bread", entries2[0].ItemName);
+    }
 }

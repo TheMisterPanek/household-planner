@@ -107,6 +107,25 @@ public class MealRepository
     }
 
     /// <summary>
+    /// Renames a meal.
+    /// </summary>
+    /// <param name="mealId">The meal ID.</param>
+    /// <param name="name">The new name.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public virtual async Task UpdateNameAsync(int mealId, string name)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "UPDATE Meals SET Name = @name WHERE Id = @mealId";
+        cmd.Parameters.AddWithValue("@name", name);
+        cmd.Parameters.AddWithValue("@mealId", mealId);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Deletes a meal (cascades to ingredients and steps).
     /// </summary>
     /// <param name="mealId">The meal ID.</param>

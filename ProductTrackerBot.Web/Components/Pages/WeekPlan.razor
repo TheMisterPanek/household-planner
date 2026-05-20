@@ -1,0 +1,125 @@
+@page "/week"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using ProductTrackerBot.Models
+@using ProductTrackerBot.Repositories
+@inherits AuthenticatedPageBase
+
+@inject GroupRepository Groups
+@inject MealRepository Meals
+@inject DayMealsRepository DayMeals
+
+<PageTitle>Weekly Meal Plan — Household Planner</PageTitle>
+
+<h1 class="text-2xl font-bold text-gray-900 mb-4">Weekly Meal Plan</h1>
+<p class="text-sm text-gray-400 mb-4">Week of @_weekLabel</p>
+
+@if (_error is not null)
+{
+    <div class="text-red-600 text-sm mb-4">@_error</div>
+}
+
+@if (_loading)
+{
+    <p class="text-gray-400 text-sm">Loading…</p>
+}
+else
+{
+    <table class="w-full text-sm border-collapse max-w-sm">
+        <thead>
+            <tr class="text-left text-gray-500 border-b">
+                <th class="py-2 pr-4 w-16">Day</th>
+                <th class="py-2">Meal</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (var i = 0; i < 7; i++)
+            {
+                var dayIndex = i;
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="py-2 pr-4 font-medium text-gray-700">@_dayNames[dayIndex]</td>
+                    <td class="py-2">
+                        <select value="@(_assignments[dayIndex]?.ToString() ?? "0")"
+                                @onchange="e => SetDayMealAsync(dayIndex, e)"
+                                class="border rounded px-2 py-1 text-sm w-48">
+                            <option value="0">— Not set —</option>
+                            @foreach (var meal in _availableMeals)
+                            {
+                                <option value="@meal.Id">@meal.Name</option>
+                            }
+                        </select>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private static readonly string[] _dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+    private int?[] _assignments = new int?[7];
+    private List<Meal> _availableMeals = [];
+    private bool _loading = true;
+    private string? _error;
+    private int _groupId;
+    private string _weekStart = "";
+    private string _weekLabel = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated) return;
+        var group = await Groups.GetOrCreateAsync(Session.ChatId);
+        _groupId = group.Id;
+        _weekStart = GetThisWeekMonday();
+        _weekLabel = _weekStart;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _availableMeals = await Meals.GetAllAsync(_groupId);
+            var entries = await DayMeals.GetWeekAsync(_groupId, _weekStart);
+            _assignments = new int?[7];
+            foreach (var entry in entries)
+            {
+                var idx = entry.DayOfWeek - 1; // 1=Mon → 0, 7=Sun → 6
+                if (idx >= 0 && idx < 7)
+                    _assignments[idx] = entry.MealId;
+            }
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task SetDayMealAsync(int dayIndex, ChangeEventArgs e)
+    {
+        var rawValue = e.Value?.ToString() ?? "0";
+        var dayOfWeek = dayIndex + 1; // 0=Mon → 1, 6=Sun → 7
+        try
+        {
+            await DayMeals.ClearAsync(_groupId, dayOfWeek, _weekStart);
+            if (rawValue != "0" && int.TryParse(rawValue, out var mealId))
+            {
+                await DayMeals.InsertAsync(_groupId, dayOfWeek, mealId, _weekStart);
+                _assignments[dayIndex] = mealId;
+            }
+            else
+            {
+                _assignments[dayIndex] = null;
+            }
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private static string GetThisWeekMonday()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var dayOfWeek = (int)today.DayOfWeek; // 0=Sun, 1=Mon, ..., 6=Sat
+        var daysToSubtract = dayOfWeek == 0 ? 6 : dayOfWeek - 1;
+        return today.AddDays(-daysToSubtract).ToString("yyyy-MM-dd");
+    }
+}

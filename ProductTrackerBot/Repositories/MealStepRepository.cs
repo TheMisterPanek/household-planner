@@ -90,6 +90,44 @@ public class MealStepRepository
     }
 
     /// <summary>
+    /// Updates the text of a step.
+    /// </summary>
+    /// <param name="stepId">The step ID.</param>
+    /// <param name="text">The new text.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public virtual async Task UpdateAsync(int stepId, string text)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "UPDATE MealSteps SET Text = @text WHERE Id = @stepId";
+        cmd.Parameters.AddWithValue("@text", text);
+        cmd.Parameters.AddWithValue("@stepId", stepId);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Updates the step number (display order) of a step.
+    /// </summary>
+    /// <param name="stepId">The step ID.</param>
+    /// <param name="stepNumber">The new step number.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public virtual async Task UpdateStepNumberAsync(int stepId, int stepNumber)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "UPDATE MealSteps SET StepNumber = @stepNumber WHERE Id = @stepId";
+        cmd.Parameters.AddWithValue("@stepNumber", stepNumber);
+        cmd.Parameters.AddWithValue("@stepId", stepId);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Deletes a step.
     /// </summary>
     /// <param name="stepId">The step ID.</param>

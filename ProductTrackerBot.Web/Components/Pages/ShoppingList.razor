@@ -1,0 +1,265 @@
+@page "/list"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using ProductTrackerBot.Models
+@using ProductTrackerBot.Repositories
+@inherits AuthenticatedPageBase
+
+@inject GroupRepository Groups
+@inject ShoppingItemRepository Items
+
+<PageTitle>Shopping List — Household Planner</PageTitle>
+
+<div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-bold text-gray-900">Shopping List</h1>
+    <button @onclick="() => _showAddForm = !_showAddForm"
+            class="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">
+        + Add item
+    </button>
+</div>
+
+@if (_showAddForm)
+{
+    <form @onsubmit="AddItemAsync" @onsubmit:preventDefault
+          class="mb-4 p-4 bg-gray-50 rounded border flex gap-3 flex-wrap items-end">
+        <div class="flex flex-col gap-1">
+            <label class="text-xs text-gray-500">Name *</label>
+            <input @bind="_newName" placeholder="Milk" required
+                   class="border rounded px-2 py-1 min-w-36" />
+        </div>
+        <div class="flex flex-col gap-1">
+            <label class="text-xs text-gray-500">Qty</label>
+            <input @bind="_newQty" placeholder="2L"
+                   class="border rounded px-2 py-1 w-24" />
+        </div>
+        <div class="flex flex-col gap-1">
+            <label class="text-xs text-gray-500">Expiry</label>
+            <input type="date" @bind="_newExpiry"
+                   class="border rounded px-2 py-1" />
+        </div>
+        <button type="submit"
+                class="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">
+            Save
+        </button>
+        <button type="button" @onclick="() => _showAddForm = false"
+                class="px-3 py-1.5 bg-gray-200 rounded text-sm hover:bg-gray-300">
+            Cancel
+        </button>
+    </form>
+}
+
+@if (_error is not null)
+{
+    <div class="text-red-600 text-sm mt-2">@_error</div>
+}
+
+@if (_loading)
+{
+    <p class="text-gray-400 text-sm mt-4">Loading…</p>
+}
+else
+{
+    <table class="w-full text-sm border-collapse">
+        <thead>
+            <tr class="text-left text-gray-500 border-b">
+                <th class="py-2 pr-3 w-8"></th>
+                <th class="py-2 pr-3">Name</th>
+                <th class="py-2 pr-3 w-24">Qty</th>
+                <th class="py-2 pr-3 w-28">Expiry</th>
+                <th class="py-2 w-24">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in _items)
+            {
+                @if (_editingId == item.Id)
+                {
+                    <tr class="border-b bg-indigo-50">
+                        <td class="py-1.5 pr-3"></td>
+                        <td class="py-1.5 pr-3">
+                            <input @bind="_editName" class="border rounded px-1 py-0.5 w-full text-sm" />
+                        </td>
+                        <td class="py-1.5 pr-3">
+                            <input @bind="_editQty" class="border rounded px-1 py-0.5 w-20 text-sm" />
+                        </td>
+                        <td class="py-1.5 pr-3">
+                            <input type="date" @bind="_editExpiry" class="border rounded px-1 py-0.5 text-sm" />
+                        </td>
+                        <td class="py-1.5">
+                            <button @onclick="SaveEditAsync"
+                                    class="text-green-600 mr-2 text-xs font-medium hover:text-green-800">
+                                Save
+                            </button>
+                            <button @onclick="CancelEdit"
+                                    class="text-gray-400 text-xs hover:text-gray-600">
+                                Cancel
+                            </button>
+                        </td>
+                    </tr>
+                }
+                else if (_confirmDeleteId == item.Id)
+                {
+                    <tr class="border-b bg-red-50">
+                        <td colspan="4" class="py-1.5 pr-3 text-sm text-red-700">
+                            Delete "@item.Name"?
+                        </td>
+                        <td class="py-1.5">
+                            <button @onclick="() => DeleteItemAsync(item.Id)"
+                                    class="text-red-600 text-xs font-medium mr-2 hover:text-red-800">
+                                Yes
+                            </button>
+                            <button @onclick="() => _confirmDeleteId = null"
+                                    class="text-gray-400 text-xs hover:text-gray-600">
+                                No
+                            </button>
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="py-1.5 pr-3">
+                            <input type="checkbox" @onchange="() => MarkDoneAsync(item.Id)"
+                                   class="cursor-pointer" />
+                        </td>
+                        <td class="py-1.5 pr-3">@item.Name</td>
+                        <td class="py-1.5 pr-3 text-gray-500">@(item.Quantity ?? "—")</td>
+                        <td class="py-1.5 pr-3 text-gray-500">
+                            @(item.ExpDate.HasValue ? item.ExpDate.Value.ToString("MMM d") : "—")
+                        </td>
+                        <td class="py-1.5">
+                            <button @onclick="() => BeginEdit(item)"
+                                    class="text-indigo-500 mr-2 text-xs hover:text-indigo-700">
+                                ✎
+                            </button>
+                            <button @onclick="() => _confirmDeleteId = item.Id"
+                                    class="text-red-400 text-xs hover:text-red-600">
+                                ✕
+                            </button>
+                        </td>
+                    </tr>
+                }
+            }
+
+            @if (_items.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="py-4 text-center text-gray-400 text-sm">
+                        No items yet. Add one with the button above.
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ShoppingItem> _items = [];
+    private bool _showAddForm;
+    private int? _editingId;
+    private string _editName = "";
+    private string? _editQty;
+    private DateOnly? _editExpiry;
+    private int? _confirmDeleteId;
+    private bool _loading = true;
+    private string? _error;
+
+    private string _newName = "";
+    private string? _newQty;
+    private DateOnly? _newExpiry;
+
+    private int _groupId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated) return;
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var group = await Groups.GetOrCreateAsync(Session.ChatId);
+            _groupId = group.Id;
+            var result = await Items.GetAllAsync(_groupId);
+            _items = [.. result];
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task AddItemAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newName)) return;
+        try
+        {
+            await Items.AddAsync(
+                _groupId,
+                _newName.Trim(),
+                string.IsNullOrWhiteSpace(_newQty) ? null : _newQty.Trim(),
+                "Web",
+                _newExpiry);
+            _newName = "";
+            _newQty = null;
+            _newExpiry = null;
+            _showAddForm = false;
+            await LoadDataAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private void BeginEdit(ShoppingItem item)
+    {
+        _editingId = item.Id;
+        _editName = item.Name;
+        _editQty = item.Quantity;
+        _editExpiry = item.ExpDate;
+        _confirmDeleteId = null;
+    }
+
+    private void CancelEdit() => _editingId = null;
+
+    private async Task SaveEditAsync()
+    {
+        if (_editingId is null) return;
+        try
+        {
+            await Items.UpdateAsync(
+                _editingId.Value,
+                _editName.Trim(),
+                string.IsNullOrWhiteSpace(_editQty) ? null : _editQty.Trim());
+            _editingId = null;
+            await LoadDataAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private async Task MarkDoneAsync(int itemId)
+    {
+        try
+        {
+            await Items.DeleteAsync(itemId);
+            await LoadDataAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private async Task DeleteItemAsync(int itemId)
+    {
+        try
+        {
+            await Items.DeleteAsync(itemId);
+            _confirmDeleteId = null;
+            await LoadDataAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+}

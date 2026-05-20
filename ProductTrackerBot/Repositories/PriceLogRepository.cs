@@ -62,6 +62,40 @@ public class PriceLogRepository
     }
 
     /// <summary>
+    /// Gets all price log entries for a group ordered by LoggedAt ascending.
+    /// </summary>
+    /// <param name="groupId">The group ID.</param>
+    /// <returns>All price log entries for the group.</returns>
+    public virtual async Task<List<PriceLogEntry>> GetAllAsync(int groupId)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT Id, GroupId, ItemName, Price, StoreName, LoggedAt
+            FROM PriceLog
+            WHERE GroupId = @groupId
+            ORDER BY LoggedAt ASC";
+        cmd.Parameters.AddWithValue("@groupId", groupId);
+
+        var entries = new List<PriceLogEntry>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            entries.Add(new PriceLogEntry(
+                reader.GetInt32(0),
+                reader.GetInt32(1),
+                reader.GetString(2),
+                (decimal)reader.GetDouble(3),
+                reader.IsDBNull(4) ? null : reader.GetString(4),
+                DateTime.Parse(reader.GetString(5), null, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal)));
+        }
+
+        return entries;
+    }
+
+    /// <summary>
     /// Gets price statistics for an item (case-insensitive search).
     /// </summary>
     /// <param name="groupId">The group to search within.</param>

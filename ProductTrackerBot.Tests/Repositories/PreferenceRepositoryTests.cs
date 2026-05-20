@@ -18,7 +18,8 @@ public class PreferenceRepositoryTests : IDisposable
         cmd.CommandText = @"
             CREATE TABLE IF NOT EXISTS UserPreferences (
                 ChatId INTEGER PRIMARY KEY,
-                LanguageCode TEXT NOT NULL,
+                LanguageCode TEXT NOT NULL DEFAULT 'en',
+                ExpiryThresholdDays INTEGER NOT NULL DEFAULT 3,
                 CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
                 UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
             );";

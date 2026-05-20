@@ -1,0 +1,180 @@
+@page "/history"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using ProductTrackerBot.Models
+@using ProductTrackerBot.Repositories
+@inherits AuthenticatedPageBase
+
+@inject GroupRepository Groups
+@inject PurchaseHistoryRepository PurchaseHistory
+
+<PageTitle>Purchase History — Household Planner</PageTitle>
+
+<h1 class="text-2xl font-bold text-gray-900 mb-4">Purchase History</h1>
+
+<div class="flex gap-3 flex-wrap mb-4">
+    <div class="flex flex-col gap-1">
+        <label class="text-xs text-gray-500">Date from</label>
+        <input type="date" @oninput="OnDateFromInput" class="border rounded px-2 py-1 text-sm" />
+    </div>
+    <div class="flex flex-col gap-1">
+        <label class="text-xs text-gray-500">Date to</label>
+        <input type="date" @oninput="OnDateToInput" class="border rounded px-2 py-1 text-sm" />
+    </div>
+    <div class="flex flex-col gap-1">
+        <label class="text-xs text-gray-500">Item name</label>
+        <input type="text" @oninput="OnNameFilterInput" placeholder="Search…"
+               class="border rounded px-2 py-1 text-sm min-w-40" />
+    </div>
+</div>
+
+@if (_error is not null)
+{
+    <div class="text-red-600 text-sm mt-2">@_error</div>
+}
+
+@if (_loading)
+{
+    <p class="text-gray-400 text-sm">Loading…</p>
+}
+else
+{
+    <table class="w-full text-sm border-collapse">
+        <thead>
+            <tr class="text-left text-gray-500 border-b">
+                <th class="py-2 pr-3 w-28">Date</th>
+                <th class="py-2 pr-3">Item</th>
+                <th class="py-2 pr-3 w-20">Qty</th>
+                <th class="py-2 pr-3 w-20">Price</th>
+                <th class="py-2 w-32">Shop</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var record in _items)
+            {
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="py-1.5 pr-3 text-gray-500">@record.PurchasedAt.ToLocalTime().ToString("MMM d, yyyy")</td>
+                    <td class="py-1.5 pr-3">@record.ItemName</td>
+                    <td class="py-1.5 pr-3 text-gray-500">@(record.Quantity ?? "—")</td>
+                    <td class="py-1.5 pr-3 text-gray-500">@(record.Price.HasValue ? record.Price.Value.ToString("0.00") : "—")</td>
+                    <td class="py-1.5 text-gray-500">@(record.StoreName ?? "—")</td>
+                </tr>
+            }
+
+            @if (_items.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="py-4 text-center text-gray-400 text-sm">No records found.</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="flex items-center justify-center gap-4 mt-4 text-sm">
+        <button @onclick="PrevPage" disabled="@(_page == 1)"
+                class="px-3 py-1 rounded border disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50">
+            ← Prev
+        </button>
+        <span class="text-gray-500">Page @_page / @TotalPages</span>
+        <button @onclick="NextPage" disabled="@(_page * PageSize >= _totalCount)"
+                class="px-3 py-1 rounded border disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50">
+            Next →
+        </button>
+    </div>
+}
+
+@code {
+    private const int PageSize = 50;
+
+    private List<PurchaseRecord> _items = [];
+    private int _page = 1;
+    private int _totalCount;
+    private string _nameFilter = "";
+    private DateOnly? _dateFrom;
+    private DateOnly? _dateTo;
+    private bool _loading = true;
+    private string? _error;
+
+    private int _groupId;
+    private CancellationTokenSource? _debounce;
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(_totalCount / (double)PageSize));
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated) return;
+        var group = await Groups.GetOrCreateAsync(Session.ChatId);
+        _groupId = group.Id;
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var (items, total) = await PurchaseHistory.GetPageAsync(_groupId, _page, PageSize, _nameFilter, _dateFrom, _dateTo);
+            _items = items;
+            _totalCount = total;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task PrevPage()
+    {
+        if (_page > 1) { _page--; await LoadDataAsync(); }
+    }
+
+    private async Task NextPage()
+    {
+        if (_page * PageSize < _totalCount) { _page++; await LoadDataAsync(); }
+    }
+
+    private void OnNameFilterInput(ChangeEventArgs e)
+    {
+        _nameFilter = e.Value?.ToString() ?? "";
+        TriggerDebounce();
+    }
+
+    private void OnDateFromInput(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        _dateFrom = string.IsNullOrEmpty(val) ? null : DateOnly.Parse(val);
+        TriggerDebounce();
+    }
+
+    private void OnDateToInput(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        _dateTo = string.IsNullOrEmpty(val) ? null : DateOnly.Parse(val);
+        TriggerDebounce();
+    }
+
+    private void TriggerDebounce()
+    {
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(400, token);
+                _page = 1;
+                await InvokeAsync(async () =>
+                {
+                    await LoadDataAsync();
+                    StateHasChanged();
+                });
+            }
+            catch (OperationCanceledException) { }
+        }, token);
+    }
+}

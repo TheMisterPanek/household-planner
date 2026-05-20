@@ -270,6 +270,31 @@ public class DatabaseInitializer : IHostedService
             this.logger.LogInformation("WeekStartDate column already exists on DayMeals table");
         }
 
+        var createUserPreferences = @"
+            CREATE TABLE IF NOT EXISTS UserPreferences (
+                ChatId INTEGER PRIMARY KEY,
+                LanguageCode TEXT NOT NULL DEFAULT 'en',
+                ExpiryThresholdDays INTEGER NOT NULL DEFAULT 3,
+                CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+            );";
+
+        await using var cmdPrefs = connection.CreateCommand();
+        cmdPrefs.CommandText = createUserPreferences;
+        await cmdPrefs.ExecuteNonQueryAsync(cancellationToken);
+
+        try
+        {
+            await using var alterPrefsCmd = connection.CreateCommand();
+            alterPrefsCmd.CommandText = "ALTER TABLE UserPreferences ADD COLUMN ExpiryThresholdDays INTEGER NOT NULL DEFAULT 3";
+            await alterPrefsCmd.ExecuteNonQueryAsync(cancellationToken);
+            this.logger.LogInformation("Added ExpiryThresholdDays column to UserPreferences table");
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 1)
+        {
+            this.logger.LogInformation("ExpiryThresholdDays column already exists on UserPreferences table");
+        }
+
         this.logger.LogInformation("Database schema initialized successfully");
     }
 

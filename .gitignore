@@ -9,3 +9,4 @@ bin/
 ProductTrackerBot/IDENTITY.md
 nginx/certs/
 html-landing/index.html
+appsettings.Development.json
