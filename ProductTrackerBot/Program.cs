@@ -204,6 +204,7 @@ builder.Services.AddScoped<ICallbackHandler, ShopRemoveCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, PriceSkipCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, PriceShopSuggestionCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, LanguageCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, LanguageSelectionHandler>();
 builder.Services.AddScoped<ICallbackHandler, ListNextCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ListPrevCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, MealCallbackHandler>();

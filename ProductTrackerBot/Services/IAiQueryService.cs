@@ -19,7 +19,8 @@ public interface IAiQueryService
     /// <param name="groupId">Internal database GroupId scoping all queries.</param>
     /// <param name="question">The user's natural language question.</param>
     /// <param name="recentContext">Recent conversation turns (last 15 min, ≤500 chars) for short-term memory. Empty string if none.</param>
+    /// <param name="language">Display name of the group's primary language (e.g. "English", "Russian", "Polish").</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The answer text (cleaned of markers) and any item suggestions extracted from the AI response.</returns>
-    Task<AiQueryResult> AnswerAsync(long chatId, long groupId, string question, string recentContext, CancellationToken ct);
+    Task<AiQueryResult> AnswerAsync(long chatId, long groupId, string question, string recentContext, string language, CancellationToken ct);
 }

@@ -20,12 +20,12 @@ public class AiChatPageTests
         const long groupId = 1L;
         const string question = "What should I buy?";
 
-        this.aiService.Setup(s => s.AnswerAsync(chatId, groupId, question, "", CancellationToken.None))
+        this.aiService.Setup(s => s.AnswerAsync(chatId, groupId, question, "", It.IsAny<string>(), CancellationToken.None))
             .ReturnsAsync(new AiQueryResult("Buy milk.", []));
 
-        var result = await this.aiService.Object.AnswerAsync(chatId, groupId, question, "", CancellationToken.None);
+        var result = await this.aiService.Object.AnswerAsync(chatId, groupId, question, "", "English", CancellationToken.None);
 
-        this.aiService.Verify(s => s.AnswerAsync(chatId, groupId, question, "", CancellationToken.None), Times.Once);
+        this.aiService.Verify(s => s.AnswerAsync(chatId, groupId, question, "", "English", CancellationToken.None), Times.Once);
         Assert.Equal("Buy milk.", result.Text);
     }
 
@@ -33,10 +33,10 @@ public class AiChatPageTests
     [Fact]
     public async Task AnswerAsync_Response_Text_Available_In_Result()
     {
-        this.aiService.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        this.aiService.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiQueryResult("Based on your list, you need eggs.", []));
 
-        var result = await this.aiService.Object.AnswerAsync(1L, 1L, "any question", "", CancellationToken.None);
+        var result = await this.aiService.Object.AnswerAsync(1L, 1L, "any question", "", "English", CancellationToken.None);
 
         Assert.Equal("Based on your list, you need eggs.", result.Text);
     }
@@ -45,20 +45,20 @@ public class AiChatPageTests
     [Fact]
     public async Task AnswerAsync_ThrowsException_Propagates_For_Page_To_Catch()
     {
-        this.aiService.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        this.aiService.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("401 Unauthorized"));
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
-            this.aiService.Object.AnswerAsync(1L, 1L, "any question", "", CancellationToken.None));
+            this.aiService.Object.AnswerAsync(1L, 1L, "any question", "", "English", CancellationToken.None));
     }
 
     [Fact]
     public async Task AnswerAsync_Returns_Empty_Suggestions_When_No_Items_Suggested()
     {
-        this.aiService.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        this.aiService.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiQueryResult("No items to suggest.", []));
 
-        var result = await this.aiService.Object.AnswerAsync(1L, 1L, "any question", "", CancellationToken.None);
+        var result = await this.aiService.Object.AnswerAsync(1L, 1L, "any question", "", "English", CancellationToken.None);
 
         Assert.Empty(result.Suggestions);
     }

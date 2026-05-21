@@ -1,5 +1,6 @@
 @page "/ai"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using ProductTrackerBot.Localization
 @using ProductTrackerBot.Models
 @using ProductTrackerBot.Repositories
 @using ProductTrackerBot.Services
@@ -76,12 +77,14 @@
     private bool _thinking;
     private string? _error;
     private long _groupId;
+    private string _language = "English";
 
     protected override async Task OnInitializedAsync()
     {
         if (!Session.IsAuthenticated) return;
         var group = await Groups.GetOrCreateAsync(Session.ChatId);
         _groupId = group.Id;
+        _language = LanguageNames.GetDisplayName(group.LanguageCode);
     }
 
     private async Task OnKeyDown(KeyboardEventArgs e)
@@ -101,7 +104,7 @@
         StateHasChanged();
         try
         {
-            var result = await AiService.AnswerAsync(Session.ChatId, _groupId, question, "", CancellationToken.None);
+            var result = await AiService.AnswerAsync(Session.ChatId, _groupId, question, "", _language, CancellationToken.None);
             _messages.Add(new ChatMessage("bot", result.Text));
         }
         catch (Exception ex)

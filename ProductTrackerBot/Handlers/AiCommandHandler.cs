@@ -92,7 +92,8 @@ public class AiCommandHandler : ICommandHandler
         try
         {
             var group = await this.groupRepository.GetOrCreateAsync(message.Chat.Id);
-            result = await this.aiQueryService.AnswerAsync(message.Chat.Id, group.Id, question, recentContext, cancellationToken);
+            var language = LanguageNames.GetDisplayName(group.LanguageCode);
+            result = await this.aiQueryService.AnswerAsync(message.Chat.Id, group.Id, question, recentContext, language, cancellationToken);
         }
         finally
         {

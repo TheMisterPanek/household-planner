@@ -15,7 +15,7 @@ public class AiSuggestionIntegrationTests : TelegramIntegrationTestBase
         await ClearDataAsync();
 
         AiQueryServiceMock
-            .Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiQueryResult("Try pasta tonight!", new List<AiSuggestion>
             {
                 new("pasta", "500g"),

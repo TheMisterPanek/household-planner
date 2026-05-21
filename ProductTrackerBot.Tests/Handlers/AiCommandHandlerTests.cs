@@ -27,7 +27,7 @@ public class AiCommandHandlerTests
         DeserializeMessage($"{{\"message_id\":1,\"from\":{{\"id\":42,\"first_name\":\"Alice\"}},\"chat\":{{\"id\":-100}},\"text\":\"{text}\"}}");
 
     private static (AiCommandHandler handler, Mock<ITelegramBotClient> botMock, Mock<IAiQueryService> serviceMock) CreateHandler(
-        string localizationFallback = "{key}")
+        string localizationFallback = "{key}", string? languageCode = "en")
     {
         var botMock = new Mock<ITelegramBotClient>();
         botMock.Setup(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
@@ -35,7 +35,7 @@ public class AiCommandHandlerTests
 
         var groupRepo = new Mock<GroupRepository>("Data Source=:memory:");
         groupRepo.Setup(r => r.GetOrCreateAsync(It.IsAny<long>()))
-            .ReturnsAsync(new ProductTrackerBot.Models.Group { Id = 1, ChatId = -100, LanguageCode = "en" });
+            .ReturnsAsync(new ProductTrackerBot.Models.Group { Id = 1, ChatId = -100, LanguageCode = languageCode! });
 
         var serviceMock = new Mock<IAiQueryService>();
 
@@ -66,7 +66,7 @@ public class AiCommandHandlerTests
         botMock.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r => r.Text == "ai.usage-hint"),
             It.IsAny<CancellationToken>()), Times.Once);
-        serviceMock.Verify(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        serviceMock.Verify(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -80,21 +80,21 @@ public class AiCommandHandlerTests
         botMock.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r => r.Text == "ai.usage-hint"),
             It.IsAny<CancellationToken>()), Times.Once);
-        serviceMock.Verify(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        serviceMock.Verify(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task HandleAsync_NonEmptyQuestion_DelegatesToService()
     {
         var (handler, botMock, serviceMock) = CreateHandler();
-        serviceMock.Setup(s => s.AnswerAsync(-100L, 1L, "what did we buy?", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        serviceMock.Setup(s => s.AnswerAsync(-100L, 1L, "what did we buy?", It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiQueryResult("You bought milk.", []));
 
         var message = AiMessage("/ai what did we buy?");
 
         await handler.HandleAsync(message, CancellationToken.None);
 
-        serviceMock.Verify(s => s.AnswerAsync(-100L, 1L, "what did we buy?", It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        serviceMock.Verify(s => s.AnswerAsync(-100L, 1L, "what did we buy?", It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
         botMock.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r => r.Text == "You bought milk."),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -105,7 +105,7 @@ public class AiCommandHandlerTests
     public async Task HandleAsync_WithSuggestions_SendsMessageWithInlineKeyboard()
     {
         var (handler, botMock, serviceMock) = CreateHandler();
-        serviceMock.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        serviceMock.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiQueryResult("Try pasta carbonara!", new List<AiSuggestion>
             {
                 new("pasta", "500g"),
@@ -140,7 +140,7 @@ public class AiCommandHandlerTests
     public async Task HandleAsync_NoSuggestions_SendsMessageWithoutInlineKeyboard()
     {
         var (handler, botMock, serviceMock) = CreateHandler();
-        serviceMock.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        serviceMock.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiQueryResult("You have 5 items.", []));
 
         var message = AiMessage("/ai how many items?");
@@ -151,6 +151,54 @@ public class AiCommandHandlerTests
                 r.Text == "You have 5 items." &&
                 r.ReplyMarkup == null),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_GroupLanguageEn_CallsAnswerAsyncWithEnglish()
+    {
+        var (handler, _, serviceMock) = CreateHandler(languageCode: "en");
+        serviceMock.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiQueryResult("answer", []));
+
+        await handler.HandleAsync(AiMessage("/ai test"), CancellationToken.None);
+
+        serviceMock.Verify(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), "English", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_GroupLanguageRu_CallsAnswerAsyncWithRussian()
+    {
+        var (handler, _, serviceMock) = CreateHandler(languageCode: "ru");
+        serviceMock.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiQueryResult("answer", []));
+
+        await handler.HandleAsync(AiMessage("/ai test"), CancellationToken.None);
+
+        serviceMock.Verify(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), "Russian", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_GroupLanguagePl_CallsAnswerAsyncWithPolish()
+    {
+        var (handler, _, serviceMock) = CreateHandler(languageCode: "pl");
+        serviceMock.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiQueryResult("answer", []));
+
+        await handler.HandleAsync(AiMessage("/ai test"), CancellationToken.None);
+
+        serviceMock.Verify(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), "Polish", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_GroupLanguageNull_CallsAnswerAsyncWithEnglishFallback()
+    {
+        var (handler, _, serviceMock) = CreateHandler(languageCode: null);
+        serviceMock.Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiQueryResult("answer", []));
+
+        await handler.HandleAsync(AiMessage("/ai test"), CancellationToken.None);
+
+        serviceMock.Verify(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), "English", It.IsAny<CancellationToken>()), Times.Once);
     }
 
 }

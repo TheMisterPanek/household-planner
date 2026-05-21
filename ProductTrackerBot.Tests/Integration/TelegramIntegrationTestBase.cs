@@ -105,7 +105,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         this.AiQueryServiceMock = new Mock<IAiQueryService>();
         this.AiQueryServiceMock
-            .Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(s => s.AnswerAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiQueryResult("AI response", []));
 
         var buyDialogService = new PendingDialogService<BuyDialogState>();

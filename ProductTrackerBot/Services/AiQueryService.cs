@@ -51,11 +51,12 @@ public partial class AiQueryService : IAiQueryService
     private static partial Regex AddItemRegex();
 
     /// <inheritdoc/>
-    public async Task<AiQueryResult> AnswerAsync(long chatId, long groupId, string question, string recentContext, CancellationToken ct)
+    public async Task<AiQueryResult> AnswerAsync(long chatId, long groupId, string question, string recentContext, string language, CancellationToken ct)
     {
         var systemPrompt = this.identityTemplate
             .Replace("{groupId}", groupId.ToString(), StringComparison.Ordinal)
-            .Replace("{chatId}", chatId.ToString(), StringComparison.Ordinal);
+            .Replace("{chatId}", chatId.ToString(), StringComparison.Ordinal)
+            .Replace("{primaryLanguage}", language, StringComparison.Ordinal);
 
         if (!string.IsNullOrEmpty(recentContext))
         {
