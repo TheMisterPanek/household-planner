@@ -50,6 +50,18 @@ services:
     networks:
       - internal
 
+  backup:
+    build:
+      context: ./backup
+    env_file:
+      - ./.env
+    volumes:
+      - db-data:/data:ro
+      - ./backups:/backups
+    restart: unless-stopped
+    networks:
+      - internal
+
 volumes:
   db-data:
 
