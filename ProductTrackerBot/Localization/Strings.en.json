@@ -122,6 +122,11 @@
   "bought.expiry-prompt": "📅 Expiry date for {item}? Enter days (e.g. 14) or a variant (e.g. 1 week, 2 months) or click Skip.",
   "bought.skip-expiry": "Skip",
   "bought.done": "✓ {item} registered",
-  "bought.done-with-expiry": "✓ {item} registered, expires {expiry}"
+  "bought.done-with-expiry": "✓ {item} registered, expires {expiry}",
+  "expiry.suggest-days": "{n} days",
+  "use.header": "📦 Current inventory:",
+  "use.empty": "✅ Inventory is empty.",
+  "use.remove-button": "🗑",
+  "use.remove-toast": "✓ Removed"
 }
 

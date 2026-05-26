@@ -116,18 +116,8 @@ builder.Services.AddSingleton<IPreferenceRepository, PreferenceRepository>();
 builder.Services.AddScoped<IAiQueryService, AiQueryService>();
 builder.Services.AddScoped<ShoppingListService>();
 builder.Services.AddScoped<MealMergeService>();
-builder.Services.AddScoped<ExpiryNotificationService>();
 builder.Services.AddScoped<IUndoService, UndoService>();
 builder.Services.AddSingleton<ILocalizer, Localizer>();
-
-// ── Background jobs ───────────────────────────────────────────────────────────
-var notifyTimeUtc = Environment.GetEnvironmentVariable("NOTIFY_TIME_UTC") ?? "09:00";
-builder.Services.AddSingleton(sp => new ExpiryNotificationJob(
-    sp.GetRequiredService<ITelegramBotClient>(),
-    sp.GetRequiredService<IServiceScopeFactory>(),
-    sp.GetRequiredService<ILogger<ExpiryNotificationJob>>(),
-    notifyTimeUtc));
-builder.Services.AddHostedService(sp => sp.GetRequiredService<ExpiryNotificationJob>());
 
 // ── Command handlers ──────────────────────────────────────────────────────────
 builder.Services.AddScoped<ICommandHandler, AiCommandHandler>();

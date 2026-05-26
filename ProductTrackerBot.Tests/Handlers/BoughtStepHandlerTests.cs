@@ -48,9 +48,16 @@ public class BoughtStepHandlerTests
         localizer.Setup(l => l.Get(It.IsAny<long>(), "bought.done-with-expiry"))
             .Returns("✓ {item} registered, expires {expiry}");
 
+        var suggestionRepo = new Mock<PurchaseHistoryRepository>("Data Source=file::memory:");
+        suggestionRepo.Setup(r => r.GetExpiryDaySuggestionsAsync(It.IsAny<int>(), It.IsAny<string>()))
+            .ReturnsAsync(Array.Empty<int>().AsReadOnly());
+        suggestionRepo.Setup(r => r.GetAverageExpiryDaysAsync(It.IsAny<int>()))
+            .ReturnsAsync(0);
+        var suggestionService = new ExpiryDaySuggestionService(suggestionRepo.Object);
+
         var handler = new BoughtStepHandler(
             bot.Object, dialogService, purchaseRepo.Object, historyRepo.Object,
-            localizer.Object, Mock.Of<ILogger<BoughtStepHandler>>());
+            suggestionService, localizer.Object, Mock.Of<ILogger<BoughtStepHandler>>());
 
         return (handler, bot, dialogService, purchaseRepo);
     }

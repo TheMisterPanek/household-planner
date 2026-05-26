@@ -14,11 +14,33 @@ namespace ProductTrackerBot.Tests.Services;
 
 public class ExpiryNotificationJobTests
 {
-    private static IServiceScopeFactory CreateScopeFactory(GroupRepository groupRepo, ExpiryNotificationService notificationService)
+    private static IServiceScopeFactory CreateScopeFactory(
+        GroupRepository groupRepo,
+        ExpiryNotificationService notificationService,
+        PurchaseHistoryRepository? purchaseRepo = null,
+        ShoppingItemRepository? itemRepo = null)
     {
+        if (purchaseRepo is null)
+        {
+            var m = new Mock<PurchaseHistoryRepository>("Data Source=:memory:");
+            m.Setup(r => r.GetInventoryItemsWithExpiryAsync(It.IsAny<int>()))
+                .ReturnsAsync(Array.Empty<PurchaseRecord>().ToList().AsReadOnly());
+            purchaseRepo = m.Object;
+        }
+
+        if (itemRepo is null)
+        {
+            var m = new Mock<ShoppingItemRepository>("Data Source=:memory:");
+            m.Setup(r => r.GetItemsWithExpiryAsync(It.IsAny<int>()))
+                .ReturnsAsync(Array.Empty<ShoppingItem>().ToList().AsReadOnly());
+            itemRepo = m.Object;
+        }
+
         var sp = new Mock<IServiceProvider>();
         sp.Setup(x => x.GetService(typeof(GroupRepository))).Returns(groupRepo);
         sp.Setup(x => x.GetService(typeof(ExpiryNotificationService))).Returns(notificationService);
+        sp.Setup(x => x.GetService(typeof(PurchaseHistoryRepository))).Returns(purchaseRepo);
+        sp.Setup(x => x.GetService(typeof(ShoppingItemRepository))).Returns(itemRepo);
         var scope = new Mock<IServiceScope>();
         scope.Setup(x => x.ServiceProvider).Returns(sp.Object);
         var factory = new Mock<IServiceScopeFactory>();
@@ -75,11 +97,13 @@ public class ExpiryNotificationJobTests
         var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=:memory:");
         purchaseRepo.Setup(r => r.GetItemsWithExpiryAsync(It.IsAny<int>()))
             .ReturnsAsync(new List<(string, string?, DateOnly)>().AsReadOnly());
+        purchaseRepo.Setup(r => r.GetInventoryItemsWithExpiryAsync(It.IsAny<int>()))
+            .ReturnsAsync(Array.Empty<PurchaseRecord>().ToList().AsReadOnly());
         var notificationService = new ExpiryNotificationService(itemRepo.Object, purchaseRepo.Object, Mock.Of<ILocalizer>());
 
         var job = new ExpiryNotificationJob(
             botClient.Object,
-            CreateScopeFactory(groupRepo.Object, notificationService),
+            CreateScopeFactory(groupRepo.Object, notificationService, purchaseRepo.Object, itemRepo.Object),
             Mock.Of<ILogger<ExpiryNotificationJob>>(),
             "09:00");
 
@@ -113,11 +137,13 @@ public class ExpiryNotificationJobTests
         var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=:memory:");
         purchaseRepo.Setup(r => r.GetItemsWithExpiryAsync(It.IsAny<int>()))
             .ReturnsAsync(new List<(string, string?, DateOnly)>().AsReadOnly());
+        purchaseRepo.Setup(r => r.GetInventoryItemsWithExpiryAsync(It.IsAny<int>()))
+            .ReturnsAsync(Array.Empty<PurchaseRecord>().ToList().AsReadOnly());
         var notificationService = new ExpiryNotificationService(itemRepo.Object, purchaseRepo.Object, Mock.Of<ILocalizer>());
 
         var job = new ExpiryNotificationJob(
             botClient.Object,
-            CreateScopeFactory(groupRepo.Object, notificationService),
+            CreateScopeFactory(groupRepo.Object, notificationService, purchaseRepo.Object, itemRepo.Object),
             Mock.Of<ILogger<ExpiryNotificationJob>>(),
             "09:00");
 
@@ -167,11 +193,13 @@ public class ExpiryNotificationJobTests
         var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=:memory:");
         purchaseRepo.Setup(r => r.GetItemsWithExpiryAsync(It.IsAny<int>()))
             .ReturnsAsync(new List<(string, string?, DateOnly)>().AsReadOnly());
+        purchaseRepo.Setup(r => r.GetInventoryItemsWithExpiryAsync(It.IsAny<int>()))
+            .ReturnsAsync(Array.Empty<PurchaseRecord>().ToList().AsReadOnly());
         var notificationService = new ExpiryNotificationService(itemRepo.Object, purchaseRepo.Object, Mock.Of<ILocalizer>());
 
         var job = new ExpiryNotificationJob(
             botClient.Object,
-            CreateScopeFactory(groupRepo.Object, notificationService),
+            CreateScopeFactory(groupRepo.Object, notificationService, purchaseRepo.Object, itemRepo.Object),
             Mock.Of<ILogger<ExpiryNotificationJob>>(),
             "09:00");
 

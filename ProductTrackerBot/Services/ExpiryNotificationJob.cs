@@ -8,8 +8,10 @@ using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ProductTrackerBot.Handlers;
 using ProductTrackerBot.Repositories;
 using Telegram.Bot;
+using Telegram.Bot.Types.ReplyMarkups;
 
 /// <summary>
 /// Hosted service that runs a daily notification job to send expiry summaries to all registered groups.
@@ -116,6 +118,9 @@ public class ExpiryNotificationJob : IHostedService
         var today = DateOnly.FromDateTime(DateTime.Now);
         var groups = await groupRepository.GetAllAsync();
 
+        var purchaseRepository = scope.ServiceProvider.GetRequiredService<PurchaseHistoryRepository>();
+        var itemRepository = scope.ServiceProvider.GetRequiredService<ShoppingItemRepository>();
+
         foreach (var group in groups)
         {
             try
@@ -123,9 +128,11 @@ public class ExpiryNotificationJob : IHostedService
                 var summary = await notificationService.BuildSummaryAsync(group.ChatId, group.Id, today);
                 if (summary is not null)
                 {
+                    var keyboard = await BuildRemoveKeyboardAsync(group.Id, group.ChatId, purchaseRepository, itemRepository, today);
                     await this.botClient.SendMessage(
                         chatId: group.ChatId,
                         text: summary,
+                        replyMarkup: keyboard,
                         cancellationToken: cancellationToken);
                     this.logger.LogInformation("Sent expiry notification to group {ChatId}", group.ChatId);
                 }
@@ -135,6 +142,40 @@ public class ExpiryNotificationJob : IHostedService
                 this.logger.LogWarning(ex, "Failed to send expiry notification to group {ChatId}", group.ChatId);
             }
         }
+    }
+
+    private static async Task<InlineKeyboardMarkup?> BuildRemoveKeyboardAsync(
+        int groupId,
+        long chatId,
+        PurchaseHistoryRepository purchaseRepository,
+        ShoppingItemRepository itemRepository,
+        DateOnly today)
+    {
+        var phItems = await purchaseRepository.GetInventoryItemsWithExpiryAsync(groupId);
+        var siItems = await itemRepository.GetItemsWithExpiryAsync(groupId);
+
+        var cutoff = today.AddDays(7);
+
+        var entries = siItems
+            .Where(i => i.ExpDate!.Value <= cutoff)
+            .Select(i => (ExpDate: i.ExpDate!.Value, Label: UseCommandHandler.FormatLabel(i.Name, i.Quantity, i.ExpDate!.Value), Callback: $"use:remove:si:{i.Id}"))
+            .Concat(phItems
+                .Where(i => i.ExpDate!.Value <= cutoff)
+                .Select(i => (ExpDate: i.ExpDate!.Value, Label: UseCommandHandler.FormatLabel(i.ItemName, i.Quantity, i.ExpDate!.Value), Callback: $"use:remove:ph:{i.Id}")))
+            .OrderBy(e => e.ExpDate)
+            .Take(15)
+            .ToList();
+
+        if (entries.Count == 0)
+        {
+            return null;
+        }
+
+        var rows = entries
+            .Select(e => new[] { InlineKeyboardButton.WithCallbackData($"🗑 {e.Label}", e.Callback) })
+            .ToList();
+
+        return new InlineKeyboardMarkup(rows);
     }
 
     private (int Hour, int Minute) ParseNotifyTime()

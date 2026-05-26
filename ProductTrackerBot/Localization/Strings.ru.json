@@ -122,5 +122,10 @@
   "bought.expiry-prompt": "📅 Срок годности для {item}? Введите дни (например: 14) или вариант (1 неделя, 2 месяца) или нажмите Пропустить.",
   "bought.skip-expiry": "Пропустить",
   "bought.done": "✓ {item} зарегистрировано",
-  "bought.done-with-expiry": "✓ {item} зарегистрировано, срок до {expiry}"
+  "bought.done-with-expiry": "✓ {item} зарегистрировано, срок до {expiry}",
+  "expiry.suggest-days": "{n} дн.",
+  "use.header": "📦 Текущие запасы:",
+  "use.empty": "✅ Запасы пусты.",
+  "use.remove-button": "🗑",
+  "use.remove-toast": "✓ Удалено"
 }

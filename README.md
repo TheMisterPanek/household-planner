@@ -75,13 +75,68 @@ make logs      # Tail container logs
 
 The Dockerfile uses a multi-stage build that produces a self-contained AOT binary in a minimal `runtime-deps` image — no .NET runtime required at runtime.
 
+## Backups
+
+The `backup` Docker Compose service runs daily at midnight and:
+
+1. Takes a hot SQLite backup (safe under concurrent writes)
+2. Encrypts it with AES-256-CBC using `BACKUP_PASSPHRASE`
+3. Sends the encrypted file to your Telegram chat (`BACKUP_CHAT_ID`)
+4. Rotates local copies — keeps the last 30, deletes older ones
+
+Backup files are stored in `./backups/` on the host as `product-tracker-YYYY-MM-DD_HH-MM-SS.db.enc`.
+
+### Setup
+
+Generate a passphrase and find your Telegram chat ID:
+
+```bash
+# Generate passphrase
+openssl rand -base64 32
+
+# Your chat ID appears in BotActionHistory — or just message the bot and
+# check the database: docker compose run --rm backup \
+#   sqlite3 /data/product-tracker.db \
+#   'SELECT DISTINCT ChatId, UserName FROM BotActionHistory;'
+```
+
+Set both in `.env`:
+
+```env
+BACKUP_CHAT_ID=123456789
+BACKUP_PASSPHRASE=<output of openssl rand -base64 32>
+```
+
+### Trigger a manual backup
+
+```bash
+docker compose run --rm backup /backup.sh
+```
+
+### Restore from backup
+
+```bash
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
+  -in product-tracker-2026-05-21_11-31-18.db.enc \
+  -out restored.db \
+  -pass "pass:your-passphrase"
+```
+
+Then replace `/data/product-tracker.db` in the Docker volume with `restored.db` and restart the bot.
+
 ## Configuration
 
 All configuration is via environment variables (or `.env` file loaded at startup).
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `BOT_TOKEN` | Yes | — | Telegram bot token from BotFather |
+| `Token` | Yes | — | Telegram bot token from BotFather |
+| `BACKUP_CHAT_ID` | No | — | Telegram chat ID to receive daily DB backups |
+| `BACKUP_PASSPHRASE` | No | — | AES-256 passphrase for encrypting backup files; if unset, backups are sent unencrypted |
+| `OPENROUTER_API_KEY` | No | — | OpenRouter key for AI natural-language queries |
+| `AI_QUERY_MODEL` | No | — | Model ID passed to OpenRouter |
+| `secret_key` | Yes (web) | — | JWT signing key for the web app |
+| `WEB_SESSION_TTL_HOURS` | No | `24` | Web session lifetime in hours |
 | `Logging__LogLevel__Default` | No | `Information` | Log verbosity (`Trace`, `Debug`, `Information`, `Warning`, `Error`) |
 
 `.env` file takes lowest precedence — real environment variables always win.

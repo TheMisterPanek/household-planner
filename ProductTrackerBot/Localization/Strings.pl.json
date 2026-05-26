@@ -122,5 +122,10 @@
   "bought.expiry-prompt": "📅 Data ważności dla {item}? Podaj dni (np. 14) lub wariant (1 tydzień, 2 miesiące) lub kliknij Pomiń.",
   "bought.skip-expiry": "Pomiń",
   "bought.done": "✓ {item} zarejestrowano",
-  "bought.done-with-expiry": "✓ {item} zarejestrowano, wygasa {expiry}"
+  "bought.done-with-expiry": "✓ {item} zarejestrowano, wygasa {expiry}",
+  "expiry.suggest-days": "{n} dni",
+  "use.header": "📦 Aktualne zapasy:",
+  "use.empty": "✅ Zapasy są puste.",
+  "use.remove-button": "🗑",
+  "use.remove-toast": "✓ Usunięto"
 }

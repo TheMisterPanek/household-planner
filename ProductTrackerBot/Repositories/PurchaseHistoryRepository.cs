@@ -214,6 +214,130 @@ public class PurchaseHistoryRepository
     }
 
     /// <summary>
+    /// Returns distinct shelf-life day counts for items whose name contains <paramref name="keyword"/>,
+    /// ordered by frequency descending. Up to 5 rows returned.
+    /// </summary>
+    /// <param name="groupId">The group ID.</param>
+    /// <param name="keyword">Case-insensitive substring to match against ItemName.</param>
+    /// <returns>Distinct rounded day-count values ordered by frequency.</returns>
+    public virtual async Task<IReadOnlyList<int>> GetExpiryDaySuggestionsAsync(int groupId, string keyword)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT CAST(ROUND(julianday(exp_date) - julianday(date(PurchasedAt))) AS INT) AS days,
+                   COUNT(*) AS freq
+            FROM PurchaseHistory
+            WHERE GroupId = @groupId
+              AND exp_date IS NOT NULL
+              AND LOWER(ItemName) LIKE '%' || LOWER(@keyword) || '%'
+            GROUP BY days
+            ORDER BY freq DESC
+            LIMIT 5";
+        cmd.Parameters.AddWithValue("@groupId", groupId);
+        cmd.Parameters.AddWithValue("@keyword", keyword);
+
+        var result = new List<int>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var days = reader.GetInt32(0);
+            if (days > 0)
+            {
+                result.Add(days);
+            }
+        }
+
+        return result.AsReadOnly();
+    }
+
+    /// <summary>
+    /// Returns the group-wide average shelf-life in days (rounded to nearest integer),
+    /// or 0 if no records with both <c>exp_date</c> and <c>PurchasedAt</c> exist.
+    /// </summary>
+    /// <param name="groupId">The group ID.</param>
+    /// <returns>Average days rounded, or 0.</returns>
+    public virtual async Task<int> GetAverageExpiryDaysAsync(int groupId)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT CAST(ROUND(AVG(julianday(exp_date) - julianday(date(PurchasedAt)))) AS INT)
+            FROM PurchaseHistory
+            WHERE GroupId = @groupId AND exp_date IS NOT NULL";
+        cmd.Parameters.AddWithValue("@groupId", groupId);
+
+        var result = await cmd.ExecuteScalarAsync();
+        if (result is null || result == DBNull.Value)
+        {
+            return 0;
+        }
+
+        return Convert.ToInt32(result);
+    }
+
+    /// <summary>
+    /// Deletes a purchase record by ID.
+    /// </summary>
+    /// <param name="id">The record ID to delete.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public virtual async Task DeleteAsync(int id)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "DELETE FROM PurchaseHistory WHERE Id = @id";
+        cmd.Parameters.AddWithValue("@id", id);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Retrieves all purchased items with non-null expiry dates for a group, including their IDs.
+    /// </summary>
+    /// <param name="groupId">The group ID to filter by.</param>
+    /// <returns>A read-only list of purchase records with expiry dates, ordered by expiry date ascending.</returns>
+    public virtual async Task<IReadOnlyList<PurchaseRecord>> GetInventoryItemsWithExpiryAsync(int groupId)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT Id, GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName, exp_date
+            FROM PurchaseHistory
+            WHERE GroupId = @groupId AND exp_date IS NOT NULL
+            ORDER BY exp_date ASC";
+        cmd.Parameters.AddWithValue("@groupId", groupId);
+
+        var items = new List<PurchaseRecord>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            items.Add(new PurchaseRecord
+            {
+                Id = reader.GetInt32(0),
+                GroupId = reader.GetInt32(1),
+                UserId = reader.GetInt64(2),
+                ItemName = reader.GetString(3),
+                Quantity = reader.IsDBNull(4) ? null : reader.GetString(4),
+                StoreName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                Price = reader.IsDBNull(6) ? null : reader.GetDecimal(6),
+                PurchasedAt = DateTime.Parse(reader.GetString(7), null, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal),
+                BoughtByName = reader.GetString(8),
+                ExpDate = DateOnly.ParseExact(reader.GetString(9), "yyyy-MM-dd"),
+            });
+        }
+
+        return items.AsReadOnly();
+    }
+
+    /// <summary>
     /// Retrieves all bought items with non-null expiry dates for a group.
     /// </summary>
     /// <param name="groupId">The group ID to filter by.</param>

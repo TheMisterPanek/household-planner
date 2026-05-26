@@ -24,6 +24,7 @@ public class BoughtStepHandler : IDialogMessageHandler
     private readonly PendingDialogService<BoughtDialogState> dialogService;
     private readonly PurchaseHistoryRepository purchaseRepository;
     private readonly IHistoryRepository historyRepository;
+    private readonly ExpiryDaySuggestionService suggestionService;
     private readonly ILocalizer localizer;
     private readonly ILogger<BoughtStepHandler> logger;
 
@@ -34,6 +35,7 @@ public class BoughtStepHandler : IDialogMessageHandler
     /// <param name="dialogService">The bought dialog state service.</param>
     /// <param name="purchaseRepository">The purchase history repository.</param>
     /// <param name="historyRepository">The history repository.</param>
+    /// <param name="suggestionService">The expiry day suggestion service.</param>
     /// <param name="localizer">The localizer.</param>
     /// <param name="logger">The logger.</param>
     public BoughtStepHandler(
@@ -41,6 +43,7 @@ public class BoughtStepHandler : IDialogMessageHandler
         PendingDialogService<BoughtDialogState> dialogService,
         PurchaseHistoryRepository purchaseRepository,
         IHistoryRepository historyRepository,
+        ExpiryDaySuggestionService suggestionService,
         ILocalizer localizer,
         ILogger<BoughtStepHandler> logger)
     {
@@ -48,6 +51,7 @@ public class BoughtStepHandler : IDialogMessageHandler
         this.dialogService = dialogService;
         this.purchaseRepository = purchaseRepository;
         this.historyRepository = historyRepository;
+        this.suggestionService = suggestionService;
         this.localizer = localizer;
         this.logger = logger;
     }
@@ -171,14 +175,21 @@ public class BoughtStepHandler : IDialogMessageHandler
 
         var expiryPrompt = this.localizer.Get(message.Chat.Id, "bought.expiry-prompt")
             .Replace("{item}", itemName);
-        var skipButton = InlineKeyboardButton.WithCallbackData(
+
+        var suggestions = await this.suggestionService.GetSuggestionsAsync(state.GroupId, itemName);
+        var buttons = suggestions
+            .Select(d => InlineKeyboardButton.WithCallbackData(
+                this.localizer.Get(message.Chat.Id, "expiry.suggest-days").Replace("{n}", d.ToString()),
+                $"expiry:suggest:{d}"))
+            .ToList();
+        buttons.Add(InlineKeyboardButton.WithCallbackData(
             this.localizer.Get(message.Chat.Id, "bought.skip-expiry"),
-            "bought:skip_expiry");
+            "bought:skip_expiry"));
 
         await this.botClient.SendMessage(
             chatId: message.Chat.Id,
             text: expiryPrompt,
-            replyMarkup: new InlineKeyboardMarkup(new[] { new[] { skipButton } }),
+            replyMarkup: new InlineKeyboardMarkup(new[] { buttons.ToArray() }),
             replyParameters: new ReplyParameters { MessageId = message.MessageId },
             cancellationToken: cancellationToken);
     }

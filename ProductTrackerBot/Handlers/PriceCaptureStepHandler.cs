@@ -24,6 +24,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
     private readonly PurchaseHistoryRepository purchaseRepository;
     private readonly PriceLogRepository priceLogRepository;
     private readonly GroupRepository groupRepository;
+    private readonly ExpiryDaySuggestionService suggestionService;
     private readonly ILocalizer localizer;
     private readonly ILogger<PriceCaptureStepHandler> logger;
 
@@ -35,6 +36,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
     /// <param name="purchaseRepository">The purchase history repository.</param>
     /// <param name="priceLogRepository">The price log repository.</param>
     /// <param name="groupRepository">The group repository.</param>
+    /// <param name="suggestionService">The expiry day suggestion service.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="logger">The logger.</param>
     public PriceCaptureStepHandler(
@@ -43,6 +45,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
         PurchaseHistoryRepository purchaseRepository,
         PriceLogRepository priceLogRepository,
         GroupRepository groupRepository,
+        ExpiryDaySuggestionService suggestionService,
         ILocalizer localizer,
         ILogger<PriceCaptureStepHandler> logger)
     {
@@ -51,6 +54,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
         this.purchaseRepository = purchaseRepository;
         this.priceLogRepository = priceLogRepository;
         this.groupRepository = groupRepository;
+        this.suggestionService = suggestionService;
         this.localizer = localizer;
         this.logger = logger;
     }
@@ -90,72 +94,10 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
         }
     }
 
-    private async Task HandleStep1Async(Message message, PriceCaptureDialogState state, CancellationToken cancellationToken)
-    {
-        state.StoreName = message.Text!.Trim();
-        state.Step = 2;
-        this.dialogService.SetState(message.Chat.Id, message.From!.Id, state);
-
-        var skipPriceButton = InlineKeyboardButton.WithCallbackData("Skip", "price:skip_price");
-
-        await this.botClient.SendMessage(
-            chatId: message.Chat.Id,
-            text: $"💰 Price for {state.ItemName}?",
-            replyMarkup: new InlineKeyboardMarkup(new[] { new[] { skipPriceButton } }),
-            replyParameters: new ReplyParameters { MessageId = message.MessageId },
-            cancellationToken: cancellationToken);
-    }
-
-    private async Task HandleStep2Async(Message message, PriceCaptureDialogState state, CancellationToken cancellationToken)
-    {
-        if (!decimal.TryParse(message.Text!.Trim(), out var price))
-        {
-            await this.botClient.SendMessage(
-                chatId: message.Chat.Id,
-                text: "That doesn't look like a price — try again or tap [Skip]",
-                replyParameters: new ReplyParameters { MessageId = message.MessageId },
-                cancellationToken: cancellationToken);
-            return;
-        }
-
-        state.Price = price;
-        state.Step = 3;
-        this.dialogService.SetState(message.Chat.Id, message.From!.Id, state);
-
-        var skipExpiryButton = InlineKeyboardButton.WithCallbackData(
-            this.localizer.Get(message.Chat.Id, "shop.skip"),
-            "price:skip_expiry");
-
-        var expiryPrompt = this.localizer.Get(message.Chat.Id, "shop.expiry-prompt")
-            .Replace("{item}", state.ItemName);
-
-        await this.botClient.SendMessage(
-            chatId: message.Chat.Id,
-            text: expiryPrompt,
-            replyMarkup: new InlineKeyboardMarkup(new[] { new[] { skipExpiryButton } }),
-            replyParameters: new ReplyParameters { MessageId = message.MessageId },
-            cancellationToken: cancellationToken);
-    }
-
-    private async Task HandleStep3Async(Message message, PriceCaptureDialogState state, CancellationToken cancellationToken)
-    {
-        var input = message.Text!.Trim();
-        var expDate = ExpiryInputParser.Parse(input);
-
-        if (expDate is null)
-        {
-            await this.botClient.SendMessage(
-                chatId: message.Chat.Id,
-                text: this.localizer.Get(message.Chat.Id, "shop.invalid-date"),
-                replyParameters: new ReplyParameters { MessageId = message.MessageId },
-                cancellationToken: cancellationToken);
-            return;
-        }
-
-        await this.FinishDialogAsync(message.Chat.Id, message.From!.Id, state, expDate, cancellationToken);
-    }
-
-    private async Task FinishDialogAsync(
+    /// <summary>
+    /// Finishes the dialog by saving the purchase record. Called by step 3 and the expiry-suggest callback.
+    /// </summary>
+    public async Task FinishDialogAsync(
         long chatId,
         long userId,
         PriceCaptureDialogState state,
@@ -222,4 +164,74 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
             cancellationToken: cancellationToken);
     }
 
+    private async Task HandleStep1Async(Message message, PriceCaptureDialogState state, CancellationToken cancellationToken)
+    {
+        state.StoreName = message.Text!.Trim();
+        state.Step = 2;
+        this.dialogService.SetState(message.Chat.Id, message.From!.Id, state);
+
+        var skipPriceButton = InlineKeyboardButton.WithCallbackData("Skip", "price:skip_price");
+
+        await this.botClient.SendMessage(
+            chatId: message.Chat.Id,
+            text: $"💰 Price for {state.ItemName}?",
+            replyMarkup: new InlineKeyboardMarkup(new[] { new[] { skipPriceButton } }),
+            replyParameters: new ReplyParameters { MessageId = message.MessageId },
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleStep2Async(Message message, PriceCaptureDialogState state, CancellationToken cancellationToken)
+    {
+        if (!decimal.TryParse(message.Text!.Trim(), out var price))
+        {
+            await this.botClient.SendMessage(
+                chatId: message.Chat.Id,
+                text: "That doesn't look like a price — try again or tap [Skip]",
+                replyParameters: new ReplyParameters { MessageId = message.MessageId },
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        state.Price = price;
+        state.Step = 3;
+        this.dialogService.SetState(message.Chat.Id, message.From!.Id, state);
+
+        var expiryPrompt = this.localizer.Get(message.Chat.Id, "shop.expiry-prompt")
+            .Replace("{item}", state.ItemName);
+
+        var suggestions = await this.suggestionService.GetSuggestionsAsync(state.GroupId, state.ItemName);
+        var buttons = suggestions
+            .Select(d => InlineKeyboardButton.WithCallbackData(
+                this.localizer.Get(message.Chat.Id, "expiry.suggest-days").Replace("{n}", d.ToString()),
+                $"expiry:suggest:{d}"))
+            .ToList();
+        buttons.Add(InlineKeyboardButton.WithCallbackData(
+            this.localizer.Get(message.Chat.Id, "shop.skip"),
+            "price:skip_expiry"));
+
+        await this.botClient.SendMessage(
+            chatId: message.Chat.Id,
+            text: expiryPrompt,
+            replyMarkup: new InlineKeyboardMarkup(new[] { buttons.ToArray() }),
+            replyParameters: new ReplyParameters { MessageId = message.MessageId },
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task HandleStep3Async(Message message, PriceCaptureDialogState state, CancellationToken cancellationToken)
+    {
+        var input = message.Text!.Trim();
+        var expDate = ExpiryInputParser.Parse(input);
+
+        if (expDate is null)
+        {
+            await this.botClient.SendMessage(
+                chatId: message.Chat.Id,
+                text: this.localizer.Get(message.Chat.Id, "shop.invalid-date"),
+                replyParameters: new ReplyParameters { MessageId = message.MessageId },
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        await this.FinishDialogAsync(message.Chat.Id, message.From!.Id, state, expDate, cancellationToken);
+    }
 }

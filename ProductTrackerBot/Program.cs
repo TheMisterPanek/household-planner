@@ -183,13 +183,16 @@ builder.Services.AddScoped<ICommandHandler, StartCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, UndoCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, WeekCommandHandler>();
 builder.Services.AddScoped<ICommandHandler, BoughtCommandHandler>();
+builder.Services.AddScoped<ICommandHandler, UseCommandHandler>();
 
 // Register dialog message handlers
 builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();
-builder.Services.AddScoped<IDialogMessageHandler, PriceCaptureStepHandler>();
+builder.Services.AddScoped<PriceCaptureStepHandler>();
+builder.Services.AddScoped<IDialogMessageHandler>(sp => sp.GetRequiredService<PriceCaptureStepHandler>());
 builder.Services.AddScoped<IDialogMessageHandler, MealDialogStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler, ItemEditStepHandler>();
-builder.Services.AddScoped<IDialogMessageHandler, BoughtStepHandler>();
+builder.Services.AddScoped<BoughtStepHandler>();
+builder.Services.AddScoped<IDialogMessageHandler>(sp => sp.GetRequiredService<BoughtStepHandler>());
 
 // Register callback handlers
 builder.Services.AddScoped<ICallbackHandler, BuySkipCallbackHandler>();
@@ -214,6 +217,9 @@ builder.Services.AddScoped<ICallbackHandler, AiAddItemCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, AiAddAllCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, WeekCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, BoughtSkipExpiryCallbackHandler>();
+builder.Services.AddScoped<ExpiryDaySuggestionService>();
+builder.Services.AddScoped<ICallbackHandler, ExpirySuggestCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, UseRemoveCallbackHandler>();
 
 var host = builder.Build();
 await host.RunAsync();

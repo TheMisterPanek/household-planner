@@ -140,6 +140,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
         var state = new PriceCaptureDialogState
         {
             Step = 1,
+            GroupId = group.Id,
             ItemName = item.Name,
             Quantity = item.Quantity,
             BoughtByName = displayName ?? "Unknown",

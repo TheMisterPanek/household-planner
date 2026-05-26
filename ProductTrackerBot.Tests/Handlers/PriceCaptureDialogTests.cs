@@ -71,6 +71,16 @@ public class PriceCaptureDialogTests
         return localizerMock;
     }
 
+    private static ExpiryDaySuggestionService CreateSuggestionService()
+    {
+        var repo = new Mock<PurchaseHistoryRepository>("Data Source=file:test");
+        repo.Setup(r => r.GetExpiryDaySuggestionsAsync(It.IsAny<int>(), It.IsAny<string>()))
+            .ReturnsAsync(Array.Empty<int>().AsReadOnly());
+        repo.Setup(r => r.GetAverageExpiryDaysAsync(It.IsAny<int>()))
+            .ReturnsAsync(0);
+        return new ExpiryDaySuggestionService(repo.Object);
+    }
+
     private static CallbackQuery CreateCallback(string data, long chatId = -100, int userId = 42, string firstName = "Alice")
     {
         return new CallbackQuery
@@ -169,6 +179,7 @@ public class PriceCaptureDialogTests
             CreatePurchaseRepoMock().Object,
             CreatePriceLogRepoMock().Object,
             CreateGroupRepoMock().Object,
+            CreateSuggestionService(),
             Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
@@ -217,6 +228,7 @@ public class PriceCaptureDialogTests
             purchaseRepo.Object,
             priceLogRepo.Object,
             groupRepo.Object,
+            CreateSuggestionService(),
             Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
@@ -262,6 +274,7 @@ public class PriceCaptureDialogTests
             CreatePurchaseRepoMock().Object,
             CreatePriceLogRepoMock().Object,
             CreateGroupRepoMock().Object,
+            CreateSuggestionService(),
             Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
@@ -665,6 +678,7 @@ public class PriceCaptureDialogTests
             CreatePurchaseRepoMock().Object,
             CreatePriceLogRepoMock().Object,
             CreateGroupRepoMock().Object,
+            CreateSuggestionService(),
             Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
@@ -771,6 +785,7 @@ public class PriceCaptureDialogTests
             purchaseRepo.Object,
             priceLogRepo.Object,
             groupRepo.Object,
+            CreateSuggestionService(),
             Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
@@ -858,8 +873,9 @@ public class PriceCaptureDialogTests
             purchaseRepo.Object,
             priceLogRepo.Object,
             groupRepo.Object,
-Mock.Of<ILocalizer>(),
-                        logger.Object);
+            CreateSuggestionService(),
+            Mock.Of<ILocalizer>(),
+            logger.Object);
 
         var message = DeserializeMessage(
             "{\"message_id\":10,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100,\"type\":\"supergroup\"},\"text\":\"89.90\"}");
@@ -911,6 +927,7 @@ Mock.Of<ILocalizer>(),
             CreatePurchaseRepoMock().Object,
             CreatePriceLogRepoMock().Object,
             CreateGroupRepoMock().Object,
+            CreateSuggestionService(),
             localizerMock.Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
@@ -963,6 +980,7 @@ Mock.Of<ILocalizer>(),
             purchaseRepo.Object,
             CreatePriceLogRepoMock().Object,
             groupRepo.Object,
+            CreateSuggestionService(),
             localizerMock.Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
@@ -1020,6 +1038,7 @@ Mock.Of<ILocalizer>(),
             purchaseRepo.Object,
             CreatePriceLogRepoMock().Object,
             groupRepo.Object,
+            CreateSuggestionService(),
             localizerMock.Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
@@ -1058,6 +1077,7 @@ Mock.Of<ILocalizer>(),
             CreatePurchaseRepoMock().Object,
             CreatePriceLogRepoMock().Object,
             CreateGroupRepoMock().Object,
+            CreateSuggestionService(),
             localizerMock.Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
@@ -1107,6 +1127,7 @@ Mock.Of<ILocalizer>(),
             purchaseRepo.Object,
             CreatePriceLogRepoMock().Object,
             groupRepo.Object,
+            CreateSuggestionService(),
             localizerMock.Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 

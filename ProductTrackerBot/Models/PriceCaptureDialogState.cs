@@ -31,6 +31,11 @@ public class PriceCaptureDialogState
     public string BoughtByName { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the group ID.
+    /// </summary>
+    public int GroupId { get; set; }
+
+    /// <summary>
     /// Gets or sets the optional store name (filled at step 1).
     /// </summary>
     public string? StoreName { get; set; }

@@ -1,4 +1,5 @@
 @page "/"
+@page "/dashboard"
 @using System.Security.Claims
 @inject AuthenticationStateProvider Auth
 @inject NavigationManager Nav
@@ -22,7 +23,6 @@
             Nav.NavigateTo("/login", forceLoad: true);
             return;
         }
-        var raw = state.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        chatId = long.TryParse(raw, out var id) ? id : 0;
+        Nav.NavigateTo("/list", forceLoad: true);
     }
 }

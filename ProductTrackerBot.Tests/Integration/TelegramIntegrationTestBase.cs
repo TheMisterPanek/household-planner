@@ -170,11 +170,15 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var boughtHandler = new BoughtCommandHandler(
             this.BotMock.Object, this.GroupRepository, boughtDialogService, localizer.Object);
 
+        var useHandler = new UseCommandHandler(
+            this.BotMock.Object, this.GroupRepository, this.PurchaseRepository,
+            this.ItemRepository, localizer.Object);
+
         var nonStartHandlers = new List<ICommandHandler>
         {
             buyHandler, listHandler, historyHandler, searchHandler, pricesHandler,
             settingsHandler, languageHandler, undoCommandHandler, mealsHandler, aiHandler, loginHandler, weekHandler,
-            boughtHandler,
+            boughtHandler, useHandler,
         };
 
         var scopeFactory = BuildScopeFactory(nonStartHandlers);
@@ -273,23 +277,15 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             this.BotMock.Object, boughtDialogService, this.PurchaseRepository, this.HistoryRepository,
             localizer.Object, Mock.Of<ILogger<BoughtSkipExpiryCallbackHandler>>());
 
-        var callbackHandlers = new List<ICallbackHandler>
-        {
-            shopDoneHandler, shopRemoveHandler, actionCancelHandler, langCallbackHandler,
-            langSelectionHandler, buySkipHandler, buySkipExpiryHandler, buyConfirmHandler,
-            buyEditHandler, buyCancelHandler, itemEditCallbackHandler, itemSaveHandler,
-            itemCancelEditHandler, listNextHandler, listPrevHandler, undoInlineHandler,
-            priceSkipHandler, priceShopHandler, mealCallbackHandler, aiAddItemHandler,
-            aiAddAllHandler, weekCallbackHandler, boughtSkipExpiryCallbackHandler,
-        };
+        var suggestionService = new ExpiryDaySuggestionService(this.PurchaseRepository);
 
-        // Dialog handlers
+        // Dialog handlers (created before ExpirySuggestCallbackHandler to allow cross-reference)
         var buyStepHandler = new BuyStepHandler(
             this.BotMock.Object, buyDialogService, pendingAddService, localizer.Object);
 
         var priceCaptureHandler = new PriceCaptureStepHandler(
             this.BotMock.Object, priceDialogService, this.PurchaseRepository, this.PriceLogRepository,
-            this.GroupRepository, localizer.Object, Mock.Of<ILogger<PriceCaptureStepHandler>>());
+            this.GroupRepository, suggestionService, localizer.Object, Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
         var mealDialogHandler = new MealDialogStepHandler(
             this.BotMock.Object, this.GroupRepository, mealCreateDialogService,
@@ -302,12 +298,32 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         var boughtStepHandler = new BoughtStepHandler(
             this.BotMock.Object, boughtDialogService, this.PurchaseRepository, this.HistoryRepository,
-            localizer.Object, Mock.Of<ILogger<BoughtStepHandler>>());
+            suggestionService, localizer.Object, Mock.Of<ILogger<BoughtStepHandler>>());
+
+        var expirySuggestCallbackHandler = new ExpirySuggestCallbackHandler(
+            this.BotMock.Object, boughtDialogService, priceDialogService,
+            boughtStepHandler, priceCaptureHandler);
+
+        var useRemoveCallbackHandler = new UseRemoveCallbackHandler(
+            this.BotMock.Object, this.GroupRepository, this.PurchaseRepository,
+            this.ItemRepository, localizer.Object, Mock.Of<ILogger<UseRemoveCallbackHandler>>());
+
+        var callbackHandlers = new List<ICallbackHandler>
+        {
+            shopDoneHandler, shopRemoveHandler, actionCancelHandler, langCallbackHandler,
+            langSelectionHandler, buySkipHandler, buySkipExpiryHandler, buyConfirmHandler,
+            buyEditHandler, buyCancelHandler, itemEditCallbackHandler, itemSaveHandler,
+            itemCancelEditHandler, listNextHandler, listPrevHandler, undoInlineHandler,
+            priceSkipHandler, priceShopHandler, mealCallbackHandler, aiAddItemHandler,
+            aiAddAllHandler, weekCallbackHandler, boughtSkipExpiryCallbackHandler,
+            expirySuggestCallbackHandler, useRemoveCallbackHandler,
+        };
 
         var dialogHandlers = new List<IDialogMessageHandler>
         {
             buyStepHandler, priceCaptureHandler, mealDialogHandler, itemEditStepHandler, boughtStepHandler,
         };
+
 
         var dispatcherSp = new Mock<IServiceProvider>();
         dispatcherSp.Setup(x => x.GetService(typeof(IEnumerable<ICommandHandler>))).Returns(commandHandlers);
@@ -339,6 +355,29 @@ public abstract class TelegramIntegrationTestBase : IDisposable
                     foreach (var btn in row)
                     {
                         if (btn.CallbackData?.StartsWith("buy:confirm:") == true)
+                        {
+                            return btn.CallbackData;
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    protected string? GetLastExpirySuggestCallbackData()
+    {
+        for (int i = this.sentMessages.Count - 1; i >= 0; i--)
+        {
+            var req = this.sentMessages[i];
+            if (req.ReplyMarkup is Telegram.Bot.Types.ReplyMarkups.InlineKeyboardMarkup ikm)
+            {
+                foreach (var row in ikm.InlineKeyboard)
+                {
+                    foreach (var btn in row)
+                    {
+                        if (btn.CallbackData?.StartsWith("expiry:suggest:") == true)
                         {
                             return btn.CallbackData;
                         }
