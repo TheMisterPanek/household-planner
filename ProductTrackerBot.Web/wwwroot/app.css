@@ -1,9 +1,0 @@
-@layer components {
-  .btn-primary   { @apply bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors; }
-  .btn-secondary { @apply bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50; }
-  .btn-danger    { @apply bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700; }
-  .card          { @apply bg-white rounded-lg shadow-sm p-6; }
-  .input-field   { @apply block w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2 border; }
-  .nav-link      { @apply flex items-center gap-2 px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors; }
-  .table-row     { @apply border-b border-gray-100 hover:bg-gray-50; }
-}

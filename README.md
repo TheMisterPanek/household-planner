@@ -135,8 +135,6 @@ All configuration is via environment variables (or `.env` file loaded at startup
 | `BACKUP_PASSPHRASE` | No | — | AES-256 passphrase for encrypting backup files; if unset, backups are sent unencrypted |
 | `OPENROUTER_API_KEY` | No | — | OpenRouter key for AI natural-language queries |
 | `AI_QUERY_MODEL` | No | — | Model ID passed to OpenRouter |
-| `secret_key` | Yes (web) | — | JWT signing key for the web app |
-| `WEB_SESSION_TTL_HOURS` | No | `24` | Web session lifetime in hours |
 | `Logging__LogLevel__Default` | No | `Information` | Log verbosity (`Trace`, `Debug`, `Information`, `Warning`, `Error`) |
 
 `.env` file takes lowest precedence — real environment variables always win.
