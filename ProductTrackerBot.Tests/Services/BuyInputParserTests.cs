@@ -9,7 +9,7 @@ public class BuyInputParserTests
     {
         var (name, qty) = BuyInputParser.Parse("купить отривин 1 штуку");
         Assert.Equal("отривин", name);
-        Assert.Equal("1 шт", qty);
+        Assert.Equal("1 штук", qty);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class BuyInputParserTests
     {
         var (name, qty) = BuyInputParser.Parse("отривин 1 штуку");
         Assert.Equal("отривин", name);
-        Assert.Equal("1 шт", qty);
+        Assert.Equal("1 штук", qty);
     }
 
     [Fact]
@@ -66,5 +66,37 @@ public class BuyInputParserTests
         var (name, qty) = BuyInputParser.Parse("eggs 12 pcs");
         Assert.Equal("eggs", name);
         Assert.Equal("12 pcs", qty);
+    }
+
+    [Fact]
+    public void Parse_ShtuSuffix_ReturnsShtuokCanonical()
+    {
+        var (name, qty) = BuyInputParser.Parse("туалетка 8 шту");
+        Assert.Equal("туалетка", name);
+        Assert.Equal("8 штук", qty);
+    }
+
+    [Fact]
+    public void Parse_ShtukaUnit_ReturnsShtuokCanonical()
+    {
+        var (name, qty) = BuyInputParser.Parse("яйца 12 штука");
+        Assert.Equal("яйца", name);
+        Assert.Equal("12 штук", qty);
+    }
+
+    [Fact]
+    public void Parse_ShtukoUnit_ReturnsShtuokCanonical()
+    {
+        var (name, qty) = BuyInputParser.Parse("сырок 5 штуку");
+        Assert.Equal("сырок", name);
+        Assert.Equal("5 штук", qty);
+    }
+
+    [Fact]
+    public void Parse_FullShtuokUnit_ReturnsShtuokCanonical()
+    {
+        var (name, qty) = BuyInputParser.Parse("вода 6 штук");
+        Assert.Equal("вода", name);
+        Assert.Equal("6 штук", qty);
     }
 }

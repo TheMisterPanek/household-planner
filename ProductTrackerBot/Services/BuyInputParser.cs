@@ -78,7 +78,7 @@ public static partial class BuyInputParser
 
         if (lower == "шт" || lower == "шт." || lower.StartsWith("штук") || lower.StartsWith("шту"))
         {
-            return "шт";
+            return "штук";
         }
 
         if (lower.StartsWith("пачк"))
