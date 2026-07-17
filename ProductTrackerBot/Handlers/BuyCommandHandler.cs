@@ -27,6 +27,7 @@ public class BuyCommandHandler : ICommandHandler
     private readonly ILocalizer localizer;
     private readonly ShoppingListService shoppingListService;
     private readonly IHistoryRepository historyRepository;
+    private readonly CategoryCaptureService categoryCaptureService;
     private readonly ILogger<BuyCommandHandler> logger;
 
     /// <summary>
@@ -39,6 +40,7 @@ public class BuyCommandHandler : ICommandHandler
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="shoppingListService">The shopping list service for bulk adds.</param>
     /// <param name="historyRepository">The history repository.</param>
+    /// <param name="categoryCaptureService">The category-capture follow-up service.</param>
     /// <param name="logger">The logger.</param>
     public BuyCommandHandler(
         ITelegramBotClient botClient,
@@ -48,6 +50,7 @@ public class BuyCommandHandler : ICommandHandler
         ILocalizer localizer,
         ShoppingListService shoppingListService,
         IHistoryRepository historyRepository,
+        CategoryCaptureService categoryCaptureService,
         ILogger<BuyCommandHandler> logger)
     {
         this.botClient = botClient;
@@ -57,6 +60,7 @@ public class BuyCommandHandler : ICommandHandler
         this.localizer = localizer;
         this.shoppingListService = shoppingListService;
         this.historyRepository = historyRepository;
+        this.categoryCaptureService = categoryCaptureService;
         this.logger = logger;
     }
 
@@ -139,6 +143,11 @@ public class BuyCommandHandler : ICommandHandler
     {
         var addedItems = await this.shoppingListService.AddItemsAsync(rawCsv, group.Id, displayName);
 
+        if (addedItems.Count == 0)
+        {
+            return;
+        }
+
         foreach (var item in addedItems)
         {
             try
@@ -173,6 +182,17 @@ public class BuyCommandHandler : ICommandHandler
             text: confirmText,
             replyParameters: new ReplyParameters { MessageId = message.MessageId },
             cancellationToken: cancellationToken);
+
+        var bulkLabel = this.localizer.Get(message.Chat.Id, "category.bulk-label")
+            .Replace("{count}", addedItems.Count.ToString());
+
+        await this.categoryCaptureService.StartCategoryCaptureAsync(
+            message.Chat.Id,
+            message.From!.Id,
+            group.Id,
+            addedItems.Select(i => i.Id).ToList(),
+            bulkLabel,
+            cancellationToken);
     }
 
     private static string? ExtractInlineArgs(string? text)

@@ -127,5 +127,11 @@
   "use.header": "📦 Aktualne zapasy:",
   "use.empty": "✅ Zapasy są puste.",
   "use.remove-button": "🗑",
-  "use.remove-toast": "✓ Usunięto"
+  "use.remove-toast": "✓ Usunięto",
+  "category.prompt": "Do jakiej grupy dodać {item}?",
+  "category.bulk-label": "te {count} produkty",
+  "category.skip": "Bez kategorii",
+  "category.skipped": "Pominięto",
+  "category.set-confirmation": "✓ Ustawiono kategorię „{category}”",
+  "list.filter-all": "Wszystkie"
 }

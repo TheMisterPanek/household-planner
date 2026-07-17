@@ -26,6 +26,33 @@ public class ShoppingListServiceTests
         Assert.Equal(10, group.Id);
     }
 
+    // TDD — bug #4: when a category filter matches zero active items (e.g. the last item in that
+    // category was bought between render and tap), BuildListAsync must still return a keyboard with an
+    // "All" button so the user can clear the filter. Returning a null keyboard strands them.
+    [Fact]
+    public async Task Filtered_View_With_No_Matches_Should_Offer_All_Button()
+    {
+        var groupRepo = CreateGroupRepoMock(chatId: 1, groupId: 10);
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
+        var items = new List<ShoppingItem>
+        {
+            new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Иван", Category = "Еда" },
+        };
+        itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        itemRepo.Setup(r => r.GetDistinctCategoriesAsync(10)).ReturnsAsync(new[] { "Еда" });
+        var localizer = CreateLocalizerMock();
+
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+
+        // Filter by a category that no active item carries.
+        var (_, keyboard, _) = await service.BuildListAsync(1, 1, "Химия");
+
+        Assert.NotNull(keyboard);
+        Assert.Contains(
+            keyboard!.InlineKeyboard.SelectMany(row => row),
+            btn => btn.CallbackData == "list_filter:1:-1:1");
+    }
+
     [Fact]
     public async Task Single_Item_Should_Produce_List_With_One_Row()
     {
@@ -208,7 +235,7 @@ public class ShoppingListServiceTests
         var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
         var added = await service.AddItemsAsync("Молоко", groupId: 10, addedByName: "Ivan");
         Assert.Single(added);
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Ivan", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Ivan", null, null), Times.Once);
     }
 
     [Fact]
@@ -217,7 +244,7 @@ public class ShoppingListServiceTests
         var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
         var added = await service.AddItemsAsync("Молоко 2л", groupId: 10, addedByName: "Ivan");
         Assert.Single(added);
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Ivan", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Ivan", null, null), Times.Once);
     }
 
     [Fact]
@@ -226,7 +253,7 @@ public class ShoppingListServiceTests
         var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
         var added = await service.AddItemsAsync("Молоко, Яйца, Хлеб", groupId: 10, addedByName: "Ivan");
         Assert.Equal(3, added.Count);
-        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), null, "Ivan", null), Times.Exactly(3));
+        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), null, "Ivan", null, null), Times.Exactly(3));
     }
 
     [Fact]
@@ -235,9 +262,9 @@ public class ShoppingListServiceTests
         var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
         var added = await service.AddItemsAsync("Молоко 2л, Яйца 6, Хлеб", groupId: 10, addedByName: "Ivan");
         Assert.Equal(3, added.Count);
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Ivan", null), Times.Once);
-        itemRepo.Verify(r => r.AddAsync(10, "Яйца", "6", "Ivan", null), Times.Once);
-        itemRepo.Verify(r => r.AddAsync(10, "Хлеб", null, "Ivan", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Ivan", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Яйца", "6", "Ivan", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Хлеб", null, "Ivan", null, null), Times.Once);
     }
 
     [Fact]
@@ -246,9 +273,9 @@ public class ShoppingListServiceTests
         var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
         var added = await service.AddItemsAsync("  Молоко  ,  Яйца  ,  Хлеб  ", groupId: 10, addedByName: "Ivan");
         Assert.Equal(3, added.Count);
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Ivan", null), Times.Once);
-        itemRepo.Verify(r => r.AddAsync(10, "Яйца", null, "Ivan", null), Times.Once);
-        itemRepo.Verify(r => r.AddAsync(10, "Хлеб", null, "Ivan", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Ivan", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Яйца", null, "Ivan", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Хлеб", null, "Ivan", null, null), Times.Once);
     }
 
     [Fact]
@@ -258,7 +285,7 @@ public class ShoppingListServiceTests
         var csv = string.Join(", ", Enumerable.Range(1, 21).Select(i => $"Item{i}"));
         var added = await service.AddItemsAsync(csv, groupId: 10, addedByName: "Ivan");
         Assert.Equal(20, added.Count);
-        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), It.IsAny<string?>(), "Ivan", null), Times.Exactly(20));
+        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), It.IsAny<string?>(), "Ivan", null, null), Times.Exactly(20));
     }
 
     [Fact]
@@ -267,21 +294,109 @@ public class ShoppingListServiceTests
         var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
         var added = await service.AddItemsAsync("Молоко,,Яйца", groupId: 10, addedByName: "Ivan");
         Assert.Equal(2, added.Count);
-        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), It.IsAny<string?>(), "Ivan", null), Times.Exactly(2));
+        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), It.IsAny<string?>(), "Ivan", null, null), Times.Exactly(2));
     }
 
     private static (ShoppingListService Service, Mock<ShoppingItemRepository> ItemRepo) CreateServiceWithItemRepo(int groupId)
     {
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
         itemRepo
-            .Setup(r => r.AddAsync(groupId, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
-            .ReturnsAsync((int gid, string name, string? qty, string by, DateOnly? exp) =>
+            .Setup(r => r.AddAsync(groupId, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null))
+            .ReturnsAsync((int gid, string name, string? qty, string by, DateOnly? exp, string? category) =>
                 new ShoppingItem { Id = 1, GroupId = gid, Name = name, Quantity = qty, AddedByName = by });
 
         var groupRepo = new Mock<GroupRepository>("Data Source=file::memory:?cache=shared");
         var localizer = CreateLocalizerMock();
         var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
         return (service, itemRepo);
+    }
+
+    [Fact]
+    public async Task GetPagedItemsAsync_WithCategory_FiltersCaseInsensitively()
+    {
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
+        var items = new List<ShoppingItem>
+        {
+            new() { Id = 1, GroupId = 10, Name = "Порошок", AddedByName = "Ivan", Category = "Химия" },
+            new() { Id = 2, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Category = "Еда" },
+            new() { Id = 3, GroupId = 10, Name = "Отбеливатель", AddedByName = "Ivan", Category = "химия" },
+        };
+        itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+
+        var service = new ShoppingListService(
+            new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object, CreateLocalizerMock().Object);
+
+        var (pagedItems, totalItems, totalPages, actualPage) = await service.GetPagedItemsAsync(10, pageNumber: 1, pageSize: 10, category: "Химия");
+
+        Assert.Equal(2, totalItems);
+        Assert.Equal(1, totalPages);
+        Assert.Equal(1, actualPage);
+        Assert.Equal(new[] { 1, 3 }, pagedItems.Select(i => i.Id));
+    }
+
+    [Fact]
+    public async Task BuildListAsync_NoCategorizedItems_OmitsFilterRow()
+    {
+        var groupRepo = CreateGroupRepoMock(chatId: 1, groupId: 10);
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
+        var items = new List<ShoppingItem>
+        {
+            new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Ivan" },
+        };
+        itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        itemRepo.Setup(r => r.GetDistinctCategoriesAsync(10)).ReturnsAsync(Array.Empty<string>());
+
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, CreateLocalizerMock().Object);
+
+        var (_, keyboard, _) = await service.BuildListAsync(1);
+
+        // Item row + Cancel row only — no filter row
+        Assert.Equal(2, keyboard!.InlineKeyboard.Count());
+    }
+
+    [Fact]
+    public async Task BuildListAsync_WithCategorizedItems_AddsFilterRow()
+    {
+        var groupRepo = CreateGroupRepoMock(chatId: 1, groupId: 10);
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
+        var items = new List<ShoppingItem>
+        {
+            new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Category = "Еда" },
+        };
+        itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        itemRepo.Setup(r => r.GetDistinctCategoriesAsync(10)).ReturnsAsync(new List<string> { "Еда" });
+
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, CreateLocalizerMock().Object);
+
+        var (_, keyboard, _) = await service.BuildListAsync(1);
+
+        // Item row + filter row + Cancel row
+        Assert.Equal(3, keyboard!.InlineKeyboard.Count());
+        var filterRow = keyboard.InlineKeyboard.ElementAt(1);
+        Assert.Single(filterRow);
+        Assert.Equal("Еда", filterRow.First().Text);
+        Assert.Equal("list_filter:1:0:1", filterRow.First().CallbackData);
+    }
+
+    [Fact]
+    public async Task BuildListAsync_WithActiveFilter_AddsAllButton()
+    {
+        var groupRepo = CreateGroupRepoMock(chatId: 1, groupId: 10);
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
+        var items = new List<ShoppingItem>
+        {
+            new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Category = "Еда" },
+        };
+        itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        itemRepo.Setup(r => r.GetDistinctCategoriesAsync(10)).ReturnsAsync(new List<string> { "Еда" });
+
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, CreateLocalizerMock().Object);
+
+        var (_, keyboard, _) = await service.BuildListAsync(1, category: "Еда");
+
+        var filterRow = keyboard!.InlineKeyboard.ElementAt(1);
+        Assert.Equal(2, filterRow.Count());
+        Assert.Equal("list_filter:1:-1:1", filterRow.Last().CallbackData);
     }
 
     private static Mock<GroupRepository> CreateGroupRepoMock(long chatId, int groupId)

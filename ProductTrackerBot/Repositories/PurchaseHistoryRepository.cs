@@ -120,13 +120,7 @@ public class PurchaseHistoryRepository
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            var category = reader.GetString(0);
-            if (category.Length > 20)
-            {
-                category = category.Substring(0, 20) + "…";
-            }
-
-            categories.Add(category);
+            categories.Add(reader.GetString(0));
         }
 
         return categories.AsReadOnly();
@@ -145,7 +139,7 @@ public class PurchaseHistoryRepository
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = @"
-            SELECT Id, GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName
+            SELECT Id, GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName, Category
             FROM PurchaseHistory
             WHERE GroupId = @groupId
             ORDER BY PurchasedAt DESC";
@@ -166,6 +160,7 @@ public class PurchaseHistoryRepository
                 Price = reader.IsDBNull(6) ? null : reader.GetDecimal(6),
                 PurchasedAt = DateTime.Parse(reader.GetString(7), null, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal),
                 BoughtByName = reader.GetString(8),
+                Category = reader.IsDBNull(9) ? null : reader.GetString(9),
             });
         }
 

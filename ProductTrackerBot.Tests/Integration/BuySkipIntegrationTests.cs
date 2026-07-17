@@ -25,9 +25,10 @@ public class BuySkipIntegrationTests : TelegramIntegrationTestBase
         var rice = Assert.Single(items, i => i.Name == "Rice");
         Assert.Null(rice.Quantity);
 
+        // Confirmation message + category-capture follow-up prompt
         BotMock.Verify(
             b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()),
-            Times.Once);
+            Times.Exactly(2));
     }
 
     [Fact]

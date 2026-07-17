@@ -9,6 +9,7 @@ A Telegram bot that helps families and households manage shopping lists and meal
 ### Current features
 
 - **Shopping list management** (`/buy`, `/list`) — Add items, paginate, mark as bought
+- **Product categories** — After adding or editing an item, the bot asks which category to file it under, suggesting the group's most-used categories as buttons (or reply with any text to create a new one). Filter `/list` by category with one tap to shop aisle-by-aisle
 - **Meal planning** (`/meals`) — Create, view, and manage meals with ingredients and steps
 - **Purchase history** — Track what was bought and where
 - **Price capture** — Record prices when items are purchased

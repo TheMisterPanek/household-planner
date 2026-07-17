@@ -127,5 +127,11 @@
   "use.header": "📦 Текущие запасы:",
   "use.empty": "✅ Запасы пусты.",
   "use.remove-button": "🗑",
-  "use.remove-toast": "✓ Удалено"
+  "use.remove-toast": "✓ Удалено",
+  "category.prompt": "В какую группу добавить {item}?",
+  "category.bulk-label": "эти {count} товара",
+  "category.skip": "Без категории",
+  "category.skipped": "Пропущено",
+  "category.set-confirmation": "✓ Категория «{category}» установлена",
+  "list.filter-all": "Все"
 }

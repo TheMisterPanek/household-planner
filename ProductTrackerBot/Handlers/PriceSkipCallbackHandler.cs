@@ -147,6 +147,7 @@ public class PriceSkipCallbackHandler : ICallbackHandler
                 PurchasedAt = DateTime.UtcNow,
                 BoughtByName = state.BoughtByName,
                 ExpDate = null,
+                Category = state.Category,
             };
 
             await this.purchaseRepository.AddAsync(record);

@@ -22,6 +22,7 @@ public class BuyConfirmCallbackHandler : ICallbackHandler
     private readonly PendingAddService pendingAddService;
     private readonly ShoppingItemRepository itemRepository;
     private readonly IHistoryRepository historyRepository;
+    private readonly CategoryCaptureService categoryCaptureService;
     private readonly ILocalizer localizer;
     private readonly ILogger<BuyConfirmCallbackHandler> logger;
 
@@ -32,6 +33,7 @@ public class BuyConfirmCallbackHandler : ICallbackHandler
     /// <param name="pendingAddService">The pending add session service.</param>
     /// <param name="itemRepository">The shopping item repository.</param>
     /// <param name="historyRepository">The history repository.</param>
+    /// <param name="categoryCaptureService">The category-capture follow-up service.</param>
     /// <param name="localizer">The localizer.</param>
     /// <param name="logger">The logger.</param>
     public BuyConfirmCallbackHandler(
@@ -39,6 +41,7 @@ public class BuyConfirmCallbackHandler : ICallbackHandler
         PendingAddService pendingAddService,
         ShoppingItemRepository itemRepository,
         IHistoryRepository historyRepository,
+        CategoryCaptureService categoryCaptureService,
         ILocalizer localizer,
         ILogger<BuyConfirmCallbackHandler> logger)
     {
@@ -46,6 +49,7 @@ public class BuyConfirmCallbackHandler : ICallbackHandler
         this.pendingAddService = pendingAddService;
         this.itemRepository = itemRepository;
         this.historyRepository = historyRepository;
+        this.categoryCaptureService = categoryCaptureService;
         this.localizer = localizer;
         this.logger = logger;
     }
@@ -114,5 +118,8 @@ public class BuyConfirmCallbackHandler : ICallbackHandler
         {
             this.logger.LogWarning(ex, "Failed to record history for ItemAdded");
         }
+
+        await this.categoryCaptureService.StartCategoryCaptureAsync(
+            pending.ChatId, callbackQuery.From.Id, pending.GroupId, new[] { item.Id }, item.Name, cancellationToken);
     }
 }

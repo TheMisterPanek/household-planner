@@ -68,13 +68,20 @@ public class ShoppingListService
     /// <param name="groupId">The group ID.</param>
     /// <param name="pageNumber">The page number (1-based; invalid numbers default to 1).</param>
     /// <param name="pageSize">The number of items per page.</param>
+    /// <param name="category">Optional category filter (case-insensitive exact match); null = unfiltered.</param>
     /// <returns>A tuple of (items, totalItems, totalPages, actualPageNumber).</returns>
     public virtual async Task<(IReadOnlyList<ShoppingItem> Items, int TotalItems, int TotalPages, int ActualPageNumber)> GetPagedItemsAsync(
         int groupId,
         int pageNumber,
-        int pageSize)
+        int pageSize,
+        string? category = null)
     {
         var items = await this.itemRepository.GetAllAsync(groupId);
+        if (category is not null)
+        {
+            items = items.Where(i => string.Equals(i.Category, category, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
         var totalItems = items.Count;
         var totalPages = (totalItems + pageSize - 1) / pageSize; // Ceiling division
         if (totalPages == 0)
@@ -99,22 +106,50 @@ public class ShoppingListService
     /// </summary>
     /// <param name="chatId">The Telegram chat ID.</param>
     /// <param name="pageNumber">The page number for pagination (1-based; defaults to 1).</param>
+    /// <param name="category">Optional category filter (case-insensitive exact match); null = unfiltered.</param>
     /// <returns>A tuple of (messageText, inlineKeyboard, group).</returns>
     public virtual async Task<(string MessageText, InlineKeyboardMarkup? Keyboard, Group Group)> BuildListAsync(
         long chatId,
-        int pageNumber = 1)
+        int pageNumber = 1,
+        string? category = null)
     {
         const int pageSize = 10;
         var group = await this.groupRepository.GetOrCreateAsync(chatId);
 
-        var (pagedItems, totalItems, totalPages, actualPageNumber) = await this.GetPagedItemsAsync(group.Id, pageNumber, pageSize);
+        var (pagedItems, totalItems, totalPages, actualPageNumber) = await this.GetPagedItemsAsync(group.Id, pageNumber, pageSize, category);
 
         if (totalItems == 0)
         {
+            if (category is not null)
+            {
+                // Filtered to a category with no current matches — still offer a way back to the full list.
+                var allCategories = await this.itemRepository.GetDistinctCategoriesAsync(group.Id) ?? Array.Empty<string>();
+                var emptyFilterButtons = new List<InlineKeyboardButton>();
+                var emptyVisibleCount = Math.Min(allCategories.Count, 5);
+                for (int i = 0; i < emptyVisibleCount; i++)
+                {
+                    emptyFilterButtons.Add(InlineKeyboardButton.WithCallbackData(
+                        TruncateCategoryLabel(allCategories[i]),
+                        $"list_filter:{group.ChatId}:{i}:1"));
+                }
+
+                emptyFilterButtons.Add(InlineKeyboardButton.WithCallbackData(
+                    this.localizer.Get(chatId, "list.filter-all"),
+                    $"list_filter:{group.ChatId}:-1:1"));
+
+                var emptyKeyboard = new InlineKeyboardMarkup(new List<List<InlineKeyboardButton>> { emptyFilterButtons });
+                return (this.localizer.Get(chatId, "list.empty"), emptyKeyboard, group);
+            }
+
             return (this.localizer.Get(chatId, "list.empty"), null, group);
         }
 
         var allItems = await this.itemRepository.GetAllAsync(group.Id);
+        if (category is not null)
+        {
+            allItems = allItems.Where(i => string.Equals(i.Category, category, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
         var sb = new StringBuilder(this.localizer.Get(chatId, "list.header") + "\n\n");
         sb.Append(FormatItemsAsText(allItems));
 
@@ -141,28 +176,61 @@ public class ShoppingListService
             }
         }
 
+        var categories = await this.itemRepository.GetDistinctCategoriesAsync(group.Id) ?? Array.Empty<string>();
+        var categoryIndex = category is not null
+            ? IndexOfCategory(categories, category)
+            : -1;
+
         // Add pagination buttons if there are multiple pages
         if (totalPages > 1)
         {
             var paginationButtons = new List<InlineKeyboardButton>();
             if (actualPageNumber > 1)
             {
+                var callbackData = category is not null
+                    ? $"list_filter:{group.ChatId}:{categoryIndex}:{actualPageNumber - 1}"
+                    : $"list_prev:{group.ChatId}:{actualPageNumber - 1}";
                 paginationButtons.Add(InlineKeyboardButton.WithCallbackData(
                     this.localizer.Get(chatId, "pagination_previous_button"),
-                    $"list_prev:{group.ChatId}:{actualPageNumber - 1}"));
+                    callbackData));
             }
 
             if (actualPageNumber < totalPages)
             {
+                var callbackData = category is not null
+                    ? $"list_filter:{group.ChatId}:{categoryIndex}:{actualPageNumber + 1}"
+                    : $"list_next:{group.ChatId}:{actualPageNumber + 1}";
                 paginationButtons.Add(InlineKeyboardButton.WithCallbackData(
                     this.localizer.Get(chatId, "pagination_next_button"),
-                    $"list_next:{group.ChatId}:{actualPageNumber + 1}"));
+                    callbackData));
             }
 
             if (paginationButtons.Count > 0)
             {
                 buttons.Add(paginationButtons);
             }
+        }
+
+        // Add category filter row (only when the group has at least one categorized active item)
+        if (categories.Count > 0)
+        {
+            var filterButtons = new List<InlineKeyboardButton>();
+            var visibleCount = Math.Min(categories.Count, 5);
+            for (int i = 0; i < visibleCount; i++)
+            {
+                filterButtons.Add(InlineKeyboardButton.WithCallbackData(
+                    TruncateCategoryLabel(categories[i]),
+                    $"list_filter:{group.ChatId}:{i}:1"));
+            }
+
+            if (category is not null)
+            {
+                filterButtons.Add(InlineKeyboardButton.WithCallbackData(
+                    this.localizer.Get(chatId, "list.filter-all"),
+                    $"list_filter:{group.ChatId}:-1:1"));
+            }
+
+            buttons.Add(filterButtons);
         }
 
         // Add page footer
@@ -179,6 +247,35 @@ public class ShoppingListService
 
         return (sb.ToString(), new InlineKeyboardMarkup(buttons), group);
     }
+
+    /// <summary>
+    /// Finds the position of a category (case-insensitive) in a distinct-categories list, or -1 if not found
+    /// (e.g. the category was re-tagged or removed since the message was last rendered).
+    /// </summary>
+    /// <param name="categories">The group's current distinct categories.</param>
+    /// <param name="category">The category to locate.</param>
+    /// <returns>The zero-based index, or -1 if not present.</returns>
+    public static int IndexOfCategory(IReadOnlyList<string> categories, string category)
+    {
+        for (int i = 0; i < categories.Count; i++)
+        {
+            if (string.Equals(categories[i], category, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Truncates a category name for display on a button label. The full, untruncated name must always
+    /// be the value persisted to storage — truncation is a rendering concern only.
+    /// </summary>
+    /// <param name="category">The full category name.</param>
+    /// <returns>The truncated label.</returns>
+    internal static string TruncateCategoryLabel(string category) =>
+        category.Length > 20 ? category[..20] + "…" : category;
 
     private static string FormatItemsAsText(IReadOnlyList<ShoppingItem> items)
     {

@@ -22,6 +22,7 @@ public class BuySkipCallbackHandler : ICallbackHandler
     private readonly PendingDialogService<BuyDialogState> dialogService;
     private readonly ShoppingItemRepository itemRepository;
     private readonly IHistoryRepository historyRepository;
+    private readonly CategoryCaptureService categoryCaptureService;
     private readonly ILocalizer localizer;
     private readonly ILogger<BuySkipCallbackHandler> logger;
 
@@ -32,6 +33,7 @@ public class BuySkipCallbackHandler : ICallbackHandler
     /// <param name="dialogService">The dialog state service.</param>
     /// <param name="itemRepository">The shopping item repository.</param>
     /// <param name="historyRepository">The history repository.</param>
+    /// <param name="categoryCaptureService">The category-capture follow-up service.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="logger">The logger.</param>
     public BuySkipCallbackHandler(
@@ -39,6 +41,7 @@ public class BuySkipCallbackHandler : ICallbackHandler
         PendingDialogService<BuyDialogState> dialogService,
         ShoppingItemRepository itemRepository,
         IHistoryRepository historyRepository,
+        CategoryCaptureService categoryCaptureService,
         ILocalizer localizer,
         ILogger<BuySkipCallbackHandler> logger)
     {
@@ -46,6 +49,7 @@ public class BuySkipCallbackHandler : ICallbackHandler
         this.dialogService = dialogService;
         this.itemRepository = itemRepository;
         this.historyRepository = historyRepository;
+        this.categoryCaptureService = categoryCaptureService;
         this.localizer = localizer;
         this.logger = logger;
     }
@@ -117,5 +121,8 @@ public class BuySkipCallbackHandler : ICallbackHandler
         {
             this.logger.LogWarning(ex, "Failed to record history for ItemAdded");
         }
+
+        await this.categoryCaptureService.StartCategoryCaptureAsync(
+            chatId, userId, state.GroupId, new[] { item.Id }, item.Name, cancellationToken);
     }
 }

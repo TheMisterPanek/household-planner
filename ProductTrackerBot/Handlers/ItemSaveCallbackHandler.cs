@@ -23,6 +23,7 @@ public class ItemSaveCallbackHandler : ICallbackHandler
     private readonly ShoppingItemRepository itemRepository;
     private readonly ShoppingListService listService;
     private readonly IHistoryRepository historyRepository;
+    private readonly CategoryCaptureService categoryCaptureService;
     private readonly ILocalizer localizer;
     private readonly ILogger<ItemSaveCallbackHandler> logger;
 
@@ -34,6 +35,7 @@ public class ItemSaveCallbackHandler : ICallbackHandler
     /// <param name="itemRepository">The shopping item repository.</param>
     /// <param name="listService">The shopping list service.</param>
     /// <param name="historyRepository">The history repository.</param>
+    /// <param name="categoryCaptureService">The category-capture follow-up service.</param>
     /// <param name="localizer">The localizer.</param>
     /// <param name="logger">The logger.</param>
     public ItemSaveCallbackHandler(
@@ -42,6 +44,7 @@ public class ItemSaveCallbackHandler : ICallbackHandler
         ShoppingItemRepository itemRepository,
         ShoppingListService listService,
         IHistoryRepository historyRepository,
+        CategoryCaptureService categoryCaptureService,
         ILocalizer localizer,
         ILogger<ItemSaveCallbackHandler> logger)
     {
@@ -50,6 +53,7 @@ public class ItemSaveCallbackHandler : ICallbackHandler
         this.itemRepository = itemRepository;
         this.listService = listService;
         this.historyRepository = historyRepository;
+        this.categoryCaptureService = categoryCaptureService;
         this.localizer = localizer;
         this.logger = logger;
     }
@@ -128,5 +132,8 @@ public class ItemSaveCallbackHandler : ICallbackHandler
         {
             this.logger.LogWarning(ex, "Failed to record history for ItemEdited");
         }
+
+        await this.categoryCaptureService.StartCategoryCaptureAsync(
+            pending.ChatId, callbackQuery.From.Id, pending.GroupId, new[] { pending.ItemId }, pending.Name, cancellationToken);
     }
 }

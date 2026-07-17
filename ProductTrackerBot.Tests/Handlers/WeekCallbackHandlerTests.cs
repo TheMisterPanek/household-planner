@@ -373,8 +373,8 @@ public class WeekCallbackHandlerTests
 
         var shoppingRepo = new Mock<ShoppingItemRepository>("cs");
         shoppingRepo.Setup(r => r.GetAllAsync(1)).ReturnsAsync(new List<ShoppingItem>());
-        shoppingRepo.Setup(r => r.AddAsync(1, "Flour", "500g", "Week", default)).ReturnsAsync(new ShoppingItem { Id = 1 });
-        shoppingRepo.Setup(r => r.AddAsync(1, "Eggs", "3", "Week", default)).ReturnsAsync(new ShoppingItem { Id = 2 });
+        shoppingRepo.Setup(r => r.AddAsync(1, "Flour", "500g", "Week", default, null)).ReturnsAsync(new ShoppingItem { Id = 1 });
+        shoppingRepo.Setup(r => r.AddAsync(1, "Eggs", "3", "Week", default, null)).ReturnsAsync(new ShoppingItem { Id = 2 });
 
         var locMock = new Mock<ILocalizer>();
         locMock.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
@@ -384,8 +384,8 @@ public class WeekCallbackHandlerTests
         var handler = CreateHandler(bot, groupRepo.Object, dayMealsRepo.Object, ingredientRepo: ingredientRepo.Object, shoppingRepo: shoppingRepo.Object, localizer: locMock.Object);
         await handler.HandleAsync(CreateCallback($"week:to_cart:{Week}:1"), CancellationToken.None);
 
-        shoppingRepo.Verify(r => r.AddAsync(1, "Flour", "500g", "Week", default), Times.Once);
-        shoppingRepo.Verify(r => r.AddAsync(1, "Eggs", "3", "Week", default), Times.Once);
+        shoppingRepo.Verify(r => r.AddAsync(1, "Flour", "500g", "Week", default, null), Times.Once);
+        shoppingRepo.Verify(r => r.AddAsync(1, "Eggs", "3", "Week", default, null), Times.Once);
         bot.Verify(b => b.SendRequest(
             It.Is<AnswerCallbackQueryRequest>(r => r.Text == "Added 2 items"),
             It.IsAny<CancellationToken>()), Times.Once);

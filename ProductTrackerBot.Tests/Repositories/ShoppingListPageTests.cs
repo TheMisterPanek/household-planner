@@ -37,7 +37,8 @@ public class ShoppingListPageTests : IDisposable
                 Name TEXT NOT NULL,
                 Quantity TEXT,
                 exp_date TEXT,
-                AddedByName TEXT NOT NULL
+                AddedByName TEXT NOT NULL,
+                Category TEXT
             );";
         cmd.ExecuteNonQuery();
 

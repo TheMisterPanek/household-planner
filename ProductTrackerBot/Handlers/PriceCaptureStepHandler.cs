@@ -117,6 +117,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
             PurchasedAt = DateTime.UtcNow,
             BoughtByName = state.BoughtByName,
             ExpDate = expDate,
+            Category = state.Category,
         };
 
         await this.purchaseRepository.AddAsync(record);

@@ -34,7 +34,7 @@ public class UndoServiceTests
     private static Mock<ShoppingItemRepository> ItemRepoThatAdds()
     {
         var mock = new Mock<ShoppingItemRepository>("Data Source=file:test");
-        mock.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
+        mock.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null))
             .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 1, Name = "Item", AddedByName = "Undo" });
         return mock;
     }
@@ -62,7 +62,7 @@ public class UndoServiceTests
         var result = await service.UndoLastAsync(100L, 42L, CancellationToken.None);
 
         Assert.Equal("undo.success", result);
-        itemRepo.Verify(r => r.AddAsync(10, "Milk", "1L", "Undo", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Milk", "1L", "Undo", null, null), Times.Once);
         historyMock.Verify(h => h.MarkRevertedAsync(1L, It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -78,7 +78,7 @@ public class UndoServiceTests
         var result = await service.UndoLastAsync(100L, 42L, CancellationToken.None);
 
         Assert.Equal("undo.success", result);
-        itemRepo.Verify(r => r.AddAsync(10, "Bread", null, "Undo", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Bread", null, "Undo", null, null), Times.Once);
     }
 
     [Fact]

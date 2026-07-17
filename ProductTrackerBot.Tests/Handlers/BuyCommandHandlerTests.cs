@@ -30,7 +30,7 @@ public class BuyCommandHandlerTests
     private static Message GroupBuyMessageNoArgs() =>
         DeserializeMessage("{\"message_id\":1,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100,\"type\":\"supergroup\"},\"text\":\"/buy\"}");
 
-    private (BuyCommandHandler Handler, Mock<ITelegramBotClient> Bot, Mock<ShoppingListService> ListService, Mock<IHistoryRepository> History) CreateHandler()
+    private (BuyCommandHandler Handler, Mock<ITelegramBotClient> Bot, Mock<ShoppingListService> ListService, Mock<IHistoryRepository> History, Mock<CategoryCaptureService> CategoryCaptureService) CreateHandler()
     {
         var bot = new Mock<ITelegramBotClient>();
         bot.Setup(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
@@ -51,6 +51,15 @@ public class BuyCommandHandlerTests
         localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
             .Returns<long, string>((_, key) => key);
 
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file::memory:");
+        purchaseRepo.Setup(r => r.GetTopCategoriesAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<string>());
+        var categoryCaptureServiceMock = new Mock<CategoryCaptureService>(
+            bot.Object, new PendingDialogService<CategoryCaptureDialogState>(), purchaseRepo.Object, localizer.Object);
+        categoryCaptureServiceMock.Setup(s => s.StartCategoryCaptureAsync(
+                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
         var handler = new BuyCommandHandler(
             bot.Object,
             groupRepo.Object,
@@ -59,15 +68,16 @@ public class BuyCommandHandlerTests
             localizer.Object,
             listService.Object,
             history.Object,
+            categoryCaptureServiceMock.Object,
             Mock.Of<ILogger<BuyCommandHandler>>());
 
-        return (handler, bot, listService, history);
+        return (handler, bot, listService, history, categoryCaptureServiceMock);
     }
 
     [Fact]
     public async Task Single_Item_Without_Comma_Uses_Review_Path()
     {
-        var (handler, bot, listService, _) = CreateHandler();
+        var (handler, bot, listService, _, _) = CreateHandler();
 
         await handler.HandleAsync(GroupBuyMessage("Молоко 2л"), CancellationToken.None);
 
@@ -86,13 +96,32 @@ public class BuyCommandHandlerTests
             new() { Id = 2, GroupId = 10, Name = "Яйца", Quantity = null, AddedByName = "Alice" },
         };
 
-        var (handler, bot, listService, _) = CreateHandler();
+        var (handler, bot, listService, _, _) = CreateHandler();
         listService.Setup(s => s.AddItemsAsync("Молоко, Яйца", 10, "Alice"))
             .ReturnsAsync(items.AsReadOnly());
 
         await handler.HandleAsync(GroupBuyMessage("Молоко, Яйца"), CancellationToken.None);
 
         listService.Verify(s => s.AddItemsAsync("Молоко, Яйца", 10, "Alice"), Times.Once);
+    }
+
+    // TDD — bug #5: degenerate bulk input like "/buy ," contains a comma (so it takes the bulk path)
+    // but AddItemsAsync filters out the empty segments and returns nothing. The handler must not send a
+    // "0 items added" confirmation or start a category prompt for an empty item set (which would leave a
+    // dangling dialog that swallows the user's next message).
+    [Fact]
+    public async Task Empty_Bulk_Result_Skips_Confirmation_And_Category_Prompt()
+    {
+        var (handler, bot, listService, history, categoryCaptureService) = CreateHandler();
+        listService.Setup(s => s.AddItemsAsync(It.IsAny<string>(), 10, "Alice"))
+            .ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
+
+        await handler.HandleAsync(GroupBuyMessage(","), CancellationToken.None);
+
+        bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        categoryCaptureService.Verify(s => s.StartCategoryCaptureAsync(
+            It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -104,7 +133,7 @@ public class BuyCommandHandlerTests
             new() { Id = 2, GroupId = 10, Name = "Яйца", Quantity = null, AddedByName = "Alice" },
         };
 
-        var (handler, _, listService, history) = CreateHandler();
+        var (handler, _, listService, history, categoryCaptureService) = CreateHandler();
         listService.Setup(s => s.AddItemsAsync(It.IsAny<string>(), 10, "Alice"))
             .ReturnsAsync(items.AsReadOnly());
 
@@ -114,6 +143,10 @@ public class BuyCommandHandlerTests
             -100L, 42L, "Alice", BotActionType.ItemAdded,
             It.IsAny<string>(), null, It.IsAny<CancellationToken>()),
             Times.Exactly(2));
+
+        categoryCaptureService.Verify(s => s.StartCategoryCaptureAsync(
+            -100L, 42L, 10, It.Is<IReadOnlyList<int>>(ids => ids.Count == 2 && ids[0] == 1 && ids[1] == 2), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -125,22 +158,21 @@ public class BuyCommandHandlerTests
             new() { Id = 2, GroupId = 10, Name = "Яйца", Quantity = null, AddedByName = "Alice" },
         };
 
-        var (handler, bot, listService, _) = CreateHandler();
+        var (handler, bot, listService, _, _) = CreateHandler();
         listService.Setup(s => s.AddItemsAsync(It.IsAny<string>(), 10, "Alice"))
             .ReturnsAsync(items.AsReadOnly());
 
-        string? sentText = null;
+        var sentTexts = new List<string?>();
         bot.Setup(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
             .Callback<IRequest<Message>, CancellationToken>((req, _) =>
             {
-                if (req is SendMessageRequest smr) sentText = smr.Text;
+                if (req is SendMessageRequest smr) sentTexts.Add(smr.Text);
             })
             .ReturnsAsync(new Message());
 
         await handler.HandleAsync(GroupBuyMessage("Молоко, Яйца"), CancellationToken.None);
 
-        Assert.NotNull(sentText);
-        Assert.Contains("shop.bulk-added", sentText);
+        Assert.Contains(sentTexts, t => t is not null && t.Contains("shop.bulk-added"));
     }
 
     [Fact]
@@ -151,7 +183,7 @@ public class BuyCommandHandlerTests
             new() { Id = 1, GroupId = 10, Name = "Хлеб", Quantity = null, AddedByName = "Alice" },
         };
 
-        var (handler, bot, listService, history) = CreateHandler();
+        var (handler, bot, listService, history, _) = CreateHandler();
         listService.Setup(s => s.AddItemsAsync(It.IsAny<string>(), 10, "Alice"))
             .ReturnsAsync(items.AsReadOnly());
         history.Setup(h => h.RecordAsync(
@@ -168,7 +200,7 @@ public class BuyCommandHandlerTests
     [Fact]
     public async Task No_Args_Starts_Dialog()
     {
-        var (handler, bot, _, _) = CreateHandler();
+        var (handler, bot, _, _, _) = CreateHandler();
 
         await handler.HandleAsync(GroupBuyMessageNoArgs(), CancellationToken.None);
 

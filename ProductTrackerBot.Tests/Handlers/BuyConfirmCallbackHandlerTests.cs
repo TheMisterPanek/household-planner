@@ -33,6 +33,18 @@ public class BuyConfirmCallbackHandlerTests
         return bot;
     }
 
+    private static Mock<CategoryCaptureService> CreateCategoryCaptureServiceMock(Mock<ITelegramBotClient> bot, Mock<ILocalizer> localizer)
+    {
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file::memory:");
+        purchaseRepo.Setup(r => r.GetTopCategoriesAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<string>());
+        var mock = new Mock<CategoryCaptureService>(bot.Object, new PendingDialogService<CategoryCaptureDialogState>(), purchaseRepo.Object, localizer.Object);
+        mock.Setup(s => s.StartCategoryCaptureAsync(
+                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        return mock;
+    }
+
     [Fact]
     public async Task ValidToken_CallsAddAsync_RecordsHistory_SendsConfirm()
     {
@@ -46,7 +58,7 @@ public class BuyConfirmCallbackHandlerTests
             AddedByName: "Alice"));
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(10, "Молоко", "2 л", "Alice", null))
+        itemRepo.Setup(r => r.AddAsync(10, "Молоко", "2 л", "Alice", null, null))
             .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Молоко", Quantity = "2 л", AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();
@@ -60,8 +72,11 @@ public class BuyConfirmCallbackHandlerTests
         localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
             .Returns<long, string>((_, key) => key);
 
+        var categoryCaptureServiceMock = CreateCategoryCaptureServiceMock(bot, localizer);
+
         var handler = new BuyConfirmCallbackHandler(
             bot.Object, pendingAddService, itemRepo.Object, historyMock.Object,
+            categoryCaptureServiceMock.Object,
             localizer.Object, Mock.Of<ILogger<BuyConfirmCallbackHandler>>());
 
         var cbQuery = DeserializeCallbackQuery(
@@ -71,11 +86,14 @@ public class BuyConfirmCallbackHandlerTests
 
         await handler.HandleAsync(cbQuery, CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Alice", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Alice", null, null), Times.Once);
         historyMock.Verify(h => h.RecordAsync(
             -100L, 42L, "Alice", BotActionType.ItemAdded,
             It.IsAny<string>(), null, It.IsAny<CancellationToken>()), Times.Once);
         bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        categoryCaptureServiceMock.Verify(s => s.StartCategoryCaptureAsync(
+            -100L, 42L, 10, It.Is<IReadOnlyList<int>>(ids => ids.Count == 1 && ids[0] == 1), "Молоко", It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -92,6 +110,7 @@ public class BuyConfirmCallbackHandlerTests
 
         var handler = new BuyConfirmCallbackHandler(
             bot.Object, pendingAddService, itemRepo.Object, historyMock.Object,
+            CreateCategoryCaptureServiceMock(bot, localizer).Object,
             localizer.Object, Mock.Of<ILogger<BuyConfirmCallbackHandler>>());
 
         var cbQuery = DeserializeCallbackQuery(
@@ -101,9 +120,7 @@ public class BuyConfirmCallbackHandlerTests
 
         await handler.HandleAsync(cbQuery, CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(
-            It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(),
-            It.IsAny<string>(), It.IsAny<DateOnly?>()), Times.Never);
+        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null), Times.Never);
         historyMock.Verify(h => h.RecordAsync(
             It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(),
             It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(),

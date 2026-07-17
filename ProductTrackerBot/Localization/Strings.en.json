@@ -127,6 +127,12 @@
   "use.header": "📦 Current inventory:",
   "use.empty": "✅ Inventory is empty.",
   "use.remove-button": "🗑",
-  "use.remove-toast": "✓ Removed"
+  "use.remove-toast": "✓ Removed",
+  "category.prompt": "Which group should {item} go into?",
+  "category.bulk-label": "these {count} items",
+  "category.skip": "No category",
+  "category.skipped": "Skipped",
+  "category.set-confirmation": "✓ Category \"{category}\" set",
+  "list.filter-all": "All"
 }
 

@@ -33,6 +33,8 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
     private readonly List<SendMessageRequest> sentMessages = new();
 
+    private readonly List<EditMessageTextRequest> editedMessages = new();
+
     protected GroupRepository GroupRepository { get; }
 
     protected ShoppingItemRepository ItemRepository { get; }
@@ -93,6 +95,10 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             })
             .ReturnsAsync(new Message());
         this.BotMock.Setup(b => b.SendRequest(It.IsAny<EditMessageTextRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<Message>, CancellationToken>((req, _) =>
+            {
+                if (req is EditMessageTextRequest emr) this.editedMessages.Add(emr);
+            })
             .ReturnsAsync(new Message());
         this.BotMock.Setup(b => b.SendRequest(It.IsAny<AnswerCallbackQueryRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
@@ -111,6 +117,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var buyDialogService = new PendingDialogService<BuyDialogState>();
         var editItemDialogService = new PendingDialogService<EditItemDialogState>();
         var priceDialogService = new PendingDialogService<PriceCaptureDialogState>();
+        var categoryCaptureDialogService = new PendingDialogService<CategoryCaptureDialogState>();
         var mealCreateDialogService = new PendingDialogService<MealCreateDialogState>();
         var mealIngredientDialogService = new PendingDialogService<MealAddIngredientDialogState>();
         var mealStepDialogService = new PendingDialogService<MealAddStepDialogState>();
@@ -127,11 +134,13 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var listService = new ShoppingListService(this.GroupRepository, this.ItemRepository, localizer.Object);
         var undoService = new UndoService(this.HistoryRepository, this.ItemRepository, this.GroupRepository, Mock.Of<ILogger<UndoService>>());
         var mealMergeService = new MealMergeService();
+        var categoryCaptureService = new CategoryCaptureService(
+            this.BotMock.Object, categoryCaptureDialogService, this.PurchaseRepository, localizer.Object);
 
         // Command handlers
         var buyHandler = new BuyCommandHandler(
             this.BotMock.Object, this.GroupRepository, buyDialogService, pendingAddService, localizer.Object,
-            listService, this.HistoryRepository, Mock.Of<ILogger<BuyCommandHandler>>());
+            listService, this.HistoryRepository, categoryCaptureService, Mock.Of<ILogger<BuyCommandHandler>>());
 
         var listHandler = new ListCommandHandler(
             this.BotMock.Object, listService, this.GroupRepository, this.HistoryRepository,
@@ -209,7 +218,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         var buySkipHandler = new BuySkipCallbackHandler(
             this.BotMock.Object, buyDialogService, this.ItemRepository, this.HistoryRepository,
-            localizer.Object, Mock.Of<ILogger<BuySkipCallbackHandler>>());
+            categoryCaptureService, localizer.Object, Mock.Of<ILogger<BuySkipCallbackHandler>>());
 
         var buySkipExpiryHandler = new BuySkipExpiryCallbackHandler(
             this.BotMock.Object, buyDialogService, this.ItemRepository, this.HistoryRepository,
@@ -222,6 +231,17 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var listPrevHandler = new ListPrevCallbackHandler(
             this.BotMock.Object, listService, this.GroupRepository, this.HistoryRepository,
             Mock.Of<ILogger<ListPrevCallbackHandler>>());
+
+        var listFilterHandler = new ListFilterCallbackHandler(
+            this.BotMock.Object, listService, this.GroupRepository, this.ItemRepository, this.HistoryRepository,
+            Mock.Of<ILogger<ListFilterCallbackHandler>>());
+
+        var categorySuggestHandler = new CategorySuggestCallbackHandler(
+            this.BotMock.Object, categoryCaptureDialogService, this.ItemRepository, localizer.Object,
+            Mock.Of<ILogger<CategorySuggestCallbackHandler>>());
+
+        var categorySkipHandler = new CategorySkipCallbackHandler(
+            this.BotMock.Object, categoryCaptureDialogService, localizer.Object);
 
         var undoInlineHandler = new UndoInlineCallbackHandler(
             this.BotMock.Object, undoService, priceDialogService, localizer.Object,
@@ -247,7 +267,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         var buyConfirmHandler = new BuyConfirmCallbackHandler(
             this.BotMock.Object, pendingAddService, this.ItemRepository, this.HistoryRepository,
-            localizer.Object, Mock.Of<ILogger<BuyConfirmCallbackHandler>>());
+            categoryCaptureService, localizer.Object, Mock.Of<ILogger<BuyConfirmCallbackHandler>>());
 
         var buyEditHandler = new BuyEditCallbackHandler(
             this.BotMock.Object, pendingAddService, buyDialogService, localizer.Object);
@@ -260,7 +280,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         var itemSaveHandler = new ItemSaveCallbackHandler(
             this.BotMock.Object, pendingEditService, this.ItemRepository, listService,
-            this.HistoryRepository, localizer.Object, Mock.Of<ILogger<ItemSaveCallbackHandler>>());
+            this.HistoryRepository, categoryCaptureService, localizer.Object, Mock.Of<ILogger<ItemSaveCallbackHandler>>());
 
         var itemCancelEditHandler = new ItemCancelEditCallbackHandler(
             this.BotMock.Object, pendingEditService, localizer.Object);
@@ -296,6 +316,9 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var itemEditStepHandler = new ItemEditStepHandler(
             this.BotMock.Object, editItemDialogService, pendingEditService, localizer.Object);
 
+        var categoryCaptureStepHandler = new CategoryCaptureStepHandler(
+            this.BotMock.Object, categoryCaptureDialogService, this.ItemRepository, localizer.Object);
+
         var boughtStepHandler = new BoughtStepHandler(
             this.BotMock.Object, boughtDialogService, this.PurchaseRepository, this.HistoryRepository,
             suggestionService, localizer.Object, Mock.Of<ILogger<BoughtStepHandler>>());
@@ -313,15 +336,17 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             shopDoneHandler, shopRemoveHandler, actionCancelHandler, langCallbackHandler,
             langSelectionHandler, buySkipHandler, buySkipExpiryHandler, buyConfirmHandler,
             buyEditHandler, buyCancelHandler, itemEditCallbackHandler, itemSaveHandler,
-            itemCancelEditHandler, listNextHandler, listPrevHandler, undoInlineHandler,
+            itemCancelEditHandler, listNextHandler, listPrevHandler, listFilterHandler, undoInlineHandler,
             priceSkipHandler, priceShopHandler, mealCallbackHandler, aiAddItemHandler,
             aiAddAllHandler, weekCallbackHandler, boughtSkipExpiryCallbackHandler,
             expirySuggestCallbackHandler, useRemoveCallbackHandler,
+            categorySuggestHandler, categorySkipHandler,
         };
 
         var dialogHandlers = new List<IDialogMessageHandler>
         {
             buyStepHandler, priceCaptureHandler, mealDialogHandler, itemEditStepHandler, boughtStepHandler,
+            categoryCaptureStepHandler,
         };
 
 
@@ -340,6 +365,18 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         this.dispatcher.HandleUpdateAsync(this.BotMock.Object, update, CancellationToken.None);
 
     /// <summary>
+    /// Returns the last message the bot sent via SendMessage (not EditMessageText).
+    /// </summary>
+    protected SendMessageRequest? GetLastSentMessage() =>
+        this.sentMessages.Count > 0 ? this.sentMessages[^1] : null;
+
+    /// <summary>
+    /// Returns the last message the bot edited via EditMessageText (e.g. list refresh via list_filter).
+    /// </summary>
+    protected EditMessageTextRequest? GetLastEditedMessage() =>
+        this.editedMessages.Count > 0 ? this.editedMessages[^1] : null;
+
+    /// <summary>
     /// Returns the callback data for the confirm button from the last buy review message sent by the bot.
     /// Use this to simulate tapping "✓ Add" after a /buy command sends a review.
     /// </summary>
@@ -355,6 +392,52 @@ public abstract class TelegramIntegrationTestBase : IDisposable
                     foreach (var btn in row)
                     {
                         if (btn.CallbackData?.StartsWith("buy:confirm:") == true)
+                        {
+                            return btn.CallbackData;
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    protected string? GetLastItemSaveCallbackData()
+    {
+        for (int i = this.sentMessages.Count - 1; i >= 0; i--)
+        {
+            var req = this.sentMessages[i];
+            if (req.ReplyMarkup is Telegram.Bot.Types.ReplyMarkups.InlineKeyboardMarkup ikm)
+            {
+                foreach (var row in ikm.InlineKeyboard)
+                {
+                    foreach (var btn in row)
+                    {
+                        if (btn.CallbackData?.StartsWith("item:save:") == true)
+                        {
+                            return btn.CallbackData;
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    protected string? GetLastCategorySuggestCallbackData()
+    {
+        for (int i = this.sentMessages.Count - 1; i >= 0; i--)
+        {
+            var req = this.sentMessages[i];
+            if (req.ReplyMarkup is Telegram.Bot.Types.ReplyMarkups.InlineKeyboardMarkup ikm)
+            {
+                foreach (var row in ikm.InlineKeyboard)
+                {
+                    foreach (var btn in row)
+                    {
+                        if (btn.CallbackData?.StartsWith("category:suggest:") == true)
                         {
                             return btn.CallbackData;
                         }

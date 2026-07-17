@@ -42,6 +42,10 @@ public class CategoryCaptureDialogTests
         var localizerMock = new Mock<ILocalizer>();
         localizerMock.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
             .Returns((long _, string key) => key);
+        localizerMock.Setup(l => l.Get(It.IsAny<long>(), "category.prompt"))
+            .Returns("В какую группу добавить {item}?");
+        localizerMock.Setup(l => l.Get(It.IsAny<long>(), "category.set-confirmation"))
+            .Returns("✓ Категория «{category}» установлена");
         return localizerMock;
     }
 

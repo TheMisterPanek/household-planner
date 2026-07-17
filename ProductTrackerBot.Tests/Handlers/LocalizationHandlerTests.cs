@@ -140,6 +140,10 @@ public class LocalizationHandlerTests
         var (bot, sentTexts) = CreateBotMock();
         var localizer = CreateLocalizerMock();
         var groupRepo = CreateGroupRepoMock();
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file::memory:");
+        purchaseRepo.Setup(r => r.GetTopCategoriesAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<string>());
+
         var handler = new BuyCommandHandler(
             bot.Object,
             groupRepo.Object,
@@ -151,6 +155,7 @@ public class LocalizationHandlerTests
                 new Mock<ShoppingItemRepository>("Data Source=file::memory:").Object,
                 localizer.Object),
             Mock.Of<IHistoryRepository>(),
+            new CategoryCaptureService(bot.Object, new PendingDialogService<CategoryCaptureDialogState>(), purchaseRepo.Object, localizer.Object),
             Mock.Of<ILogger<BuyCommandHandler>>());
 
         var message = CreateGroupMessage("/buy");

@@ -94,7 +94,7 @@ public class BuyStepAndSkipHandlerHistoryTests
         await handler.HandleAsync(message, CancellationToken.None);
 
         // AddAsync must NOT be called
-        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()), Times.Never);
+        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null), Times.Never);
 
         // Review message sent
         bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -128,7 +128,7 @@ public class BuyStepAndSkipHandlerHistoryTests
         await handler.HandleAsync(message, CancellationToken.None);
 
         // AddAsync must NOT be called — item is now pending until confirmed
-        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()), Times.Never);
+        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null), Times.Never);
 
         // Review message was sent
         bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -167,7 +167,7 @@ public class BuyStepAndSkipHandlerHistoryTests
         dialogService.SetState(-100L, 42L, new BuyDialogState { Step = 3, GroupId = 10, Name = "Яйца", Quantity = "10шт", AddedByName = "Alice" });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
+        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null))
             .ReturnsAsync(new ShoppingItem { Id = 3, GroupId = 10, Name = "Яйца", Quantity = "10шт", AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();
@@ -196,7 +196,7 @@ public class BuyStepAndSkipHandlerHistoryTests
         dialogService.SetState(-100L, 42L, new BuyDialogState { Step = 3, GroupId = 10, Name = "Чай", Quantity = null, AddedByName = "Bob" });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
+        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null))
             .ReturnsAsync(new ShoppingItem { Id = 4, GroupId = 10, Name = "Чай", AddedByName = "Bob" });
 
         var historyMock = new Mock<IHistoryRepository>();

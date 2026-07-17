@@ -26,7 +26,8 @@ public class ShoppingItemRepositoryUpdateTests : IDisposable
                 Name TEXT NOT NULL,
                 Quantity TEXT,
                 AddedByName TEXT NOT NULL,
-                exp_date TEXT
+                exp_date TEXT,
+                Category TEXT
             );
             DELETE FROM ShoppingItems;
             DELETE FROM Groups;";

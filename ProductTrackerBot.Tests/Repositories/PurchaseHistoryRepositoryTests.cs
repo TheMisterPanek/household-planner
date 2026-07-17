@@ -619,8 +619,15 @@ public class PurchaseHistoryRepositoryTests : IDisposable
         Assert.Equal(new[] { "Выпечка", "Молочка" }, categories);
     }
 
+    // TDD — bug #1: GetTopCategoriesAsync currently truncates long names to 20 chars + "…" and that
+    // truncated string is what CategoryCaptureService stores in dialog state and CategorySuggestCallbackHandler
+    // writes back into the item's Category — corrupting the value so it no longer matches the real category
+    // for /list filtering. Truncation is a button-label concern and must NOT mangle the returned data.
+    // NOTE: this replaces the old GetTopCategoriesAsync_Truncates_Long_Category_Labels test, which
+    // enshrined the bug. Once fixed, move the 20-char truncation into the keyboard-building code
+    // (mirroring ShoppingListService.TruncateCategoryLabel used for the /list filter row).
     [Fact]
-    public async Task GetTopCategoriesAsync_Truncates_Long_Category_Labels()
+    public async Task GetTopCategoriesAsync_Returns_Full_Category_Name_Not_Truncated()
     {
         var longCategory = new string('A', 25);
         await InsertRecordWithCategoryAsync(1, "Item", "Alice", longCategory);
@@ -628,7 +635,7 @@ public class PurchaseHistoryRepositoryTests : IDisposable
         var categories = await this.repository.GetTopCategoriesAsync(1, 5);
 
         Assert.Single(categories);
-        Assert.Equal(new string('A', 20) + "…", categories[0]);
+        Assert.Equal(longCategory, categories[0]);
     }
 
     [Fact]

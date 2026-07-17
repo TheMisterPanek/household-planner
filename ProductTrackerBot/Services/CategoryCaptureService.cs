@@ -85,7 +85,12 @@ public class CategoryCaptureService
 
         for (int i = 0; i < topCategories.Count; i++)
         {
-            rows.Add(new[] { InlineKeyboardButton.WithCallbackData(topCategories[i], $"category:suggest:{i}") });
+            rows.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    ShoppingListService.TruncateCategoryLabel(topCategories[i]),
+                    $"category:suggest:{i}"),
+            });
         }
 
         rows.Add(new[]

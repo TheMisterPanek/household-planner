@@ -134,6 +134,7 @@ builder.Services.AddSingleton<PendingDialogService<MealCreateDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<MealAddIngredientDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<MealAddStepDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<BoughtDialogState>>();
+builder.Services.AddSingleton<PendingDialogService<CategoryCaptureDialogState>>();
 
 // Register repositories
 builder.Services.AddScoped<GroupRepository>();
@@ -151,6 +152,7 @@ builder.Services.AddScoped<IAiQueryService, AiQueryService>();
 
 // Register services
 builder.Services.AddScoped<ShoppingListService>();
+builder.Services.AddScoped<CategoryCaptureService>();
 builder.Services.AddScoped<MealMergeService>();
 builder.Services.AddScoped<ExpiryNotificationService>();
 builder.Services.AddScoped<IUndoService, UndoService>();
@@ -193,6 +195,7 @@ builder.Services.AddScoped<IDialogMessageHandler, MealDialogStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler, ItemEditStepHandler>();
 builder.Services.AddScoped<BoughtStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler>(sp => sp.GetRequiredService<BoughtStepHandler>());
+builder.Services.AddScoped<IDialogMessageHandler, CategoryCaptureStepHandler>();
 
 // Register callback handlers
 builder.Services.AddScoped<ICallbackHandler, BuySkipCallbackHandler>();
@@ -220,6 +223,9 @@ builder.Services.AddScoped<ICallbackHandler, BoughtSkipExpiryCallbackHandler>();
 builder.Services.AddScoped<ExpiryDaySuggestionService>();
 builder.Services.AddScoped<ICallbackHandler, ExpirySuggestCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, UseRemoveCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, CategorySuggestCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, CategorySkipCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, ListFilterCallbackHandler>();
 
 var host = builder.Build();
 await host.RunAsync();

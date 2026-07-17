@@ -53,9 +53,9 @@ public class AiAddAllCallbackHandlerTests
             .ReturnsAsync(new Group { Id = 5, ChatId = -100, LanguageCode = "en" });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=:memory:");
-        itemRepo.Setup(r => r.AddAsync(5, "pasta", "500g", "Alice", null))
+        itemRepo.Setup(r => r.AddAsync(5, "pasta", "500g", "Alice", null, null))
             .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 5, Name = "pasta", Quantity = "500g", AddedByName = "Alice" });
-        itemRepo.Setup(r => r.AddAsync(5, "eggs", null, "Alice", null))
+        itemRepo.Setup(r => r.AddAsync(5, "eggs", null, "Alice", null, null))
             .ReturnsAsync(new ShoppingItem { Id = 2, GroupId = 5, Name = "eggs", Quantity = null, AddedByName = "Alice" });
 
         var localizer = new Mock<ILocalizer>();
@@ -74,8 +74,8 @@ public class AiAddAllCallbackHandlerTests
         var callback = MakeCallback(-100L, 42L, $"ai:add-all:{token}");
         await handler.HandleAsync(callback, CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(5, "pasta", "500g", "Alice", null), Times.Once);
-        itemRepo.Verify(r => r.AddAsync(5, "eggs", null, "Alice", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(5, "pasta", "500g", "Alice", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(5, "eggs", null, "Alice", null, null), Times.Once);
 
         bot.Verify(b => b.SendRequest(
             It.Is<AnswerCallbackQueryRequest>(r => r.Text != null && r.Text.Contains("2")),
@@ -108,7 +108,7 @@ public class AiAddAllCallbackHandlerTests
         var callback = MakeCallback(-100L, 42L, "ai:add-all:deadbeef");
         await handler.HandleAsync(callback, CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()), Times.Never);
+        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null), Times.Never);
         bot.Verify(b => b.SendRequest(
             It.Is<AnswerCallbackQueryRequest>(r => r.Text == "ai.suggestion-expired"),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -128,7 +128,7 @@ public class AiAddAllCallbackHandlerTests
             .ReturnsAsync(new Group { Id = 5, ChatId = -100, LanguageCode = "en" });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=:memory:");
-        itemRepo.Setup(r => r.AddAsync(5, "milk", "1L", "Alice", null))
+        itemRepo.Setup(r => r.AddAsync(5, "milk", "1L", "Alice", null, null))
             .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 5, Name = "milk", Quantity = "1L", AddedByName = "Alice" });
 
         var localizer = new Mock<ILocalizer>();
@@ -147,7 +147,7 @@ public class AiAddAllCallbackHandlerTests
         await handler.HandleAsync(callback, CancellationToken.None);
 
         // AddAsync called exactly once (first tap), not twice
-        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null), Times.Once);
         // Second tap gets expiry popup
         bot.Verify(b => b.SendRequest(
             It.Is<AnswerCallbackQueryRequest>(r => r.Text == "ai.suggestion-expired"),
