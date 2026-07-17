@@ -1,5 +1,9 @@
+## Purpose
+
+Manage the group's shared shopping list: add items via `/buy` (inline, bulk, or dialog), view and page through the list via `/list`, mark items as bought, and remove items.
+## Requirements
 ### Requirement: Add item to shopping list via /buy command
-The system SHALL accept `/buy` in a group chat. If arguments are provided inline, the item is added immediately; otherwise a two-step dialog is initiated. The inline input supports comma-separated items, each parsed as an independent item entry.
+The system SHALL accept `/buy` in a group chat. If arguments are provided inline, the item is added immediately; otherwise a two-step dialog is initiated. The inline input supports comma-separated items, each parsed as an independent item entry. After any of these paths successfully persists item(s), the system SHALL follow up with a category-capture prompt per the `product-tags` capability; this does not alter the existing item-added confirmation text or timing.
 
 #### Scenario: User sends /buy with single name and quantity inline
 - **WHEN** a group member sends `/buy Молоко 2л`
@@ -31,7 +35,7 @@ The system SHALL accept `/buy` in a group chat. If arguments are provided inline
 
 #### Scenario: User enters item name in dialog
 - **WHEN** the user replies with an item name after `/buy`
-- **THEN** the bot asks "Сколько?" with an inline `[Пропустить]` button
+- **THEN** the bot asks "Сколько?" with an inline `[Пропустить]` button, unchanged from current behavior
 
 #### Scenario: User enters quantity in dialog
 - **WHEN** the user replies with a quantity string
@@ -45,10 +49,22 @@ The system SHALL accept `/buy` in a group chat. If arguments are provided inline
 - **WHEN** a user sends `/buy` in a private chat
 - **THEN** the bot replies "Эта команда работает только в групповом чате." and does not start a dialog
 
+#### Scenario: Category prompt follows a successful inline single add
+- **WHEN** a group member sends `/buy Молоко 2л` and the bot confirms "Иван добавил(а) Молоко 2л"
+- **THEN** the bot additionally sends a category-capture prompt for "Молоко 2л" per the `product-tags` capability, as a separate follow-up message
+
+#### Scenario: Category prompt follows a successful bulk add, once for the batch
+- **WHEN** a group member sends `/buy Молоко, Яйца, Хлеб` and the bot confirms "Иван добавил(а) 3 товара: Молоко, Яйца, Хлеб"
+- **THEN** the bot additionally sends one category-capture prompt covering all three items, not one per item
+
+#### Scenario: Category prompt follows the skip-quantity dialog path
+- **WHEN** a user taps `[Пропустить]` in the `/buy` dialog and the item is saved with no quantity
+- **THEN** the bot additionally sends a category-capture prompt for that item after the "Иван добавил(а) Молоко" confirmation
+
 ---
 
 ### Requirement: View shared shopping list via /list command
-The system SHALL post or edit a persistent shopping list message in the group chat showing all current items with inline action buttons.
+The system SHALL post or edit a persistent shopping list message in the group chat showing all current items with inline action buttons. When the group has at least one item with a non-null `Category`, the message SHALL include an additional row of category filter buttons (per the `product-tags` capability) below the item rows.
 
 #### Scenario: List has items
 - **WHEN** a group member sends `/list`
@@ -69,6 +85,14 @@ The system SHALL post or edit a persistent shopping list message in the group ch
 #### Scenario: Edit limit exceeded
 - **WHEN** editing the list message returns a Telegram 400 error (48h limit)
 - **THEN** the bot posts a new message and saves the new `MessageId` to the group
+
+#### Scenario: List with no categorized items shows no filter row
+- **WHEN** a group member sends `/list` and no item in the group has a `Category` set
+- **THEN** the list message renders exactly as before, with no category filter button row
+
+#### Scenario: List with categorized items shows a filter row
+- **WHEN** a group member sends `/list` and at least one item has a `Category` set
+- **THEN** the list message includes a row of category filter buttons (up to 5, alphabetical) below the item rows, in addition to the unfiltered item list and existing action buttons
 
 ---
 
@@ -193,3 +217,23 @@ The system SHALL record one `BotActionType.ItemAdded` history entry per item whe
 #### Scenario: History write failure does not suppress bulk confirmation
 - **WHEN** `IHistoryRepository.RecordAsync` raises an exception during bulk `/buy` processing
 - **THEN** the "Иван добавил(а) N товара" confirmation is still sent and errors are logged at Warning level
+
+### Requirement: Filter the shopping list by category
+The system SHALL let a user tap a category filter button on the `/list` message to re-render the message showing only items whose `Category` matches the tapped category, using the same pagination as the unfiltered view. A "Все" (All) button SHALL be shown when a filter is active, returning to the unfiltered view.
+
+#### Scenario: User taps a category filter button
+- **WHEN** a user taps the "Бытовая химия" filter button on the list message
+- **THEN** the message is edited to show only items with `Category = "Бытовая химия"`, paginated the same way as the unfiltered list, with an "Все" button to clear the filter
+
+#### Scenario: User taps "Все" to clear an active filter
+- **WHEN** a user taps the "Все" button while a category filter is active
+- **THEN** the message is edited back to the unfiltered, paginated view of all items
+
+#### Scenario: Filtered view respects pagination for large categories
+- **WHEN** a category filter is active and more than 10 items match that category
+- **THEN** the filtered view paginates at 10 items per page, using the same next/prev navigation as the unfiltered list
+
+#### Scenario: Category no longer exists at tap time
+- **WHEN** a user taps a category filter button whose category no longer has any items (e.g. all were removed or re-tagged since the message was rendered)
+- **THEN** the bot falls back to showing the unfiltered "All" view rather than an empty or error state
+
