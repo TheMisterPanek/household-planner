@@ -58,4 +58,9 @@ public class PurchaseRecord
     /// Gets or sets the optional expiry date of the purchased item (ISO-8601 yyyy-MM-dd).
     /// </summary>
     public DateOnly? ExpDate { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional category/tag carried over from the shopping item.
+    /// </summary>
+    public string? Category { get; set; }
 }

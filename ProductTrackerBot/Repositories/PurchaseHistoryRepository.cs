@@ -35,8 +35,8 @@ public class PurchaseHistoryRepository
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = @"
-            INSERT INTO PurchaseHistory (GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName, exp_date)
-            VALUES (@groupId, @userId, @itemName, @quantity, @storeName, @price, @purchasedAt, @boughtByName, @expDate);
+            INSERT INTO PurchaseHistory (GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName, exp_date, Category)
+            VALUES (@groupId, @userId, @itemName, @quantity, @storeName, @price, @purchasedAt, @boughtByName, @expDate, @category);
             SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("@groupId", record.GroupId);
         cmd.Parameters.AddWithValue("@userId", record.UserId);
@@ -47,6 +47,7 @@ public class PurchaseHistoryRepository
         cmd.Parameters.AddWithValue("@purchasedAt", record.PurchasedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@boughtByName", record.BoughtByName);
         cmd.Parameters.AddWithValue("@expDate", record.ExpDate.HasValue ? record.ExpDate.Value.ToString("yyyy-MM-dd") : (object?)DBNull.Value);
+        cmd.Parameters.AddWithValue("@category", (object?)record.Category ?? DBNull.Value);
 
         var newId = (long)(await cmd.ExecuteScalarAsync())!;
         record.Id = (int)newId;
@@ -91,6 +92,44 @@ public class PurchaseHistoryRepository
         }
 
         return shops.AsReadOnly();
+    }
+
+    /// <summary>
+    /// Retrieves the top categories for a group, ranked by frequency of use across all members and ties broken by recency.
+    /// </summary>
+    /// <param name="groupId">The group ID to filter by.</param>
+    /// <param name="limit">The maximum number of categories to return.</param>
+    /// <returns>A read-only list of top category names, ordered by frequency (descending) and most recent purchase date (descending).</returns>
+    public virtual async Task<IReadOnlyList<string>> GetTopCategoriesAsync(int groupId, int limit)
+    {
+        await using var connection = new SqliteConnection(this.connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT Category
+            FROM PurchaseHistory
+            WHERE GroupId = @groupId AND Category IS NOT NULL
+            GROUP BY Category
+            ORDER BY COUNT(*) DESC, MAX(PurchasedAt) DESC
+            LIMIT @limit";
+        cmd.Parameters.AddWithValue("@groupId", groupId);
+        cmd.Parameters.AddWithValue("@limit", limit);
+
+        var categories = new List<string>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var category = reader.GetString(0);
+            if (category.Length > 20)
+            {
+                category = category.Substring(0, 20) + "…";
+            }
+
+            categories.Add(category);
+        }
+
+        return categories.AsReadOnly();
     }
 
     /// <summary>

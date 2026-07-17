@@ -31,7 +31,8 @@ public class ShoppingItemRepositoryTests : IDisposable
                 Name TEXT NOT NULL,
                 Quantity TEXT,
                 exp_date TEXT,
-                AddedByName TEXT NOT NULL
+                AddedByName TEXT NOT NULL,
+                Category TEXT NULL
             );";
         cmd.ExecuteNonQuery();
 
@@ -223,6 +224,95 @@ public class ShoppingItemRepositoryTests : IDisposable
         Assert.Equal(date1, items[0].ExpDate);
         Assert.Equal(date3, items[1].ExpDate);
         Assert.Equal(date2, items[2].ExpDate);
+    }
+
+    [Fact]
+    public async Task Add_Item_With_Category_Should_Return_Category()
+    {
+        var item = await this.repository.AddAsync(
+            groupId: this.groupId,
+            name: "Порошок",
+            quantity: "1кг",
+            addedByName: "Иван",
+            category: "Бытовая химия");
+
+        Assert.Equal("Бытовая химия", item.Category);
+    }
+
+    [Fact]
+    public async Task Add_Item_Without_Category_Should_Return_Null()
+    {
+        var item = await this.repository.AddAsync(this.groupId, "Молоко", "2л", "Иван");
+
+        Assert.Null(item.Category);
+    }
+
+    [Fact]
+    public async Task UpdateCategoryAsync_Single_Id_Sets_Category()
+    {
+        var item = await this.repository.AddAsync(this.groupId, "Молоко", "2л", "Иван");
+
+        await this.repository.UpdateCategoryAsync(new[] { item.Id }, "Молочка");
+
+        var updated = await this.repository.GetByIdAsync(item.Id);
+        Assert.Equal("Молочка", updated!.Category);
+    }
+
+    [Fact]
+    public async Task UpdateCategoryAsync_Multiple_Ids_Sets_Category_On_All()
+    {
+        var item1 = await this.repository.AddAsync(this.groupId, "Молоко", null, "Иван");
+        var item2 = await this.repository.AddAsync(this.groupId, "Яйца", null, "Иван");
+
+        await this.repository.UpdateCategoryAsync(new[] { item1.Id, item2.Id }, "Молочка");
+
+        var updated1 = await this.repository.GetByIdAsync(item1.Id);
+        var updated2 = await this.repository.GetByIdAsync(item2.Id);
+        Assert.Equal("Молочка", updated1!.Category);
+        Assert.Equal("Молочка", updated2!.Category);
+    }
+
+    [Fact]
+    public async Task UpdateCategoryAsync_Null_Clears_Category()
+    {
+        var item = await this.repository.AddAsync(this.groupId, "Молоко", "2л", "Иван", category: "Молочка");
+
+        await this.repository.UpdateCategoryAsync(new[] { item.Id }, null);
+
+        var updated = await this.repository.GetByIdAsync(item.Id);
+        Assert.Null(updated!.Category);
+    }
+
+    [Fact]
+    public async Task GetDistinctCategoriesAsync_Returns_Empty_When_No_Categories()
+    {
+        await this.repository.AddAsync(this.groupId, "Молоко", "2л", "Иван");
+
+        var categories = await this.repository.GetDistinctCategoriesAsync(this.groupId);
+
+        Assert.Empty(categories);
+    }
+
+    [Fact]
+    public async Task GetDistinctCategoriesAsync_Returns_Distinct_Values_Alphabetically()
+    {
+        await this.repository.AddAsync(this.groupId, "Порошок", null, "Иван", category: "Химия");
+        await this.repository.AddAsync(this.groupId, "Машина", null, "Иван", category: "Авто");
+        await this.repository.AddAsync(this.groupId, "Отбеливатель", null, "Иван", category: "Химия");
+
+        var categories = await this.repository.GetDistinctCategoriesAsync(this.groupId);
+
+        Assert.Equal(new[] { "Авто", "Химия" }, categories);
+    }
+
+    [Fact]
+    public async Task GetDistinctCategoriesAsync_Is_Scoped_To_GroupId()
+    {
+        await this.repository.AddAsync(this.groupId, "Порошок", null, "Иван", category: "Химия");
+
+        var categories = await this.repository.GetDistinctCategoriesAsync(999);
+
+        Assert.Empty(categories);
     }
 
     public void Dispose()

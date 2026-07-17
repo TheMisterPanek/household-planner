@@ -38,4 +38,9 @@ public record ShoppingItem
     /// Gets the display name of the user who added the item.
     /// </summary>
     public string AddedByName { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the optional category/tag (e.g. "Бытовая химия").
+    /// </summary>
+    public string? Category { get; init; }
 }
