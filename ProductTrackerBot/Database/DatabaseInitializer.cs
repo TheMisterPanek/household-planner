@@ -295,6 +295,34 @@ public class DatabaseInitializer : IHostedService
             this.logger.LogInformation("ExpiryThresholdDays column already exists on UserPreferences table");
         }
 
+        // Migrate ShoppingItems table: add Category column if it doesn't exist
+        try
+        {
+            await using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE ShoppingItems ADD COLUMN Category TEXT NULL";
+            await alterCmd.ExecuteNonQueryAsync(cancellationToken);
+            this.logger.LogInformation("Added Category column to ShoppingItems table");
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 1)
+        {
+            // Column already exists or duplicate column name, ignore
+            this.logger.LogInformation("Category column already exists on ShoppingItems table");
+        }
+
+        // Migrate PurchaseHistory table: add Category column if it doesn't exist
+        try
+        {
+            await using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE PurchaseHistory ADD COLUMN Category TEXT NULL";
+            await alterCmd.ExecuteNonQueryAsync(cancellationToken);
+            this.logger.LogInformation("Added Category column to PurchaseHistory table");
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 1)
+        {
+            // Column already exists or duplicate column name, ignore
+            this.logger.LogInformation("Category column already exists on PurchaseHistory table");
+        }
+
         this.logger.LogInformation("Database schema initialized successfully");
     }
 

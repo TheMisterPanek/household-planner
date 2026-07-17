@@ -54,4 +54,9 @@ public class PriceCaptureDialogState
     /// Gets or sets the optional expiry date of the purchased item (filled at step 3).
     /// </summary>
     public DateOnly? ExpDate { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional category carried over from the shopping item, saved to the purchase record.
+    /// </summary>
+    public string? Category { get; set; }
 }
