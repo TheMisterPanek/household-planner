@@ -49,6 +49,16 @@ public class BuyCommandHandlerHistoryTests
         purchaseRepo.Setup(r => r.GetTopCategoriesAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(new List<string>());
 
+        var historyRepository = Mock.Of<IHistoryRepository>();
+        var categoryCaptureService = new CategoryCaptureService(bot, new PendingDialogService<CategoryCaptureDialogState>(), purchaseRepo.Object, localizer.Object);
+        var buyAddService = new BuyAddService(
+            bot,
+            new Mock<ShoppingItemRepository>("Data Source=file::memory:").Object,
+            historyRepository,
+            categoryCaptureService,
+            localizer.Object,
+            Mock.Of<Microsoft.Extensions.Logging.ILogger<BuyAddService>>());
+
         return new BuyCommandHandler(
             bot,
             groupRepo,
@@ -59,8 +69,9 @@ public class BuyCommandHandlerHistoryTests
                 new Mock<GroupRepository>("Data Source=file::memory:").Object,
                 new Mock<ShoppingItemRepository>("Data Source=file::memory:").Object,
                 localizer.Object),
-            Mock.Of<IHistoryRepository>(),
-            new CategoryCaptureService(bot, new PendingDialogService<CategoryCaptureDialogState>(), purchaseRepo.Object, localizer.Object),
+            historyRepository,
+            categoryCaptureService,
+            buyAddService,
             Mock.Of<Microsoft.Extensions.Logging.ILogger<BuyCommandHandler>>());
     }
 

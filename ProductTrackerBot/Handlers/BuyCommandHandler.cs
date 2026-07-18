@@ -28,6 +28,7 @@ public class BuyCommandHandler : ICommandHandler
     private readonly ShoppingListService shoppingListService;
     private readonly IHistoryRepository historyRepository;
     private readonly CategoryCaptureService categoryCaptureService;
+    private readonly BuyAddService buyAddService;
     private readonly ILogger<BuyCommandHandler> logger;
 
     /// <summary>
@@ -41,6 +42,7 @@ public class BuyCommandHandler : ICommandHandler
     /// <param name="shoppingListService">The shopping list service for bulk adds.</param>
     /// <param name="historyRepository">The history repository.</param>
     /// <param name="categoryCaptureService">The category-capture follow-up service.</param>
+    /// <param name="buyAddService">The shared persist-and-confirm service.</param>
     /// <param name="logger">The logger.</param>
     public BuyCommandHandler(
         ITelegramBotClient botClient,
@@ -51,6 +53,7 @@ public class BuyCommandHandler : ICommandHandler
         ShoppingListService shoppingListService,
         IHistoryRepository historyRepository,
         CategoryCaptureService categoryCaptureService,
+        BuyAddService buyAddService,
         ILogger<BuyCommandHandler> logger)
     {
         this.botClient = botClient;
@@ -61,6 +64,7 @@ public class BuyCommandHandler : ICommandHandler
         this.shoppingListService = shoppingListService;
         this.historyRepository = historyRepository;
         this.categoryCaptureService = categoryCaptureService;
+        this.buyAddService = buyAddService;
         this.logger = logger;
     }
 
@@ -86,6 +90,20 @@ public class BuyCommandHandler : ICommandHandler
             }
 
             var (name, quantity) = BuyInputParser.Parse(inlineArgs);
+
+            if (quantity is null)
+            {
+                await this.buyAddService.AddAndConfirmAsync(
+                    chatId: message.Chat.Id,
+                    userId: message.From!.Id,
+                    groupId: group.Id,
+                    name: name,
+                    quantity: quantity,
+                    addedByName: displayName,
+                    cancellationToken: cancellationToken);
+                return;
+            }
+
             var token = this.pendingAddService.Store(new PendingAddItem(
                 ChatId: message.Chat.Id,
                 GroupId: group.Id,

@@ -73,11 +73,12 @@ public class BuyConfirmCallbackHandlerTests
             .Returns<long, string>((_, key) => key);
 
         var categoryCaptureServiceMock = CreateCategoryCaptureServiceMock(bot, localizer);
+        var buyAddService = new BuyAddService(
+            bot.Object, itemRepo.Object, historyMock.Object, categoryCaptureServiceMock.Object,
+            localizer.Object, Mock.Of<ILogger<BuyAddService>>());
 
         var handler = new BuyConfirmCallbackHandler(
-            bot.Object, pendingAddService, itemRepo.Object, historyMock.Object,
-            categoryCaptureServiceMock.Object,
-            localizer.Object, Mock.Of<ILogger<BuyConfirmCallbackHandler>>());
+            bot.Object, pendingAddService, buyAddService);
 
         var cbQuery = DeserializeCallbackQuery(
             $"{{\"id\":\"cb1\",\"from\":{{\"id\":42,\"first_name\":\"Alice\"}}," +
@@ -108,10 +109,12 @@ public class BuyConfirmCallbackHandlerTests
         localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
             .Returns<long, string>((_, key) => key);
 
+        var buyAddService = new BuyAddService(
+            bot.Object, itemRepo.Object, historyMock.Object, CreateCategoryCaptureServiceMock(bot, localizer).Object,
+            localizer.Object, Mock.Of<ILogger<BuyAddService>>());
+
         var handler = new BuyConfirmCallbackHandler(
-            bot.Object, pendingAddService, itemRepo.Object, historyMock.Object,
-            CreateCategoryCaptureServiceMock(bot, localizer).Object,
-            localizer.Object, Mock.Of<ILogger<BuyConfirmCallbackHandler>>());
+            bot.Object, pendingAddService, buyAddService);
 
         var cbQuery = DeserializeCallbackQuery(
             "{\"id\":\"cb2\",\"from\":{\"id\":42,\"first_name\":\"Alice\"}," +

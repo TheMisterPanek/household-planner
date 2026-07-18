@@ -57,17 +57,62 @@ public class CommandIntegrationTests : TelegramIntegrationTestBase
         const long freshChatId = -88888L;
         await DispatchAsync(CommandUpdate(freshChatId, 42, "/buy FirstItem"));
 
-        // Group is created on /buy even before confirm
+        // Group is created on /buy, and the no-quantity item is saved immediately (no review step)
         var group = await GroupRepository.GetOrCreateAsync(freshChatId);
         Assert.True(group.Id > 0);
 
-        // Confirm to add the item
-        var confirmData = GetLastBuyConfirmCallbackData();
-        Assert.NotNull(confirmData);
-        await DispatchAsync(CallbackUpdate(freshChatId, 42, 1, confirmData));
-
         var items = await ItemRepository.GetAllAsync(group.Id);
         Assert.NotEmpty(items);
+    }
+
+    [Fact]
+    public async Task Buy_Without_Quantity_Adds_Immediately_No_Review_Message()
+    {
+        await ClearDataAsync();
+
+        await DispatchAsync(CommandUpdate(-100, 42, "/buy Хлеб"));
+
+        // Item is saved immediately
+        var group = await GroupRepository.GetOrCreateAsync(-100);
+        var items = await ItemRepository.GetAllAsync(group.Id);
+        Assert.Contains(items, i => i.Name == "Хлеб");
+
+        // No Confirm/Edit/Cancel review message was sent
+        Assert.Null(GetLastBuyConfirmCallbackData());
+
+        // Category-capture prompt followed (no purchase history yet, so only the skip button — still an
+        // inline-keyboard message distinct from the plain "added" confirmation).
+        BotMock.Verify(
+            b => b.SendRequest(
+                It.Is<SendMessageRequest>(r => r.Text.Contains("category.prompt")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Buy_Without_Quantity_Then_Stale_Confirm_Callback_Does_Not_Double_Add_Or_Error()
+    {
+        await ClearDataAsync();
+
+        // A prior review session exists (quantity found) but is never confirmed.
+        await DispatchAsync(CommandUpdate(-100, 42, "/buy Old 1kg"));
+        var staleConfirmData = GetLastBuyConfirmCallbackData();
+        Assert.NotNull(staleConfirmData);
+
+        // Now a no-quantity /buy adds immediately.
+        await DispatchAsync(CommandUpdate(-100, 42, "/buy Хлеб"));
+
+        var group = await GroupRepository.GetOrCreateAsync(-100);
+        var itemsAfterDirectAdd = await ItemRepository.GetAllAsync(group.Id);
+        Assert.Single(itemsAfterDirectAdd, i => i.Name == "Хлеб");
+
+        // Tapping the stale review callback from the earlier "Old 1kg" session still works in isolation
+        // and does not affect or duplicate the already-added "Хлеб" item.
+        await DispatchAsync(CallbackUpdate(-100, 42, 1, staleConfirmData));
+
+        var itemsAfterStaleConfirm = await ItemRepository.GetAllAsync(group.Id);
+        Assert.Single(itemsAfterStaleConfirm, i => i.Name == "Хлеб");
+        Assert.Single(itemsAfterStaleConfirm, i => i.Name == "Old");
     }
 
     [Fact]
@@ -88,9 +133,6 @@ public class CommandIntegrationTests : TelegramIntegrationTestBase
         await ClearDataAsync();
 
         await DispatchAsync(CommandUpdate(-100, 42, "/buy Eggs"));
-        var confirmData = GetLastBuyConfirmCallbackData();
-        Assert.NotNull(confirmData);
-        await DispatchAsync(CallbackUpdate(-100, 42, 1, confirmData));
 
         BotMock.Invocations.Clear();
 

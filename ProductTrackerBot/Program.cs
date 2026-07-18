@@ -153,6 +153,7 @@ builder.Services.AddScoped<IAiQueryService, AiQueryService>();
 // Register services
 builder.Services.AddScoped<ShoppingListService>();
 builder.Services.AddScoped<CategoryCaptureService>();
+builder.Services.AddScoped<BuyAddService>();
 builder.Services.AddScoped<MealMergeService>();
 builder.Services.AddScoped<ExpiryNotificationService>();
 builder.Services.AddScoped<IUndoService, UndoService>();

@@ -137,10 +137,14 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var categoryCaptureService = new CategoryCaptureService(
             this.BotMock.Object, categoryCaptureDialogService, this.PurchaseRepository, localizer.Object);
 
+        var buyAddService = new BuyAddService(
+            this.BotMock.Object, this.ItemRepository, this.HistoryRepository, categoryCaptureService,
+            localizer.Object, Mock.Of<ILogger<BuyAddService>>());
+
         // Command handlers
         var buyHandler = new BuyCommandHandler(
             this.BotMock.Object, this.GroupRepository, buyDialogService, pendingAddService, localizer.Object,
-            listService, this.HistoryRepository, categoryCaptureService, Mock.Of<ILogger<BuyCommandHandler>>());
+            listService, this.HistoryRepository, categoryCaptureService, buyAddService, Mock.Of<ILogger<BuyCommandHandler>>());
 
         var listHandler = new ListCommandHandler(
             this.BotMock.Object, listService, this.GroupRepository, this.HistoryRepository,
@@ -266,8 +270,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             localizer.Object, Mock.Of<ILogger<WeekCallbackHandler>>());
 
         var buyConfirmHandler = new BuyConfirmCallbackHandler(
-            this.BotMock.Object, pendingAddService, this.ItemRepository, this.HistoryRepository,
-            categoryCaptureService, localizer.Object, Mock.Of<ILogger<BuyConfirmCallbackHandler>>());
+            this.BotMock.Object, pendingAddService, buyAddService);
 
         var buyEditHandler = new BuyEditCallbackHandler(
             this.BotMock.Object, pendingAddService, buyDialogService, localizer.Object);

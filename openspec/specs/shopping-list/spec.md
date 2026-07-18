@@ -3,15 +3,15 @@
 Manage the group's shared shopping list: add items via `/buy` (inline, bulk, or dialog), view and page through the list via `/list`, mark items as bought, and remove items.
 ## Requirements
 ### Requirement: Add item to shopping list via /buy command
-The system SHALL accept `/buy` in a group chat. If arguments are provided inline, the item is added immediately; otherwise a two-step dialog is initiated. The inline input supports comma-separated items, each parsed as an independent item entry. After any of these paths successfully persists item(s), the system SHALL follow up with a category-capture prompt per the `product-tags` capability; this does not alter the existing item-added confirmation text or timing.
+The system SHALL accept `/buy` in a group chat. If arguments are provided inline, the item is added immediately when the input is a comma-separated bulk list, or when no quantity was detected in the input; otherwise (a single item where a quantity was detected) a review step is shown before saving. If no arguments are provided, a two-step dialog is initiated. The inline input supports comma-separated items, each parsed as an independent item entry.
 
 #### Scenario: User sends /buy with single name and quantity inline
 - **WHEN** a group member sends `/buy Молоко 2л`
-- **THEN** the item is saved immediately and the bot confirms "Иван добавил(а) Молоко 2л" (last token = quantity, everything before = name)
+- **THEN** a review message "Добавить: Молоко 2л?" is shown with Confirm/✏️ Изменить/Cancel buttons, and the item is only saved once Confirm is tapped (last token = quantity, everything before = name)
 
 #### Scenario: User sends /buy with single name only inline
 - **WHEN** a group member sends `/buy Молоко`
-- **THEN** the item is saved immediately with no quantity and the bot confirms "Иван добавил(а) Молоко"
+- **THEN** no quantity is detected, so the item is saved immediately with no review step, and the bot confirms "Иван добавил(а) Молоко"
 
 #### Scenario: User sends /buy with comma-separated items
 - **WHEN** a group member sends `/buy Молоко, Яйца, Хлеб`
@@ -35,7 +35,7 @@ The system SHALL accept `/buy` in a group chat. If arguments are provided inline
 
 #### Scenario: User enters item name in dialog
 - **WHEN** the user replies with an item name after `/buy`
-- **THEN** the bot asks "Сколько?" with an inline `[Пропустить]` button, unchanged from current behavior
+- **THEN** the bot asks "Сколько?" with an inline `[Пропустить]` button
 
 #### Scenario: User enters quantity in dialog
 - **WHEN** the user replies with a quantity string
@@ -49,17 +49,13 @@ The system SHALL accept `/buy` in a group chat. If arguments are provided inline
 - **WHEN** a user sends `/buy` in a private chat
 - **THEN** the bot replies "Эта команда работает только в групповом чате." and does not start a dialog
 
-#### Scenario: Category prompt follows a successful inline single add
-- **WHEN** a group member sends `/buy Молоко 2л` and the bot confirms "Иван добавил(а) Молоко 2л"
-- **THEN** the bot additionally sends a category-capture prompt for "Молоко 2л" per the `product-tags` capability, as a separate follow-up message
+#### Scenario: No-quantity inline add records history and starts category capture
+- **WHEN** a group member sends `/buy Молоко` and the item is saved immediately (no review step)
+- **THEN** an `ItemAdded` history entry is recorded and the category-capture follow-up prompt is started for that item, exactly as it would be after tapping Confirm on a reviewed add
 
-#### Scenario: Category prompt follows a successful bulk add, once for the batch
-- **WHEN** a group member sends `/buy Молоко, Яйца, Хлеб` and the bot confirms "Иван добавил(а) 3 товара: Молоко, Яйца, Хлеб"
-- **THEN** the bot additionally sends one category-capture prompt covering all three items, not one per item
-
-#### Scenario: Category prompt follows the skip-quantity dialog path
-- **WHEN** a user taps `[Пропустить]` in the `/buy` dialog and the item is saved with no quantity
-- **THEN** the bot additionally sends a category-capture prompt for that item after the "Иван добавил(а) Молоко" confirmation
+#### Scenario: Quantity-detected inline add is unaffected
+- **WHEN** a group member sends `/buy Молоко 2л`
+- **THEN** the review step (Confirm/✏️ Изменить/Cancel) still appears exactly as before this change, and the item is not saved until Confirm is tapped
 
 ---
 

@@ -153,10 +153,8 @@ public class CategoryCaptureIntegrationTests : TelegramIntegrationTestBase
         });
 
         // A different user (99) in the same group triggers a new category prompt.
+        // No quantity is detected, so the item is saved immediately (no review step).
         await DispatchAsync(CommandUpdate(-100, 99, "/buy Отбеливатель"));
-        var confirmData = GetLastBuyConfirmCallbackData();
-        Assert.NotNull(confirmData);
-        await DispatchAsync(CallbackUpdate(-100, 99, 1, confirmData));
 
         var suggestData = GetLastCategorySuggestCallbackData();
         Assert.NotNull(suggestData);
