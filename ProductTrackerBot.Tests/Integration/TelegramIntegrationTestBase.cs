@@ -249,10 +249,12 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             Mock.Of<ILogger<TagToggleCallbackHandler>>());
 
         var tagDoneHandler = new TagDoneCallbackHandler(
-            this.BotMock.Object, tagCaptureDialogService, this.TagRepository, localizer.Object);
+            this.BotMock.Object, tagCaptureDialogService, this.TagRepository, listService, localizer.Object,
+            Mock.Of<ILogger<TagDoneCallbackHandler>>());
 
         var tagSkipHandler = new TagSkipCallbackHandler(
-            this.BotMock.Object, tagCaptureDialogService, localizer.Object);
+            this.BotMock.Object, tagCaptureDialogService, listService, localizer.Object,
+            Mock.Of<ILogger<TagSkipCallbackHandler>>());
 
         var undoInlineHandler = new UndoInlineCallbackHandler(
             this.BotMock.Object, undoService, priceDialogService, localizer.Object,

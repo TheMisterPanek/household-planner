@@ -39,6 +39,19 @@ public class TagCaptureDialogTests
         return botMock;
     }
 
+    private static Mock<ShoppingListService> CreateListServiceMock()
+    {
+        var groupRepo = new Mock<GroupRepository>("Data Source=file::memory:");
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        var localizer = Mock.Of<ILocalizer>();
+        var listServiceMock = new Mock<ShoppingListService>(groupRepo.Object, itemRepo.Object, tagRepo.Object, localizer);
+        listServiceMock
+            .Setup(s => s.BuildListAsync(It.IsAny<long>(), It.IsAny<int>(), null))
+            .ReturnsAsync(("list", null, new Group { Id = 10, ChatId = -100L }));
+        return listServiceMock;
+    }
+
     private static Mock<ILocalizer> CreateLocalizerMock()
     {
         var localizerMock = new Mock<ILocalizer>();
@@ -276,8 +289,11 @@ public class TagCaptureDialogTests
         var tagRepo = new Mock<TagRepository>("Data Source=file:test");
         tagRepo.Setup(r => r.SetItemTagsAsync(It.IsAny<IReadOnlyList<int>>(), 10, It.IsAny<IReadOnlyCollection<string>>()))
             .Returns(Task.CompletedTask);
+        var listService = CreateListServiceMock();
 
-        var handler = new TagDoneCallbackHandler(bot.Object, dialogService, tagRepo.Object, CreateLocalizerMock().Object);
+        var handler = new TagDoneCallbackHandler(
+            bot.Object, dialogService, tagRepo.Object, listService.Object, CreateLocalizerMock().Object,
+            Mock.Of<ILogger<TagDoneCallbackHandler>>());
 
         await handler.HandleAsync(CreateCallback("tag:done"), CancellationToken.None);
 
@@ -287,6 +303,13 @@ public class TagCaptureDialogTests
             It.Is<IReadOnlyCollection<string>>(t => t.Count == 2 && t.Contains("Молочка") && t.Contains("Скидка"))),
             Times.Once);
         Assert.Null(dialogService.GetState(-100L, 42L));
+
+        listService.Verify(s => s.BuildListAsync(-100L, 1, null), Times.Once);
+        bot.Verify(
+            b => b.SendRequest(
+                It.Is<SendMessageRequest>(r => r.ChatId! == -100L && r.Text == "list"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -305,7 +328,9 @@ public class TagCaptureDialogTests
         tagRepo.Setup(r => r.SetItemTagsAsync(It.IsAny<IReadOnlyList<int>>(), 10, It.IsAny<IReadOnlyCollection<string>>()))
             .Returns(Task.CompletedTask);
 
-        var handler = new TagDoneCallbackHandler(bot.Object, dialogService, tagRepo.Object, CreateLocalizerMock().Object);
+        var handler = new TagDoneCallbackHandler(
+            bot.Object, dialogService, tagRepo.Object, CreateListServiceMock().Object, CreateLocalizerMock().Object,
+            Mock.Of<ILogger<TagDoneCallbackHandler>>());
 
         await handler.HandleAsync(CreateCallback("tag:done"), CancellationToken.None);
 
@@ -327,12 +352,22 @@ public class TagCaptureDialogTests
             SelectedTagNames = new HashSet<string> { "Химия" },
         });
 
-        var handler = new TagSkipCallbackHandler(bot.Object, dialogService, CreateLocalizerMock().Object);
+        var listService = CreateListServiceMock();
+        var handler = new TagSkipCallbackHandler(
+            bot.Object, dialogService, listService.Object, CreateLocalizerMock().Object,
+            Mock.Of<ILogger<TagSkipCallbackHandler>>());
 
         await handler.HandleAsync(CreateCallback("tag:skip"), CancellationToken.None);
 
         Assert.Null(dialogService.GetState(-100L, 42L));
         bot.Verify(b => b.SendRequest(It.IsAny<EditMessageTextRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+
+        listService.Verify(s => s.BuildListAsync(-100L, 1, null), Times.Once);
+        bot.Verify(
+            b => b.SendRequest(
+                It.Is<SendMessageRequest>(r => r.ChatId! == -100L && r.Text == "list"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
