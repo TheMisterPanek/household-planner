@@ -84,10 +84,12 @@ public class TagCaptureStepHandler : IDialogMessageHandler
         else
         {
             var ackText = this.localizer.Get(chatId, "tag.free-text-added").Replace("{tag}", tag);
+            var keyboard = TagCaptureService.BuildKeyboard(this.localizer, chatId, state);
 
             await this.botClient.SendMessage(
                 chatId: chatId,
                 text: ackText,
+                replyMarkup: keyboard,
                 replyParameters: new Telegram.Bot.Types.ReplyParameters { MessageId = message.MessageId },
                 cancellationToken: cancellationToken);
         }

@@ -236,6 +236,33 @@ public class TagRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task GetTopTagsAsync_IncludesTagsAppliedToActiveItemsNotYetPurchased()
+    {
+        var item = await this.itemRepository.AddAsync(this.groupId, "Молоко", null, "Иван");
+        await this.repository.SetItemTagsAsync(new[] { item.Id }, this.groupId, new[] { "Молочка" });
+
+        var tags = await this.repository.GetTopTagsAsync(this.groupId, 5);
+
+        Assert.Contains("Молочка", tags);
+    }
+
+    [Fact]
+    public async Task GetTopTagsAsync_CombinesActiveItemAndPurchaseHistoryUsageWhenRanking()
+    {
+        var historyId = await this.AddPurchaseHistoryAsync("Aspirin");
+        await this.repository.LinkPurchaseHistoryTagsAsync(historyId, this.groupId, new[] { "Аптека" });
+
+        var item1 = await this.itemRepository.AddAsync(this.groupId, "Молоко", null, "Иван");
+        var item2 = await this.itemRepository.AddAsync(this.groupId, "Йогурт", null, "Иван");
+        await this.repository.SetItemTagsAsync(new[] { item1.Id }, this.groupId, new[] { "Молочка" });
+        await this.repository.SetItemTagsAsync(new[] { item2.Id }, this.groupId, new[] { "Молочка" });
+
+        var tags = await this.repository.GetTopTagsAsync(this.groupId, 2);
+
+        Assert.Equal(new[] { "Молочка", "Аптека" }, tags);
+    }
+
+    [Fact]
     public async Task GetTopTagsAsync_TruncatesLongLabelsForDisplay()
     {
         var longTag = new string('A', 25);

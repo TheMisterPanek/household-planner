@@ -108,10 +108,12 @@ public class TagRepository
     }
 
     /// <summary>
-    /// Gets the top-N tags for a group ranked by frequency of use across <c>PurchaseHistoryTags</c>,
-    /// ties broken by most recent linked <c>PurchaseHistory.PurchasedAt</c>. Labels over 20 characters
-    /// are truncated with "…" for display; the caller must use <see cref="GetOrCreateAsync"/> or
-    /// <see cref="SetItemTagsAsync"/> with the original (untruncated) name when persisting.
+    /// Gets the top-N tags for a group ranked by combined frequency of use across currently-active
+    /// <c>ItemTags</c> and historical <c>PurchaseHistoryTags</c> — so a tag applied to an item that
+    /// hasn't been bought yet still counts, ties broken by most recent linked
+    /// <c>PurchaseHistory.PurchasedAt</c>. Labels over 20 characters are truncated with "…" for
+    /// display; the caller must use <see cref="GetOrCreateAsync"/> or <see cref="SetItemTagsAsync"/>
+    /// with the original (untruncated) name when persisting.
     /// </summary>
     /// <param name="groupId">The group ID.</param>
     /// <param name="limit">The maximum number of tags to return.</param>
@@ -125,11 +127,13 @@ public class TagRepository
         cmd.CommandText = @"
             SELECT t.Name
             FROM Tags t
-            INNER JOIN PurchaseHistoryTags pht ON pht.TagId = t.Id
-            INNER JOIN PurchaseHistory ph ON ph.Id = pht.PurchaseHistoryId
+            LEFT JOIN ItemTags it ON it.TagId = t.Id
+            LEFT JOIN PurchaseHistoryTags pht ON pht.TagId = t.Id
+            LEFT JOIN PurchaseHistory ph ON ph.Id = pht.PurchaseHistoryId
             WHERE t.GroupId = @groupId
             GROUP BY t.Id
-            ORDER BY COUNT(*) DESC, MAX(ph.PurchasedAt) DESC
+            HAVING COUNT(DISTINCT it.ItemId) + COUNT(DISTINCT pht.PurchaseHistoryId) > 0
+            ORDER BY COUNT(DISTINCT it.ItemId) + COUNT(DISTINCT pht.PurchaseHistoryId) DESC, MAX(ph.PurchasedAt) DESC
             LIMIT @limit";
         cmd.Parameters.AddWithValue("@groupId", groupId);
         cmd.Parameters.AddWithValue("@limit", limit);
