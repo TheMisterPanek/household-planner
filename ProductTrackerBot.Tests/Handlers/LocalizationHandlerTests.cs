@@ -145,7 +145,7 @@ public class LocalizationHandlerTests
             .ReturnsAsync(new List<string>());
 
         var historyRepository = Mock.Of<IHistoryRepository>();
-        var tagCaptureService = new TagCaptureService(bot.Object, new PendingDialogService<TagCaptureDialogState>(), tagRepo.Object, localizer.Object);
+        var tagCaptureService = new TagCaptureService(bot.Object, new PendingDialogService<TagCaptureDialogState>(), new PendingDialogService<PriceCaptureDialogState>(), tagRepo.Object, localizer.Object);
         var buyAddService = new BuyAddService(
             bot.Object,
             new Mock<ShoppingItemRepository>("Data Source=file::memory:").Object,

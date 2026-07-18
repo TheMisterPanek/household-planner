@@ -132,6 +132,7 @@ public class PriceCaptureDialogTests
             groupRepo.Object,
             historyMock.Object,
             priceDialogService,
+            new PendingDialogService<TagCaptureDialogState>(),
             purchaseRepo.Object,
             CreateLocalizerMock().Object,
             Mock.Of<ILogger<ShopDoneCallbackHandler>>());
@@ -152,12 +153,69 @@ public class PriceCaptureDialogTests
         // Assert - store prompt was sent
         bot.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r =>
-                r.Text!.Contains("📍 Where did you buy Milk") &&
+                r.Text!.Contains("shop.where-bought") &&
                 r.ReplyMarkup != null),
             It.IsAny<CancellationToken>()), Times.Once);
 
         // Assert - item was deleted
         itemRepo.Verify(r => r.DeleteAsync(1), Times.Once);
+    }
+
+    [Fact]
+    public async Task ShopDoneCallbackHandler_Clears_Stale_TagCaptureDialog()
+    {
+        // Regression test: a leftover tag-capture dialog (e.g. the user never replied to a
+        // "what tags?" prompt for a different item) must not survive into a newly started
+        // price-capture dialog — otherwise a later reply meant for the price dialog could be
+        // captured by the stale tag prompt instead.
+        var bot = CreateBotMock();
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file:test");
+        itemRepo.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Milk", Quantity = "2л", AddedByName = "Alice" });
+        itemRepo.Setup(r => r.DeleteAsync(1)).Returns(Task.CompletedTask);
+
+        var listService = new Mock<ShoppingListService>(
+            CreateGroupRepoMock().Object,
+            new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object,
+            Mock.Of<ILocalizer>());
+        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
+            .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
+
+        var groupRepo = CreateGroupRepoMock();
+        groupRepo.Setup(r => r.UpdateListMessageIdAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .Returns(Task.CompletedTask);
+
+        var historyMock = new Mock<IHistoryRepository>();
+        historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file:test");
+        purchaseRepo.Setup(r => r.GetTopShopsAsync(It.IsAny<int>(), It.IsAny<long>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<string>());
+
+        var priceDialogService = new PendingDialogService<PriceCaptureDialogState>();
+        var tagDialogService = new PendingDialogService<TagCaptureDialogState>();
+        tagDialogService.SetState(-100L, 42L, new TagCaptureDialogState { ItemLabel = "Cola" });
+
+        var handler = new ShopDoneCallbackHandler(
+            bot.Object,
+            itemRepo.Object,
+            listService.Object,
+            groupRepo.Object,
+            historyMock.Object,
+            priceDialogService,
+            tagDialogService,
+            purchaseRepo.Object,
+            CreateLocalizerMock().Object,
+            Mock.Of<ILogger<ShopDoneCallbackHandler>>());
+
+        var callback = CreateCallback("shop:done:1");
+
+        await handler.HandleAsync(callback, CancellationToken.None);
+
+        Assert.Null(tagDialogService.GetState(-100L, 42L));
+        Assert.NotNull(priceDialogService.GetState(-100L, 42L));
     }
 
     [Fact]
@@ -181,7 +239,7 @@ public class PriceCaptureDialogTests
             CreatePriceLogRepoMock().Object,
             CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
-            Mock.Of<ILocalizer>(),
+            CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
         var message = DeserializeMessage(
@@ -199,7 +257,7 @@ public class PriceCaptureDialogTests
         // Assert - price prompt sent
         bot.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r =>
-                r.Text!.Contains("💰 Price for Milk") &&
+                r.Text!.Contains("shop.price-for") &&
                 r.ReplyMarkup != null),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -252,7 +310,7 @@ public class PriceCaptureDialogTests
 
         // Assert - confirmation sent
         bot.Verify(b => b.SendRequest(
-            It.Is<SendMessageRequest>(r => r.Text!.Contains("✓ Milk recorded")),
+            It.Is<SendMessageRequest>(r => r.Text!.Contains("shop.recorded")),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -276,7 +334,7 @@ public class PriceCaptureDialogTests
             CreatePriceLogRepoMock().Object,
             CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
-            Mock.Of<ILocalizer>(),
+            CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
         var message = DeserializeMessage(
@@ -292,7 +350,7 @@ public class PriceCaptureDialogTests
 
         // Assert - retry message sent, no record saved
         bot.Verify(b => b.SendRequest(
-            It.Is<SendMessageRequest>(r => r.Text!.Contains("That doesn't look like a price")),
+            It.Is<SendMessageRequest>(r => r.Text!.Contains("shop.invalid-price")),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -319,7 +377,7 @@ public class PriceCaptureDialogTests
             dialogService,
             CreatePurchaseRepoMock().Object,
             CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
-            Mock.Of<ILocalizer>(),
+            CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceSkipCallbackHandler>>());
 
         var callback = CreateCallback("price:skip_store");
@@ -335,7 +393,7 @@ public class PriceCaptureDialogTests
 
         // Assert - price prompt sent with skip button
         bot.Verify(b => b.SendRequest(
-            It.Is<SendMessageRequest>(r => r.Text!.Contains("💰 Price for Milk")),
+            It.Is<SendMessageRequest>(r => r.Text!.Contains("shop.price-for")),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -359,18 +417,12 @@ public class PriceCaptureDialogTests
             BoughtByName = "Alice",
         });
 
-        var localizerMock = new Mock<ILocalizer>();
-        localizerMock.Setup(l => l.Get(-100L, "shop.skip"))
-            .Returns("Skip");
-        localizerMock.Setup(l => l.Get(-100L, "shop.expiry-prompt"))
-            .Returns("📅 Expiry date for {item}? Enter days (e.g. 30) or a variant (e.g. 1 week, 2 months) or click Skip.");
-
         var handler = new PriceSkipCallbackHandler(
             bot.Object,
             dialogService,
             CreatePurchaseRepoMock().Object,
             CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
-            localizerMock.Object,
+            CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceSkipCallbackHandler>>());
 
         var callback = CreateCallback("price:skip_price");
@@ -387,7 +439,7 @@ public class PriceCaptureDialogTests
         // Assert - expiry prompt sent
         bot.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r =>
-                r.Text!.Contains("📅 Expiry date for Milk") &&
+                r.Text!.Contains("shop.expiry-prompt") &&
                 r.ReplyMarkup != null),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -416,16 +468,12 @@ public class PriceCaptureDialogTests
         var purchaseRepo = CreatePurchaseRepoMock();
         var groupRepo = CreateGroupRepoMock();
 
-        var localizerMock = new Mock<ILocalizer>();
-        localizerMock.Setup(l => l.Get(-100L, "shop.expiry-prompt"))
-            .Returns("📅 Expiry date for {item}? Enter days (e.g. 30) or a variant (e.g. 1 week, 2 months) or click Skip.");
-
         var handler = new PriceSkipCallbackHandler(
             bot.Object,
             dialogService,
             purchaseRepo.Object,
             groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
-            localizerMock.Object,
+            CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceSkipCallbackHandler>>());
 
         var callback = CreateCallback("price:skip_expiry");
@@ -447,7 +495,7 @@ public class PriceCaptureDialogTests
 
         // Assert - confirmation sent
         bot.Verify(b => b.SendRequest(
-            It.Is<SendMessageRequest>(r => r.Text!.Contains("✓ Yogurt recorded")),
+            It.Is<SendMessageRequest>(r => r.Text!.Contains("shop.recorded")),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -490,6 +538,7 @@ public class PriceCaptureDialogTests
             groupRepo.Object,
             historyMock.Object,
             priceDialogService,
+            new PendingDialogService<TagCaptureDialogState>(),
             purchaseRepo.Object,
             CreateLocalizerMock().Object,
             Mock.Of<ILogger<ShopDoneCallbackHandler>>());
@@ -547,6 +596,7 @@ public class PriceCaptureDialogTests
             groupRepo.Object,
             historyMock.Object,
             priceDialogService,
+            new PendingDialogService<TagCaptureDialogState>(),
             purchaseRepo.Object,
             CreateLocalizerMock().Object,
             Mock.Of<ILogger<ShopDoneCallbackHandler>>());
@@ -559,7 +609,7 @@ public class PriceCaptureDialogTests
         // Assert - message with shop buttons was sent
         bot.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r =>
-                r.Text!.Contains("📍 Where did you buy Milk") &&
+                r.Text!.Contains("shop.where-bought") &&
                 r.ReplyMarkup != null &&
                 ((InlineKeyboardMarkup?)r.ReplyMarkup)!.InlineKeyboard.Count() == 3), // 2 shops + skip button
             It.IsAny<CancellationToken>()), Times.Once);
@@ -604,6 +654,7 @@ public class PriceCaptureDialogTests
             groupRepo.Object,
             historyMock.Object,
             priceDialogService,
+            new PendingDialogService<TagCaptureDialogState>(),
             purchaseRepo.Object,
             CreateLocalizerMock().Object,
             Mock.Of<ILogger<ShopDoneCallbackHandler>>());
@@ -616,7 +667,7 @@ public class PriceCaptureDialogTests
         // Assert - message with only skip button was sent
         bot.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r =>
-                r.Text!.Contains("📍 Where did you buy Milk") &&
+                r.Text!.Contains("shop.where-bought") &&
                 r.ReplyMarkup != null &&
                 ((InlineKeyboardMarkup?)r.ReplyMarkup)!.InlineKeyboard.Count() == 1), // only skip button
             It.IsAny<CancellationToken>()), Times.Once);
@@ -640,6 +691,7 @@ public class PriceCaptureDialogTests
         var handler = new PriceShopSuggestionCallbackHandler(
             bot.Object,
             dialogService,
+            CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceShopSuggestionCallbackHandler>>());
 
         var callback = CreateCallback("price:shop:0");
@@ -656,7 +708,7 @@ public class PriceCaptureDialogTests
         // Assert - price prompt sent
         bot.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r =>
-                r.Text!.Contains("💰 Price for Milk") &&
+                r.Text!.Contains("shop.price-for") &&
                 r.ReplyMarkup != null),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -683,7 +735,7 @@ public class PriceCaptureDialogTests
             CreatePriceLogRepoMock().Object,
             CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
-            Mock.Of<ILocalizer>(),
+            CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
         var message = DeserializeMessage(
@@ -700,7 +752,7 @@ public class PriceCaptureDialogTests
 
         // Assert - price prompt sent
         bot.Verify(b => b.SendRequest(
-            It.Is<SendMessageRequest>(r => r.Text!.Contains("💰 Price for Milk")),
+            It.Is<SendMessageRequest>(r => r.Text!.Contains("shop.price-for")),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -744,6 +796,7 @@ public class PriceCaptureDialogTests
             groupRepo.Object,
             historyMock.Object,
             priceDialogService,
+            new PendingDialogService<TagCaptureDialogState>(),
             purchaseRepo.Object,
             CreateLocalizerMock().Object,
             Mock.Of<ILogger<ShopDoneCallbackHandler>>());
@@ -885,7 +938,7 @@ public class PriceCaptureDialogTests
 
         // Assert - confirmation message still sent despite price log failure
         bot.Verify(b => b.SendRequest(
-            It.Is<SendMessageRequest>(r => r.Text!.Contains("✓ Milk recorded")),
+            It.Is<SendMessageRequest>(r => r.Text!.Contains("shop.recorded")),
             It.IsAny<CancellationToken>()), Times.Once);
 
         // Assert - dialog cleared
@@ -970,10 +1023,6 @@ public class PriceCaptureDialogTests
         var purchaseRepo = CreatePurchaseRepoMock();
         var groupRepo = CreateGroupRepoMock();
 
-        var localizerMock = new Mock<ILocalizer>();
-        localizerMock.Setup(l => l.Get(-100L, "shop.done-with-expiry"))
-            .Returns(", expires {expiry}");
-
         var handler = new PriceCaptureStepHandler(
             bot.Object,
             dialogService,
@@ -981,7 +1030,7 @@ public class PriceCaptureDialogTests
             CreatePriceLogRepoMock().Object,
             groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
-            localizerMock.Object,
+            CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
         var message = DeserializeMessage(
@@ -1002,11 +1051,9 @@ public class PriceCaptureDialogTests
         // Assert - dialog cleared
         Assert.Null(dialogService.GetState(-100L, 42L));
 
-        // Assert - confirmation includes expiry
+        // Assert - confirmation sent
         bot.Verify(b => b.SendRequest(
-            It.Is<SendMessageRequest>(r =>
-                r.Text!.Contains("✓ Yogurt recorded") &&
-                r.Text!.Contains("expires")),
+            It.Is<SendMessageRequest>(r => r.Text!.Contains("shop.recorded")),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -1028,10 +1075,6 @@ public class PriceCaptureDialogTests
         var purchaseRepo = CreatePurchaseRepoMock();
         var groupRepo = CreateGroupRepoMock();
 
-        var localizerMock = new Mock<ILocalizer>();
-        localizerMock.Setup(l => l.Get(-100L, "shop.done-with-expiry"))
-            .Returns(", expires {expiry}");
-
         var handler = new PriceCaptureStepHandler(
             bot.Object,
             dialogService,
@@ -1039,7 +1082,7 @@ public class PriceCaptureDialogTests
             CreatePriceLogRepoMock().Object,
             groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
-            localizerMock.Object,
+            CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
         var message = DeserializeMessage(
@@ -1117,10 +1160,6 @@ public class PriceCaptureDialogTests
         var purchaseRepo = CreatePurchaseRepoMock();
         var groupRepo = CreateGroupRepoMock();
 
-        var localizerMock = new Mock<ILocalizer>();
-        localizerMock.Setup(l => l.Get(-100L, "shop.done-with-expiry"))
-            .Returns(", expires {expiry}");
-
         var handler = new PriceCaptureStepHandler(
             bot.Object,
             dialogService,
@@ -1128,7 +1167,7 @@ public class PriceCaptureDialogTests
             CreatePriceLogRepoMock().Object,
             groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
-            localizerMock.Object,
+            CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
         var message = DeserializeMessage(
@@ -1181,6 +1220,7 @@ public class PriceCaptureDialogTests
             groupRepo.Object,
             historyMock.Object,
             priceDialogService,
+            new PendingDialogService<TagCaptureDialogState>(),
             purchaseRepo.Object,
             CreateLocalizerMock().Object,
             Mock.Of<ILogger<ShopDoneCallbackHandler>>());
@@ -1208,7 +1248,7 @@ public class PriceCaptureDialogTests
             CreatePriceLogRepoMock().Object,
             CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
-            Mock.Of<ILocalizer>(),
+            CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
         var state = new PriceCaptureDialogState
@@ -1237,7 +1277,7 @@ public class PriceCaptureDialogTests
             CreatePriceLogRepoMock().Object,
             CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
-            Mock.Of<ILocalizer>(),
+            CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
         var state = new PriceCaptureDialogState
@@ -1272,16 +1312,12 @@ public class PriceCaptureDialogTests
         var purchaseRepo = CreatePurchaseRepoMock();
         var groupRepo = CreateGroupRepoMock();
 
-        var localizerMock = new Mock<ILocalizer>();
-        localizerMock.Setup(l => l.Get(-100L, "shop.expiry-prompt"))
-            .Returns("📅 Expiry date for {item}? Enter days (e.g. 30) or a variant (e.g. 1 week, 2 months) or click Skip.");
-
         var handler = new PriceSkipCallbackHandler(
             bot.Object,
             dialogService,
             purchaseRepo.Object,
             groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
-            localizerMock.Object,
+            CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceSkipCallbackHandler>>());
 
         var callback = CreateCallback("price:skip_expiry");

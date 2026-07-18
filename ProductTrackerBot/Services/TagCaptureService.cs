@@ -17,6 +17,7 @@ public class TagCaptureService
 {
     private readonly ITelegramBotClient botClient;
     private readonly PendingDialogService<TagCaptureDialogState> dialogService;
+    private readonly PendingDialogService<PriceCaptureDialogState> priceDialogService;
     private readonly TagRepository tagRepository;
     private readonly ILocalizer localizer;
 
@@ -25,16 +26,19 @@ public class TagCaptureService
     /// </summary>
     /// <param name="botClient">The Telegram bot client.</param>
     /// <param name="dialogService">The tag-capture dialog state service.</param>
+    /// <param name="priceDialogService">The price-capture dialog state service, cleared when a tag-capture prompt starts so a stale price dialog cannot steal the reply.</param>
     /// <param name="tagRepository">The tag repository.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
     public TagCaptureService(
         ITelegramBotClient botClient,
         PendingDialogService<TagCaptureDialogState> dialogService,
+        PendingDialogService<PriceCaptureDialogState> priceDialogService,
         TagRepository tagRepository,
         ILocalizer localizer)
     {
         this.botClient = botClient;
         this.dialogService = dialogService;
+        this.priceDialogService = priceDialogService;
         this.tagRepository = tagRepository;
         this.localizer = localizer;
     }
@@ -42,6 +46,9 @@ public class TagCaptureService
     /// <summary>
     /// Starts the tag-capture follow-up: fetches suggestions, stores dialog state (overwriting any
     /// still-pending prompt for the same chat/user), and sends the toggleable prompt message.
+    /// Also clears any still-pending price-capture dialog for the same chat/user, since only one
+    /// dialog can be waiting for the next text reply at a time — otherwise a stale price prompt
+    /// (e.g. from marking a previous item bought) would intercept the reply meant for this prompt.
     /// </summary>
     /// <param name="chatId">The Telegram chat ID.</param>
     /// <param name="userId">The Telegram user ID.</param>
@@ -70,6 +77,7 @@ public class TagCaptureService
             TopTags = topTags.Count > 0 ? new List<string>(topTags) : null,
             SelectedTagNames = new HashSet<string>(preselectedTags ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase),
         };
+        this.priceDialogService.ClearState(chatId, userId);
         this.dialogService.SetState(chatId, userId, state);
 
         var keyboard = BuildKeyboard(this.localizer, chatId, state);

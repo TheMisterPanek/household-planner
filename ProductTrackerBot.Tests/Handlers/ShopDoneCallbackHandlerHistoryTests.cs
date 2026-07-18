@@ -80,6 +80,7 @@ public class ShopDoneCallbackHandlerHistoryTests
             groupRepo.Object,
             historyMock.Object,
             priceDialogService,
+            new PendingDialogService<TagCaptureDialogState>(),
             purchaseRepo.Object,
             localizer.Object,
             Mock.Of<ILogger<ShopDoneCallbackHandler>>());

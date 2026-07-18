@@ -24,6 +24,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
     private readonly GroupRepository groupRepository;
     private readonly IHistoryRepository historyRepository;
     private readonly PendingDialogService<PriceCaptureDialogState> priceDialogService;
+    private readonly PendingDialogService<TagCaptureDialogState> tagDialogService;
     private readonly PurchaseHistoryRepository purchaseRepository;
     private readonly ILocalizer localizer;
     private readonly ILogger<ShopDoneCallbackHandler> logger;
@@ -37,6 +38,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
     /// <param name="groupRepository">The group repository.</param>
     /// <param name="historyRepository">The history repository.</param>
     /// <param name="priceDialogService">The price-capture dialog state service.</param>
+    /// <param name="tagDialogService">The tag-capture dialog state service, cleared when a price-capture prompt starts so a stale tag dialog cannot steal the reply.</param>
     /// <param name="purchaseRepository">The purchase history repository.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="logger">The logger.</param>
@@ -47,6 +49,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
         GroupRepository groupRepository,
         IHistoryRepository historyRepository,
         PendingDialogService<PriceCaptureDialogState> priceDialogService,
+        PendingDialogService<TagCaptureDialogState> tagDialogService,
         PurchaseHistoryRepository purchaseRepository,
         ILocalizer localizer,
         ILogger<ShopDoneCallbackHandler> logger)
@@ -57,6 +60,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
         this.groupRepository = groupRepository;
         this.historyRepository = historyRepository;
         this.priceDialogService = priceDialogService;
+        this.tagDialogService = tagDialogService;
         this.purchaseRepository = purchaseRepository;
         this.localizer = localizer;
         this.logger = logger;
@@ -147,19 +151,23 @@ public class ShopDoneCallbackHandler : ICallbackHandler
             TopShops = topShops.Count > 0 ? new List<string>(topShops) : null,
             Tags = item.Tags,
         };
+        this.tagDialogService.ClearState(callbackQuery.Message.Chat.Id, callbackQuery.From.Id);
         this.priceDialogService.SetState(callbackQuery.Message.Chat.Id, callbackQuery.From.Id, state);
 
         // Build keyboard with shop suggestion buttons and Skip button
-        var keyboard = BuildShopKeyboard(topShops);
+        var keyboard = this.BuildShopKeyboard(callbackQuery.Message.Chat.Id, topShops);
+
+        var whereBoughtText = this.localizer.Get(callbackQuery.Message.Chat.Id, "shop.where-bought")
+            .Replace("{item}", item.Name);
 
         await this.botClient.SendMessage(
             chatId: callbackQuery.Message.Chat.Id,
-            text: $"📍 Where did you buy {item.Name}?",
+            text: whereBoughtText,
             replyMarkup: keyboard,
             cancellationToken: cancellationToken);
     }
 
-    private static InlineKeyboardMarkup BuildShopKeyboard(IReadOnlyList<string> topShops)
+    private InlineKeyboardMarkup BuildShopKeyboard(long chatId, IReadOnlyList<string> topShops)
     {
         var rows = new List<InlineKeyboardButton[]>();
 
@@ -170,8 +178,8 @@ public class ShopDoneCallbackHandler : ICallbackHandler
 
         rows.Add(new[]
         {
-            InlineKeyboardButton.WithCallbackData("Skip", "price:skip_store"),
-            InlineKeyboardButton.WithCallbackData("↩️ Undo", "undo:inline"),
+            InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "shop.skip"), "price:skip_store"),
+            InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "shop.undo-button"), "undo:inline"),
         });
 
         return new InlineKeyboardMarkup(rows);

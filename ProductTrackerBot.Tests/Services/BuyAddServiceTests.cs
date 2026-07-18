@@ -18,7 +18,7 @@ public class BuyAddServiceTests
         var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
         tagRepo.Setup(r => r.GetTopTagsAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(new List<string>());
-        var mock = new Mock<TagCaptureService>(bot.Object, new PendingDialogService<TagCaptureDialogState>(), tagRepo.Object, localizer.Object);
+        var mock = new Mock<TagCaptureService>(bot.Object, new PendingDialogService<TagCaptureDialogState>(), new PendingDialogService<PriceCaptureDialogState>(), tagRepo.Object, localizer.Object);
         mock.Setup(s => s.StartTagCaptureAsync(
                 It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(),
                 It.IsAny<IReadOnlyCollection<string>?>(), It.IsAny<CancellationToken>()))

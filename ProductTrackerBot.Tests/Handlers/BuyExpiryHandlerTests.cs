@@ -144,7 +144,7 @@ public class BuyExpiryHandlerTests
         tagRepo.Setup(r => r.GetTopTagsAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(new List<string>());
         var tagCaptureServiceMock = new Mock<TagCaptureService>(
-            bot.Object, new PendingDialogService<TagCaptureDialogState>(), tagRepo.Object, localizer.Object);
+            bot.Object, new PendingDialogService<TagCaptureDialogState>(), new PendingDialogService<PriceCaptureDialogState>(), tagRepo.Object, localizer.Object);
         tagCaptureServiceMock.Setup(s => s.StartTagCaptureAsync(
                 It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(),
                 It.IsAny<IReadOnlyCollection<string>?>(), It.IsAny<CancellationToken>()))

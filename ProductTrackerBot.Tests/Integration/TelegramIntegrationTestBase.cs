@@ -139,7 +139,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var undoService = new UndoService(this.HistoryRepository, this.ItemRepository, this.GroupRepository, Mock.Of<ILogger<UndoService>>());
         var mealMergeService = new MealMergeService();
         var tagCaptureService = new TagCaptureService(
-            this.BotMock.Object, tagCaptureDialogService, this.TagRepository, localizer.Object);
+            this.BotMock.Object, tagCaptureDialogService, priceDialogService, this.TagRepository, localizer.Object);
 
         var buyAddService = new BuyAddService(
             this.BotMock.Object, this.ItemRepository, this.HistoryRepository, tagCaptureService,
@@ -207,7 +207,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         // Callback handlers
         var shopDoneHandler = new ShopDoneCallbackHandler(
             this.BotMock.Object, this.ItemRepository, listService, this.GroupRepository,
-            this.HistoryRepository, priceDialogService, this.PurchaseRepository,
+            this.HistoryRepository, priceDialogService, tagCaptureDialogService, this.PurchaseRepository,
             localizer.Object, Mock.Of<ILogger<ShopDoneCallbackHandler>>());
 
         var shopRemoveHandler = new ShopRemoveCallbackHandler(
@@ -263,7 +263,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             this.TagRepository, localizer.Object, Mock.Of<ILogger<PriceSkipCallbackHandler>>());
 
         var priceShopHandler = new PriceShopSuggestionCallbackHandler(
-            this.BotMock.Object, priceDialogService, Mock.Of<ILogger<PriceShopSuggestionCallbackHandler>>());
+            this.BotMock.Object, priceDialogService, localizer.Object, Mock.Of<ILogger<PriceShopSuggestionCallbackHandler>>());
 
         var mealCallbackHandler = new MealCallbackHandler(
             this.BotMock.Object, this.GroupRepository, this.MealRepository,

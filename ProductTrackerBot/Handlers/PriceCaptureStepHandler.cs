@@ -152,12 +152,12 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
         var details = string.Empty;
         if (record.StoreName is not null)
         {
-            details += $" at {record.StoreName}";
+            details += this.localizer.Get(chatId, "shop.recorded-at").Replace("{store}", record.StoreName);
         }
 
         if (record.Price.HasValue)
         {
-            details += $" for {record.Price.Value:F2}";
+            details += this.localizer.Get(chatId, "shop.recorded-for").Replace("{price}", record.Price.Value.ToString("F2"));
         }
 
         if (record.ExpDate.HasValue)
@@ -167,9 +167,13 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
             details += expirySuffix;
         }
 
+        var recordedText = this.localizer.Get(chatId, "shop.recorded")
+            .Replace("{item}", record.ItemName)
+            .Replace("{details}", details);
+
         await this.botClient.SendMessage(
             chatId: chatId,
-            text: $"✓ {record.ItemName} recorded{details}",
+            text: recordedText,
             cancellationToken: cancellationToken);
     }
 
@@ -179,11 +183,16 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
         state.Step = 2;
         this.dialogService.SetState(message.Chat.Id, message.From!.Id, state);
 
-        var skipPriceButton = InlineKeyboardButton.WithCallbackData("Skip", "price:skip_price");
+        var skipPriceButton = InlineKeyboardButton.WithCallbackData(
+            this.localizer.Get(message.Chat.Id, "shop.skip"),
+            "price:skip_price");
+
+        var priceForText = this.localizer.Get(message.Chat.Id, "shop.price-for")
+            .Replace("{item}", state.ItemName);
 
         await this.botClient.SendMessage(
             chatId: message.Chat.Id,
-            text: $"💰 Price for {state.ItemName}?",
+            text: priceForText,
             replyMarkup: new InlineKeyboardMarkup(new[] { new[] { skipPriceButton } }),
             replyParameters: new ReplyParameters { MessageId = message.MessageId },
             cancellationToken: cancellationToken);
@@ -195,7 +204,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
         {
             await this.botClient.SendMessage(
                 chatId: message.Chat.Id,
-                text: "That doesn't look like a price — try again or tap [Skip]",
+                text: this.localizer.Get(message.Chat.Id, "shop.invalid-price"),
                 replyParameters: new ReplyParameters { MessageId = message.MessageId },
                 cancellationToken: cancellationToken);
             return;

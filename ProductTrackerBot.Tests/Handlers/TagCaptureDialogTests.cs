@@ -74,7 +74,7 @@ public class TagCaptureDialogTests
         tagRepo.Setup(r => r.GetTopTagsAsync(10, 5))
             .ReturnsAsync(new List<string> { "Химия", "Авто" });
 
-        var service = new TagCaptureService(bot.Object, dialogService, tagRepo.Object, CreateLocalizerMock().Object);
+        var service = new TagCaptureService(bot.Object, dialogService, new PendingDialogService<PriceCaptureDialogState>(), tagRepo.Object, CreateLocalizerMock().Object);
 
         await service.StartTagCaptureAsync(-100L, 42L, 10, new[] { 1 }, "Молоко", preselectedTags: null, CancellationToken.None);
 
@@ -96,6 +96,31 @@ public class TagCaptureDialogTests
     }
 
     [Fact]
+    public async Task TagCaptureService_StartTagCaptureAsync_Clears_Stale_PriceCaptureDialog()
+    {
+        // Regression test: a leftover price-capture dialog (e.g. from marking a previous item
+        // bought and not finishing the store/price/expiry steps) must not survive into a newly
+        // started tag-capture prompt — otherwise the dispatcher routes the user's next reply to
+        // PriceCaptureStepHandler (registered before TagCaptureStepHandler) instead of the tag
+        // prompt, producing a spurious "That doesn't look like a price" reply.
+        var bot = CreateBotMock();
+        var dialogService = new PendingDialogService<TagCaptureDialogState>();
+        var priceDialogService = new PendingDialogService<PriceCaptureDialogState>();
+        priceDialogService.SetState(-100L, 42L, new PriceCaptureDialogState { Step = 1, ItemName = "Milk" });
+
+        var tagRepo = new Mock<TagRepository>("Data Source=file:test");
+        tagRepo.Setup(r => r.GetTopTagsAsync(10, 5))
+            .ReturnsAsync(new List<string>());
+
+        var service = new TagCaptureService(bot.Object, dialogService, priceDialogService, tagRepo.Object, CreateLocalizerMock().Object);
+
+        await service.StartTagCaptureAsync(-100L, 42L, 10, new[] { 1 }, "Кола", preselectedTags: null, CancellationToken.None);
+
+        Assert.Null(priceDialogService.GetState(-100L, 42L));
+        Assert.NotNull(dialogService.GetState(-100L, 42L));
+    }
+
+    [Fact]
     public async Task TagCaptureService_With_No_Suggestions_Sends_Prompt_With_Skip_And_Done_Only()
     {
         var bot = CreateBotMock();
@@ -104,7 +129,7 @@ public class TagCaptureDialogTests
         tagRepo.Setup(r => r.GetTopTagsAsync(10, 5))
             .ReturnsAsync(new List<string>());
 
-        var service = new TagCaptureService(bot.Object, dialogService, tagRepo.Object, CreateLocalizerMock().Object);
+        var service = new TagCaptureService(bot.Object, dialogService, new PendingDialogService<PriceCaptureDialogState>(), tagRepo.Object, CreateLocalizerMock().Object);
 
         await service.StartTagCaptureAsync(-100L, 42L, 10, new[] { 1 }, "Молоко", preselectedTags: null, CancellationToken.None);
 
@@ -128,7 +153,7 @@ public class TagCaptureDialogTests
         tagRepo.Setup(r => r.GetTopTagsAsync(10, 5))
             .ReturnsAsync(new List<string>());
 
-        var service = new TagCaptureService(bot.Object, dialogService, tagRepo.Object, CreateLocalizerMock().Object);
+        var service = new TagCaptureService(bot.Object, dialogService, new PendingDialogService<PriceCaptureDialogState>(), tagRepo.Object, CreateLocalizerMock().Object);
 
         await service.StartTagCaptureAsync(-100L, 42L, 10, new[] { 1, 2, 3 }, "3 товара", preselectedTags: null, CancellationToken.None);
 
@@ -147,7 +172,7 @@ public class TagCaptureDialogTests
         tagRepo.Setup(r => r.GetTopTagsAsync(10, 5))
             .ReturnsAsync(new List<string> { "Химия", "Авто" });
 
-        var service = new TagCaptureService(bot.Object, dialogService, tagRepo.Object, CreateLocalizerMock().Object);
+        var service = new TagCaptureService(bot.Object, dialogService, new PendingDialogService<PriceCaptureDialogState>(), tagRepo.Object, CreateLocalizerMock().Object);
 
         await service.StartTagCaptureAsync(-100L, 42L, 10, new[] { 1 }, "Bread", preselectedTags: new[] { "Химия" }, CancellationToken.None);
 

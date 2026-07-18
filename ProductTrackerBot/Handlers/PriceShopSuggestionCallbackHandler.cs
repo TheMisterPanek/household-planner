@@ -5,6 +5,7 @@
 namespace ProductTrackerBot.Handlers;
 
 using Microsoft.Extensions.Logging;
+using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
 using ProductTrackerBot.Services;
 using Telegram.Bot;
@@ -18,6 +19,7 @@ public class PriceShopSuggestionCallbackHandler : ICallbackHandler
 {
     private readonly ITelegramBotClient botClient;
     private readonly PendingDialogService<PriceCaptureDialogState> dialogService;
+    private readonly ILocalizer localizer;
     private readonly ILogger<PriceShopSuggestionCallbackHandler> logger;
 
     /// <summary>
@@ -25,14 +27,17 @@ public class PriceShopSuggestionCallbackHandler : ICallbackHandler
     /// </summary>
     /// <param name="botClient">The Telegram bot client.</param>
     /// <param name="dialogService">The price-capture dialog state service.</param>
+    /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="logger">The logger.</param>
     public PriceShopSuggestionCallbackHandler(
         ITelegramBotClient botClient,
         PendingDialogService<PriceCaptureDialogState> dialogService,
+        ILocalizer localizer,
         ILogger<PriceShopSuggestionCallbackHandler> logger)
     {
         this.botClient = botClient;
         this.dialogService = dialogService;
+        this.localizer = localizer;
         this.logger = logger;
     }
 
@@ -55,7 +60,7 @@ public class PriceShopSuggestionCallbackHandler : ICallbackHandler
         {
             await this.botClient.AnswerCallbackQuery(
                 callbackQueryId: callbackQuery.Id,
-                text: "Dialog expired, please try again",
+                text: this.localizer.Get(chatId, "shop.dialog-expired"),
                 cancellationToken: cancellationToken);
             return;
         }
@@ -66,7 +71,7 @@ public class PriceShopSuggestionCallbackHandler : ICallbackHandler
             this.logger.LogWarning("Invalid shop index in callback: {Index}", shopIndexStr);
             await this.botClient.AnswerCallbackQuery(
                 callbackQueryId: callbackQuery.Id,
-                text: "Invalid shop selection",
+                text: this.localizer.Get(chatId, "shop.invalid-shop-selection"),
                 cancellationToken: cancellationToken);
             return;
         }
@@ -80,11 +85,16 @@ public class PriceShopSuggestionCallbackHandler : ICallbackHandler
             callbackQueryId: callbackQuery.Id,
             cancellationToken: cancellationToken);
 
-        var skipPriceButton = InlineKeyboardButton.WithCallbackData("Skip", "price:skip_price");
+        var skipPriceButton = InlineKeyboardButton.WithCallbackData(
+            this.localizer.Get(chatId, "shop.skip"),
+            "price:skip_price");
+
+        var priceForText = this.localizer.Get(chatId, "shop.price-for")
+            .Replace("{item}", state.ItemName);
 
         await this.botClient.SendMessage(
             chatId: chatId,
-            text: $"💰 Price for {state.ItemName}?",
+            text: priceForText,
             replyMarkup: new InlineKeyboardMarkup(new[] { new[] { skipPriceButton } }),
             replyParameters: new ReplyParameters { MessageId = callbackQuery.Message.MessageId },
             cancellationToken: cancellationToken);

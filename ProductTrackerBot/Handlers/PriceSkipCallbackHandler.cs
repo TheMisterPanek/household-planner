@@ -74,7 +74,7 @@ public class PriceSkipCallbackHandler : ICallbackHandler
         {
             await this.botClient.AnswerCallbackQuery(
                 callbackQueryId: callbackQuery.Id,
-                text: "Dialog expired, try again",
+                text: this.localizer.Get(chatId, "shop.dialog-expired"),
                 cancellationToken: cancellationToken);
             return;
         }
@@ -89,19 +89,25 @@ public class PriceSkipCallbackHandler : ICallbackHandler
                 callbackQueryId: callbackQuery.Id,
                 cancellationToken: cancellationToken);
 
+            var whereBoughtText = this.localizer.Get(chatId, "shop.where-bought")
+                .Replace("{item}", state.ItemName);
+
             await this.botClient.EditMessageText(
                 chatId: chatId,
                 messageId: callbackQuery.Message.MessageId,
-                text: $"📍 Where did you buy {state.ItemName}?\n\nSkipped",
+                text: $"{whereBoughtText}\n\n{this.localizer.Get(chatId, "category.skipped")}",
                 cancellationToken: cancellationToken);
 
             var skipPriceButton = InlineKeyboardButton.WithCallbackData(
                 this.localizer.Get(chatId, "shop.skip"),
                 "price:skip_price");
 
+            var priceForText = this.localizer.Get(chatId, "shop.price-for")
+                .Replace("{item}", state.ItemName);
+
             await this.botClient.SendMessage(
                 chatId: chatId,
-                text: $"💰 Price for {state.ItemName}?",
+                text: priceForText,
                 replyMarkup: new InlineKeyboardMarkup(new[] { new[] { skipPriceButton } }),
                 cancellationToken: cancellationToken);
         }
@@ -116,10 +122,13 @@ public class PriceSkipCallbackHandler : ICallbackHandler
                 callbackQueryId: callbackQuery.Id,
                 cancellationToken: cancellationToken);
 
+            var priceForSkippedText = this.localizer.Get(chatId, "shop.price-for")
+                .Replace("{item}", state.ItemName);
+
             await this.botClient.EditMessageText(
                 chatId: chatId,
                 messageId: callbackQuery.Message.MessageId,
-                text: $"💰 Price for {state.ItemName}?\n\nSkipped",
+                text: $"{priceForSkippedText}\n\n{this.localizer.Get(chatId, "category.skipped")}",
                 cancellationToken: cancellationToken);
 
             var skipExpiryButton = InlineKeyboardButton.WithCallbackData(
@@ -170,23 +179,27 @@ public class PriceSkipCallbackHandler : ICallbackHandler
                 chatId: chatId,
                 messageId: callbackQuery.Message.MessageId,
                 text: this.localizer.Get(chatId, "shop.expiry-prompt")
-                    .Replace("{item}", state.ItemName) + "\n\nSkipped",
+                    .Replace("{item}", state.ItemName) + $"\n\n{this.localizer.Get(chatId, "category.skipped")}",
                 cancellationToken: cancellationToken);
 
             var details = string.Empty;
             if (record.StoreName is not null)
             {
-                details += $" at {record.StoreName}";
+                details += this.localizer.Get(chatId, "shop.recorded-at").Replace("{store}", record.StoreName);
             }
 
             if (record.Price.HasValue)
             {
-                details += $" for {record.Price.Value:F2}";
+                details += this.localizer.Get(chatId, "shop.recorded-for").Replace("{price}", record.Price.Value.ToString("F2"));
             }
+
+            var recordedText = this.localizer.Get(chatId, "shop.recorded")
+                .Replace("{item}", record.ItemName)
+                .Replace("{details}", details);
 
             await this.botClient.SendMessage(
                 chatId: chatId,
-                text: $"✓ {record.ItemName} recorded{details}",
+                text: recordedText,
                 cancellationToken: cancellationToken);
         }
     }
