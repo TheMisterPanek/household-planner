@@ -23,12 +23,19 @@ Bot requires a Telegram token. Set via `BOT_TOKEN` environment variable or `.env
 ## Rules
 
 ### Test requirements
+See **[TESTS.md](TESTS.md)** for the full testing guide (unit vs integration
+test levels, mocking strategy, inline-keyboard round-trip pattern, and the
+rule on asserting message content instead of call counts). Summary:
+
 - Every handler and service change must include unit tests
 - Mocks are preferred over real database in tests (exception: integration tests explicitly requiring SQLite)
 - Test mocks for `ILocalizer` should return key names as fallback (allows assertions on key names)
 - Use `Mock.Of<T>()` for simple throwaway mocks; `new Mock<T>()` when setup is needed
+- Assertions on bot replies must check `.Text`/`ReplyMarkup` content, not just that `SendRequest` was called — see TESTS.md's "Assert on content, not just 'something was sent'"
 
 ### Integration test requirements
+Full details in **[TESTS.md](TESTS.md)**. Summary:
+
 - Every new command handler, callback handler, or dialog flow must have a corresponding integration test in `ProductTrackerBot.Tests/Integration/`
 - Integration tests use `TelegramIntegrationTestBase` (named in-memory SQLite, mocked `ITelegramBotClient`)
 - All integration test classes carry `[Collection("IntegrationTests")]` so they run serially and share no state
@@ -93,6 +100,7 @@ User: /openspec-propose Add /history command to view user activity log
 
 | File | Purpose |
 |---|---|
+| `TESTS.md` | Full testing guide: unit vs integration levels, Telegram mocking strategy, inline-keyboard test pattern |
 | `Program.cs` | DI registration; must register all handlers and repos here |
 | `UpdateDispatcher.cs` | Routes updates to appropriate handler; add new handler types here |
 | `Handlers/` | Command, callback, and dialog step handlers |
