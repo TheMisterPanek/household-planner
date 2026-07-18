@@ -66,14 +66,17 @@ Bot requires a Telegram token. Set via `BOT_TOKEN` environment variable or `.env
 
 ## OpenSpec integration
 
+**Before starting work on any change** (especially via `/opsx:apply` or `/openspec-apply-change`): this repo often has multiple concurrent Claude sessions/worktrees active on it. A local `tasks.md`'s checkbox state can be stale — another session may have already finished and pushed the same change to `origin/main` while you were reading it. Run `git fetch` and check `git log <branch>..origin/<branch>` (or just `git pull --rebase`) *before* starting substantial implementation work, not after. If origin has moved, pull it in and re-check what's actually left to do before writing any code — redoing already-shipped work wastes a full session and risks deploying a stale/inferior duplicate over the real one.
+
 When proposing features:
 
 1. **Scope**: Use `/openspec-propose` to create a change with design docs and task breakdown
 2. **Unit tests**: Every handler/service proposal must include explicit test tasks
 3. **Implementation**: Use `/openspec-apply-change` to work through tasks
 4. **Smoke test**: After implementation tasks, always append a manual e2e smoke test task as the final task in the breakdown. This task describes how to verify the feature end-to-end in a real Telegram chat (commands to send, expected bot responses, edge cases to check by hand). Claude must stop and leave this task open — do NOT mark it complete or proceed to archive until the user confirms the smoke test passed.
-5. **Landing page**: Every major feature must include a task to update the Landing page with a description of the new feature
-6. **Archive**: When complete, use `/openspec-archive-change` to finalize
+5. **Archive**: When complete, use `/openspec-archive-change` to finalize
+
+Note: there is no Landing page or web UI in this repo (removed — Telegram bot only). Don't add a "update the Landing page" task to new proposals.
 
 Example:
 ```
