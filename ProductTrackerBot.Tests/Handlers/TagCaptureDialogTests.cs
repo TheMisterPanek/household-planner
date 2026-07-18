@@ -45,9 +45,11 @@ public class TagCaptureDialogTests
         localizerMock.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
             .Returns((long _, string key) => key);
         localizerMock.Setup(l => l.Get(It.IsAny<long>(), "tag.prompt"))
-            .Returns("В какие группы добавить {item}?");
+            .Returns("Какими тегами пометить {item}?");
         localizerMock.Setup(l => l.Get(It.IsAny<long>(), "tag.set-confirmation"))
             .Returns("✓ Теги «{tags}» установлены");
+        localizerMock.Setup(l => l.Get(It.IsAny<long>(), "tag.free-text-added"))
+            .Returns("✓ Тег «{tag}» добавлен");
         return localizerMock;
     }
 
@@ -330,6 +332,7 @@ public class TagCaptureDialogTests
             ItemIds = new List<int> { 1 },
             ItemLabel = "Порошок",
             GroupId = 10,
+            TopTags = new List<string> { "Скидка" },
             SelectedTagNames = new HashSet<string> { "Бытовая химия" },
         });
 
@@ -347,6 +350,35 @@ public class TagCaptureDialogTests
 
         bot.Verify(b => b.SendRequest(
             It.Is<SendMessageRequest>(r => r.Text!.Contains("Порошок")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task TagCaptureStepHandler_FreeText_Not_Among_Suggestions_Sends_Acknowledgement()
+    {
+        var bot = CreateBotMock();
+        var dialogService = new PendingDialogService<TagCaptureDialogState>();
+        dialogService.SetState(-100L, 42L, new TagCaptureDialogState
+        {
+            ItemIds = new List<int> { 1 },
+            ItemLabel = "Порошок",
+            GroupId = 10,
+            TopTags = new List<string> { "Бытовая химия" },
+        });
+
+        var handler = new TagCaptureStepHandler(bot.Object, dialogService, CreateLocalizerMock().Object);
+
+        var message = DeserializeMessage(
+            "{\"message_id\":10,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100,\"type\":\"supergroup\"},\"text\":\"Скидка\"}");
+
+        await handler.HandleAsync(message, CancellationToken.None);
+
+        var state = dialogService.GetState(-100L, 42L);
+        Assert.NotNull(state);
+        Assert.Contains("Скидка", state!.SelectedTagNames);
+
+        bot.Verify(b => b.SendRequest(
+            It.Is<SendMessageRequest>(r => r.Text!.Contains("Скидка") && !r.Text.Contains("Порошок")),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

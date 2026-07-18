@@ -135,6 +135,7 @@
   "tag.done": "Done",
   "tag.set-confirmation": "✓ Tags \"{tags}\" set",
   "tag.set-confirmation-empty": "✓ No tags set",
+  "tag.free-text-added": "✓ Tag \"{tag}\" added",
   "list.filter-all": "All"
 }
 

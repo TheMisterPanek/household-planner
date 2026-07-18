@@ -131,9 +131,10 @@
   "category.bulk-label": "эти {count} товара",
   "category.skip": "Без категории",
   "category.skipped": "Пропущено",
-  "tag.prompt": "В какие группы добавить {item}?",
+  "tag.prompt": "Какими тегами пометить {item}?",
   "tag.done": "Готово",
   "tag.set-confirmation": "✓ Теги «{tags}» установлены",
   "tag.set-confirmation-empty": "✓ Теги не установлены",
+  "tag.free-text-added": "✓ Тег «{tag}» добавлен",
   "list.filter-all": "Все"
 }

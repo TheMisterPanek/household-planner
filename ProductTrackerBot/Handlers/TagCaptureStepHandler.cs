@@ -60,17 +60,36 @@ public class TagCaptureStepHandler : IDialogMessageHandler
         }
 
         var tag = message.Text.Trim();
+        if (tag.Length == 0)
+        {
+            return;
+        }
+
         state.SelectedTagNames.Add(tag);
         this.dialogService.SetState(chatId, userId, state);
 
-        var keyboard = TagCaptureService.BuildKeyboard(this.localizer, chatId, state);
-        var promptText = this.localizer.Get(chatId, "tag.prompt").Replace("{item}", state.ItemLabel);
+        var isAmongSuggestions = state.TopTags?.Contains(tag, StringComparer.OrdinalIgnoreCase) ?? false;
+        if (isAmongSuggestions)
+        {
+            var keyboard = TagCaptureService.BuildKeyboard(this.localizer, chatId, state);
+            var promptText = this.localizer.Get(chatId, "tag.prompt").Replace("{item}", state.ItemLabel);
 
-        await this.botClient.SendMessage(
-            chatId: chatId,
-            text: promptText,
-            replyMarkup: keyboard,
-            replyParameters: new Telegram.Bot.Types.ReplyParameters { MessageId = message.MessageId },
-            cancellationToken: cancellationToken);
+            await this.botClient.SendMessage(
+                chatId: chatId,
+                text: promptText,
+                replyMarkup: keyboard,
+                replyParameters: new Telegram.Bot.Types.ReplyParameters { MessageId = message.MessageId },
+                cancellationToken: cancellationToken);
+        }
+        else
+        {
+            var ackText = this.localizer.Get(chatId, "tag.free-text-added").Replace("{tag}", tag);
+
+            await this.botClient.SendMessage(
+                chatId: chatId,
+                text: ackText,
+                replyParameters: new Telegram.Bot.Types.ReplyParameters { MessageId = message.MessageId },
+                cancellationToken: cancellationToken);
+        }
     }
 }
