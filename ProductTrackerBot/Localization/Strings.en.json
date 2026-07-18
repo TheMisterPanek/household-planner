@@ -128,11 +128,13 @@
   "use.empty": "✅ Inventory is empty.",
   "use.remove-button": "🗑",
   "use.remove-toast": "✓ Removed",
-  "category.prompt": "Which group should {item} go into?",
   "category.bulk-label": "these {count} items",
   "category.skip": "No category",
   "category.skipped": "Skipped",
-  "category.set-confirmation": "✓ Category \"{category}\" set",
+  "tag.prompt": "Which tags should {item} go into?",
+  "tag.done": "Done",
+  "tag.set-confirmation": "✓ Tags \"{tags}\" set",
+  "tag.set-confirmation-empty": "✓ No tags set",
   "list.filter-all": "All"
 }
 

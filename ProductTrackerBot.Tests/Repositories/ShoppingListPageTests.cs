@@ -39,14 +39,27 @@ public class ShoppingListPageTests : IDisposable
                 exp_date TEXT,
                 AddedByName TEXT NOT NULL,
                 Category TEXT
+            );
+            CREATE TABLE IF NOT EXISTS Tags (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                GroupId INTEGER NOT NULL,
+                Name TEXT NOT NULL,
+                UNIQUE (GroupId, Name COLLATE NOCASE)
+            );
+            CREATE TABLE IF NOT EXISTS ItemTags (
+                ItemId INTEGER NOT NULL,
+                TagId INTEGER NOT NULL,
+                PRIMARY KEY (ItemId, TagId)
             );";
         cmd.ExecuteNonQuery();
 
         using var cleanCmd = this.connection.CreateCommand();
         cleanCmd.CommandText = @"
+            DELETE FROM ItemTags;
+            DELETE FROM Tags;
             DELETE FROM ShoppingItems;
             DELETE FROM Groups;
-            DELETE FROM sqlite_sequence WHERE name IN ('ShoppingItems', 'Groups');";
+            DELETE FROM sqlite_sequence WHERE name IN ('ShoppingItems', 'Groups', 'Tags');";
         cleanCmd.ExecuteNonQuery();
 
         using var insertGroup = this.connection.CreateCommand();

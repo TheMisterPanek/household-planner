@@ -27,7 +27,7 @@ public class BuyCommandHandler : ICommandHandler
     private readonly ILocalizer localizer;
     private readonly ShoppingListService shoppingListService;
     private readonly IHistoryRepository historyRepository;
-    private readonly CategoryCaptureService categoryCaptureService;
+    private readonly TagCaptureService tagCaptureService;
     private readonly BuyAddService buyAddService;
     private readonly ILogger<BuyCommandHandler> logger;
 
@@ -41,7 +41,7 @@ public class BuyCommandHandler : ICommandHandler
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="shoppingListService">The shopping list service for bulk adds.</param>
     /// <param name="historyRepository">The history repository.</param>
-    /// <param name="categoryCaptureService">The category-capture follow-up service.</param>
+    /// <param name="tagCaptureService">The tag-capture follow-up service.</param>
     /// <param name="buyAddService">The shared persist-and-confirm service.</param>
     /// <param name="logger">The logger.</param>
     public BuyCommandHandler(
@@ -52,7 +52,7 @@ public class BuyCommandHandler : ICommandHandler
         ILocalizer localizer,
         ShoppingListService shoppingListService,
         IHistoryRepository historyRepository,
-        CategoryCaptureService categoryCaptureService,
+        TagCaptureService tagCaptureService,
         BuyAddService buyAddService,
         ILogger<BuyCommandHandler> logger)
     {
@@ -63,7 +63,7 @@ public class BuyCommandHandler : ICommandHandler
         this.localizer = localizer;
         this.shoppingListService = shoppingListService;
         this.historyRepository = historyRepository;
-        this.categoryCaptureService = categoryCaptureService;
+        this.tagCaptureService = tagCaptureService;
         this.buyAddService = buyAddService;
         this.logger = logger;
     }
@@ -204,12 +204,13 @@ public class BuyCommandHandler : ICommandHandler
         var bulkLabel = this.localizer.Get(message.Chat.Id, "category.bulk-label")
             .Replace("{count}", addedItems.Count.ToString());
 
-        await this.categoryCaptureService.StartCategoryCaptureAsync(
+        await this.tagCaptureService.StartTagCaptureAsync(
             message.Chat.Id,
             message.From!.Id,
             group.Id,
             addedItems.Select(i => i.Id).ToList(),
             bulkLabel,
+            preselectedTags: null,
             cancellationToken);
     }
 

@@ -45,17 +45,17 @@ public class BuyCommandHandlerHistoryTests
         localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
             .Returns<long, string>((_, key) => key);
 
-        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file::memory:");
-        purchaseRepo.Setup(r => r.GetTopCategoriesAsync(It.IsAny<int>(), It.IsAny<int>()))
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetTopTagsAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(new List<string>());
 
         var historyRepository = Mock.Of<IHistoryRepository>();
-        var categoryCaptureService = new CategoryCaptureService(bot, new PendingDialogService<CategoryCaptureDialogState>(), purchaseRepo.Object, localizer.Object);
+        var tagCaptureService = new TagCaptureService(bot, new PendingDialogService<TagCaptureDialogState>(), tagRepo.Object, localizer.Object);
         var buyAddService = new BuyAddService(
             bot,
             new Mock<ShoppingItemRepository>("Data Source=file::memory:").Object,
             historyRepository,
-            categoryCaptureService,
+            tagCaptureService,
             localizer.Object,
             Mock.Of<Microsoft.Extensions.Logging.ILogger<BuyAddService>>());
 
@@ -68,9 +68,10 @@ public class BuyCommandHandlerHistoryTests
             new ShoppingListService(
                 new Mock<GroupRepository>("Data Source=file::memory:").Object,
                 new Mock<ShoppingItemRepository>("Data Source=file::memory:").Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object,
                 localizer.Object),
             historyRepository,
-            categoryCaptureService,
+            tagCaptureService,
             buyAddService,
             Mock.Of<Microsoft.Extensions.Logging.ILogger<BuyCommandHandler>>());
     }
@@ -90,7 +91,7 @@ public class BuyCommandHandlerHistoryTests
         await handler.HandleAsync(GroupBuyMessage("Молоко 2л"), CancellationToken.None);
 
         // No AddAsync calls — item should be pending
-        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null), Times.Never);
+        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()), Times.Never);
 
         // Review message was sent
         bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);

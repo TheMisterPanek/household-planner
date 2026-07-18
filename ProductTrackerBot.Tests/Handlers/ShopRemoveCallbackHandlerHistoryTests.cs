@@ -55,7 +55,8 @@ public class ShopRemoveCallbackHandlerHistoryTests
         itemRepo.Setup(r => r.DeleteAsync(7)).Returns(Task.CompletedTask);
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, Mock.Of<ILocalizer>());
 
         var historyMock = new Mock<IHistoryRepository>();
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
@@ -84,7 +85,8 @@ public class ShopRemoveCallbackHandlerHistoryTests
         itemRepo.Setup(r => r.DeleteAsync(7)).Returns(Task.CompletedTask);
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, Mock.Of<ILocalizer>());
 
         var historyMock = new Mock<IHistoryRepository>();
         historyMock.Setup(h => h.RecordAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(), It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
@@ -113,7 +115,8 @@ public class ShopRemoveCallbackHandlerHistoryTests
         itemRepo.Setup(r => r.DeleteAsync(7)).Returns(Task.CompletedTask);
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, Mock.Of<ILocalizer>());
 
         string? capturedRevert = null;
         var historyMock = new Mock<IHistoryRepository>();

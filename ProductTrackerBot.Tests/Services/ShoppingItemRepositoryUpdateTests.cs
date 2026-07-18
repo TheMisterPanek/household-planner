@@ -29,6 +29,19 @@ public class ShoppingItemRepositoryUpdateTests : IDisposable
                 exp_date TEXT,
                 Category TEXT
             );
+            CREATE TABLE IF NOT EXISTS Tags (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                GroupId INTEGER NOT NULL,
+                Name TEXT NOT NULL,
+                UNIQUE (GroupId, Name COLLATE NOCASE)
+            );
+            CREATE TABLE IF NOT EXISTS ItemTags (
+                ItemId INTEGER NOT NULL,
+                TagId INTEGER NOT NULL,
+                PRIMARY KEY (ItemId, TagId)
+            );
+            DELETE FROM ItemTags;
+            DELETE FROM Tags;
             DELETE FROM ShoppingItems;
             DELETE FROM Groups;";
         cmd.ExecuteNonQuery();

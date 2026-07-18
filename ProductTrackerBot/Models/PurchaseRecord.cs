@@ -60,7 +60,7 @@ public class PurchaseRecord
     public DateOnly? ExpDate { get; set; }
 
     /// <summary>
-    /// Gets or sets the optional category/tag carried over from the shopping item.
+    /// Gets or sets the tags carried over from the shopping item at the time it was bought.
     /// </summary>
-    public string? Category { get; set; }
+    public IReadOnlyList<string> Tags { get; set; } = Array.Empty<string>();
 }

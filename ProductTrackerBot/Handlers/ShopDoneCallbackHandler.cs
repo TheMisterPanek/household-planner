@@ -145,7 +145,7 @@ public class ShopDoneCallbackHandler : ICallbackHandler
             Quantity = item.Quantity,
             BoughtByName = displayName ?? "Unknown",
             TopShops = topShops.Count > 0 ? new List<string>(topShops) : null,
-            Category = item.Category,
+            Tags = item.Tags,
         };
         this.priceDialogService.SetState(callbackQuery.Message.Chat.Id, callbackQuery.From.Id, state);
 

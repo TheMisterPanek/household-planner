@@ -48,7 +48,7 @@ public class AiAddItemCallbackHandlerTests
             .ReturnsAsync(new Group { Id = 5, ChatId = -100, LanguageCode = "en" });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=:memory:");
-        itemRepo.Setup(r => r.AddAsync(5, "pasta", "500g", "Alice", null, null))
+        itemRepo.Setup(r => r.AddAsync(5, "pasta", "500g", "Alice", null))
             .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 5, Name = "pasta", Quantity = "500g", AddedByName = "Alice" });
 
         var localizer = new Mock<ILocalizer>();
@@ -73,7 +73,7 @@ public class AiAddItemCallbackHandlerTests
         var callback = MakeCallback(-100L, 42L, $"ai:add:{token}");
         await handler.HandleAsync(callback, CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(5, "pasta", "500g", "Alice", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(5, "pasta", "500g", "Alice", null), Times.Once);
         bot.Verify(b => b.SendRequest(
             It.Is<AnswerCallbackQueryRequest>(r => r.Text == "ai.suggestion-added"),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -105,7 +105,7 @@ public class AiAddItemCallbackHandlerTests
         var callback = MakeCallback(-100L, 42L, "ai:add:deadbeef");
         await handler.HandleAsync(callback, CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null), Times.Never);
+        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()), Times.Never);
         bot.Verify(b => b.SendRequest(
             It.Is<AnswerCallbackQueryRequest>(r => r.Text == "ai.suggestion-expired"),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -124,7 +124,7 @@ public class AiAddItemCallbackHandlerTests
             .ReturnsAsync(new Group { Id = 5, ChatId = -100, LanguageCode = "en" });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=:memory:");
-        itemRepo.Setup(r => r.AddAsync(5, "eggs", null, "Alice", null, null))
+        itemRepo.Setup(r => r.AddAsync(5, "eggs", null, "Alice", null))
             .ReturnsAsync(new ShoppingItem { Id = 2, GroupId = 5, Name = "eggs", Quantity = null, AddedByName = "Alice" });
 
         var localizer = new Mock<ILocalizer>();

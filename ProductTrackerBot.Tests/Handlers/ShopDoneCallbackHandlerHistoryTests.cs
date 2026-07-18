@@ -54,7 +54,8 @@ public class ShopDoneCallbackHandlerHistoryTests
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
         var localizer = CreateLocalizerMock();
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, localizer.Object);
 
         var historyMock = new Mock<IHistoryRepository>();
         var setup = historyMock.Setup(h => h.RecordAsync(

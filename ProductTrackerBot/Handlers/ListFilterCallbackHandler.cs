@@ -13,14 +13,14 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 
 /// <summary>
-/// Handles taps on the /list category filter row — re-renders the list scoped to a category, or clears the filter.
+/// Handles taps on the /list tag filter row — re-renders the list scoped to the active tag set, or clears the filter.
 /// </summary>
 public class ListFilterCallbackHandler : ICallbackHandler
 {
     private readonly ITelegramBotClient botClient;
     private readonly ShoppingListService listService;
     private readonly GroupRepository groupRepository;
-    private readonly ShoppingItemRepository itemRepository;
+    private readonly TagRepository tagRepository;
     private readonly IHistoryRepository historyRepository;
     private readonly ILogger<ListFilterCallbackHandler> logger;
 
@@ -30,21 +30,21 @@ public class ListFilterCallbackHandler : ICallbackHandler
     /// <param name="botClient">The Telegram bot client.</param>
     /// <param name="listService">The shopping list service.</param>
     /// <param name="groupRepository">The group repository.</param>
-    /// <param name="itemRepository">The shopping item repository.</param>
+    /// <param name="tagRepository">The tag repository.</param>
     /// <param name="historyRepository">The history repository.</param>
     /// <param name="logger">The logger.</param>
     public ListFilterCallbackHandler(
         ITelegramBotClient botClient,
         ShoppingListService listService,
         GroupRepository groupRepository,
-        ShoppingItemRepository itemRepository,
+        TagRepository tagRepository,
         IHistoryRepository historyRepository,
         ILogger<ListFilterCallbackHandler> logger)
     {
         this.botClient = botClient;
         this.listService = listService;
         this.groupRepository = groupRepository;
-        this.itemRepository = itemRepository;
+        this.tagRepository = tagRepository;
         this.historyRepository = historyRepository;
         this.logger = logger;
     }
@@ -64,7 +64,6 @@ public class ListFilterCallbackHandler : ICallbackHandler
         var parts = data.Split(':');
         if (parts.Length != 3
             || !long.TryParse(parts[0], out var groupChatId)
-            || !int.TryParse(parts[1], out var categoryIndex)
             || !int.TryParse(parts[2], out var pageNumber))
         {
             this.logger.LogWarning("Invalid data in list_filter callback: {Data}", data);
@@ -73,14 +72,27 @@ public class ListFilterCallbackHandler : ICallbackHandler
 
         var group = await this.groupRepository.GetOrCreateAsync(groupChatId);
 
-        string? category = null;
-        if (categoryIndex >= 0)
+        var tagIndices = parts[1]
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => int.TryParse(s, out var idx) ? idx : -1)
+            .Where(idx => idx >= 0)
+            .ToList();
+
+        IReadOnlyCollection<string>? tagNames = null;
+        if (tagIndices.Count > 0)
         {
-            var categories = await this.itemRepository.GetDistinctCategoriesAsync(group.Id);
-            category = categoryIndex < categories.Count ? categories[categoryIndex] : null;
+            var allTags = await this.tagRepository.GetDistinctTagsAsync(group.Id);
+            var resolved = tagIndices
+                .Where(idx => idx < allTags.Count)
+                .Select(idx => allTags[idx])
+                .ToList();
+            if (resolved.Count > 0)
+            {
+                tagNames = resolved;
+            }
         }
 
-        var (messageText, keyboard, _) = await this.listService.BuildListAsync(groupChatId, pageNumber, category);
+        var (messageText, keyboard, _) = await this.listService.BuildListAsync(groupChatId, pageNumber, tagNames);
 
         try
         {
@@ -110,7 +122,7 @@ public class ListFilterCallbackHandler : ICallbackHandler
 
         try
         {
-            var (_, totalItems, totalPages, actualPageNumber) = await this.listService.GetPagedItemsAsync(group.Id, pageNumber, pageSize: 10, category);
+            var (_, totalItems, totalPages, actualPageNumber) = await this.listService.GetPagedItemsAsync(group.Id, pageNumber, pageSize: 10, tagNames);
             var payload = new ListViewedPayload(actualPageNumber, 10, totalItems);
             var payloadJson = JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.ListViewedPayload);
             await this.historyRepository.RecordAsync(

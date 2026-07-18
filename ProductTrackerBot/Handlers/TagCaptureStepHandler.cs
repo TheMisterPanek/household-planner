@@ -1,4 +1,4 @@
-// <copyright file="CategoryCaptureStepHandler.cs" company="PlaceholderCompany">
+// <copyright file="TagCaptureStepHandler.cs" company="PlaceholderCompany">
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
 
@@ -6,38 +6,33 @@ namespace ProductTrackerBot.Handlers;
 
 using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
-using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
 /// <summary>
-/// Handles a free-text reply to the category-capture prompt — the reply text becomes the category,
-/// creating a new one if it doesn't already exist.
+/// Handles a free-text reply to the tag-capture prompt — the reply text is added to the pending
+/// selection as an additional tag, without clearing any already-toggled suggestions.
 /// </summary>
-public class CategoryCaptureStepHandler : IDialogMessageHandler
+public class TagCaptureStepHandler : IDialogMessageHandler
 {
     private readonly ITelegramBotClient botClient;
-    private readonly PendingDialogService<CategoryCaptureDialogState> dialogService;
-    private readonly ShoppingItemRepository itemRepository;
+    private readonly PendingDialogService<TagCaptureDialogState> dialogService;
     private readonly ILocalizer localizer;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="CategoryCaptureStepHandler"/> class.
+    /// Initializes a new instance of the <see cref="TagCaptureStepHandler"/> class.
     /// </summary>
     /// <param name="botClient">The Telegram bot client.</param>
-    /// <param name="dialogService">The category-capture dialog state service.</param>
-    /// <param name="itemRepository">The shopping item repository.</param>
+    /// <param name="dialogService">The tag-capture dialog state service.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
-    public CategoryCaptureStepHandler(
+    public TagCaptureStepHandler(
         ITelegramBotClient botClient,
-        PendingDialogService<CategoryCaptureDialogState> dialogService,
-        ShoppingItemRepository itemRepository,
+        PendingDialogService<TagCaptureDialogState> dialogService,
         ILocalizer localizer)
     {
         this.botClient = botClient;
         this.dialogService = dialogService;
-        this.itemRepository = itemRepository;
         this.localizer = localizer;
     }
 
@@ -64,17 +59,17 @@ public class CategoryCaptureStepHandler : IDialogMessageHandler
             return;
         }
 
-        var category = message.Text.Trim();
+        var tag = message.Text.Trim();
+        state.SelectedTagNames.Add(tag);
+        this.dialogService.SetState(chatId, userId, state);
 
-        await this.itemRepository.UpdateCategoryAsync(state.ItemIds, category);
-
-        this.dialogService.ClearState(chatId, userId);
-
-        var confirmText = this.localizer.Get(chatId, "category.set-confirmation").Replace("{category}", category);
+        var keyboard = TagCaptureService.BuildKeyboard(this.localizer, chatId, state);
+        var promptText = this.localizer.Get(chatId, "tag.prompt").Replace("{item}", state.ItemLabel);
 
         await this.botClient.SendMessage(
             chatId: chatId,
-            text: confirmText,
+            text: promptText,
+            replyMarkup: keyboard,
             replyParameters: new Telegram.Bot.Types.ReplyParameters { MessageId = message.MessageId },
             cancellationToken: cancellationToken);
     }

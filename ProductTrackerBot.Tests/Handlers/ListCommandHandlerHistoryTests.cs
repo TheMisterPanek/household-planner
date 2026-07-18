@@ -54,7 +54,8 @@ public class ListCommandHandlerHistoryTests
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, Mock.Of<ILocalizer>());
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, Mock.Of<ILocalizer>());
 
         var historyMock = Mock.Get(historyRepo);
         var handler = new ListCommandHandler(bot, listService, groupRepo.Object, historyRepo, Mock.Of<ILogger<ListCommandHandler>>());

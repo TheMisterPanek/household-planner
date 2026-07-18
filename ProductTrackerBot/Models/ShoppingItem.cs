@@ -40,7 +40,7 @@ public record ShoppingItem
     public string AddedByName { get; init; } = string.Empty;
 
     /// <summary>
-    /// Gets the optional category/tag (e.g. "Бытовая химия").
+    /// Gets the tags currently attached to this item (e.g. "Бытовая химия", "Скидка").
     /// </summary>
-    public string? Category { get; init; }
+    public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
 }

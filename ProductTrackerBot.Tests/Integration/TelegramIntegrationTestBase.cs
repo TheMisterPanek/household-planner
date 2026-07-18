@@ -39,6 +39,8 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
     protected ShoppingItemRepository ItemRepository { get; }
 
+    protected TagRepository TagRepository { get; }
+
     protected IHistoryRepository HistoryRepository { get; }
 
     protected PurchaseHistoryRepository PurchaseRepository { get; }
@@ -71,6 +73,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         this.GroupRepository = new GroupRepository(ConnectionString);
         this.ItemRepository = new ShoppingItemRepository(ConnectionString);
+        this.TagRepository = new TagRepository(ConnectionString);
         this.HistoryRepository = new HistoryRepository(ConnectionString);
         this.PurchaseRepository = new PurchaseHistoryRepository(ConnectionString);
         this.PriceLogRepository = new PriceLogRepository(ConnectionString);
@@ -117,7 +120,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var buyDialogService = new PendingDialogService<BuyDialogState>();
         var editItemDialogService = new PendingDialogService<EditItemDialogState>();
         var priceDialogService = new PendingDialogService<PriceCaptureDialogState>();
-        var categoryCaptureDialogService = new PendingDialogService<CategoryCaptureDialogState>();
+        var tagCaptureDialogService = new PendingDialogService<TagCaptureDialogState>();
         var mealCreateDialogService = new PendingDialogService<MealCreateDialogState>();
         var mealIngredientDialogService = new PendingDialogService<MealAddIngredientDialogState>();
         var mealStepDialogService = new PendingDialogService<MealAddStepDialogState>();
@@ -131,20 +134,21 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var loginCodeStore = new LoginCodeStore(ConnectionString, TimeProvider.System);
         this.LoginCodeStore = loginCodeStore;
 
-        var listService = new ShoppingListService(this.GroupRepository, this.ItemRepository, localizer.Object);
+        var listService = new ShoppingListService(this.GroupRepository, this.ItemRepository,
+                this.TagRepository, localizer.Object);
         var undoService = new UndoService(this.HistoryRepository, this.ItemRepository, this.GroupRepository, Mock.Of<ILogger<UndoService>>());
         var mealMergeService = new MealMergeService();
-        var categoryCaptureService = new CategoryCaptureService(
-            this.BotMock.Object, categoryCaptureDialogService, this.PurchaseRepository, localizer.Object);
+        var tagCaptureService = new TagCaptureService(
+            this.BotMock.Object, tagCaptureDialogService, this.TagRepository, localizer.Object);
 
         var buyAddService = new BuyAddService(
-            this.BotMock.Object, this.ItemRepository, this.HistoryRepository, categoryCaptureService,
+            this.BotMock.Object, this.ItemRepository, this.HistoryRepository, tagCaptureService,
             localizer.Object, Mock.Of<ILogger<BuyAddService>>());
 
         // Command handlers
         var buyHandler = new BuyCommandHandler(
             this.BotMock.Object, this.GroupRepository, buyDialogService, pendingAddService, localizer.Object,
-            listService, this.HistoryRepository, categoryCaptureService, buyAddService, Mock.Of<ILogger<BuyCommandHandler>>());
+            listService, this.HistoryRepository, tagCaptureService, buyAddService, Mock.Of<ILogger<BuyCommandHandler>>());
 
         var listHandler = new ListCommandHandler(
             this.BotMock.Object, listService, this.GroupRepository, this.HistoryRepository,
@@ -222,7 +226,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         var buySkipHandler = new BuySkipCallbackHandler(
             this.BotMock.Object, buyDialogService, this.ItemRepository, this.HistoryRepository,
-            categoryCaptureService, localizer.Object, Mock.Of<ILogger<BuySkipCallbackHandler>>());
+            tagCaptureService, localizer.Object, Mock.Of<ILogger<BuySkipCallbackHandler>>());
 
         var buySkipExpiryHandler = new BuySkipExpiryCallbackHandler(
             this.BotMock.Object, buyDialogService, this.ItemRepository, this.HistoryRepository,
@@ -237,15 +241,18 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             Mock.Of<ILogger<ListPrevCallbackHandler>>());
 
         var listFilterHandler = new ListFilterCallbackHandler(
-            this.BotMock.Object, listService, this.GroupRepository, this.ItemRepository, this.HistoryRepository,
+            this.BotMock.Object, listService, this.GroupRepository, this.TagRepository, this.HistoryRepository,
             Mock.Of<ILogger<ListFilterCallbackHandler>>());
 
-        var categorySuggestHandler = new CategorySuggestCallbackHandler(
-            this.BotMock.Object, categoryCaptureDialogService, this.ItemRepository, localizer.Object,
-            Mock.Of<ILogger<CategorySuggestCallbackHandler>>());
+        var tagToggleHandler = new TagToggleCallbackHandler(
+            this.BotMock.Object, tagCaptureDialogService, localizer.Object,
+            Mock.Of<ILogger<TagToggleCallbackHandler>>());
 
-        var categorySkipHandler = new CategorySkipCallbackHandler(
-            this.BotMock.Object, categoryCaptureDialogService, localizer.Object);
+        var tagDoneHandler = new TagDoneCallbackHandler(
+            this.BotMock.Object, tagCaptureDialogService, this.TagRepository, localizer.Object);
+
+        var tagSkipHandler = new TagSkipCallbackHandler(
+            this.BotMock.Object, tagCaptureDialogService, localizer.Object);
 
         var undoInlineHandler = new UndoInlineCallbackHandler(
             this.BotMock.Object, undoService, priceDialogService, localizer.Object,
@@ -253,7 +260,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         var priceSkipHandler = new PriceSkipCallbackHandler(
             this.BotMock.Object, priceDialogService, this.PurchaseRepository, this.GroupRepository,
-            localizer.Object, Mock.Of<ILogger<PriceSkipCallbackHandler>>());
+            this.TagRepository, localizer.Object, Mock.Of<ILogger<PriceSkipCallbackHandler>>());
 
         var priceShopHandler = new PriceShopSuggestionCallbackHandler(
             this.BotMock.Object, priceDialogService, Mock.Of<ILogger<PriceShopSuggestionCallbackHandler>>());
@@ -283,7 +290,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         var itemSaveHandler = new ItemSaveCallbackHandler(
             this.BotMock.Object, pendingEditService, this.ItemRepository, listService,
-            this.HistoryRepository, categoryCaptureService, localizer.Object, Mock.Of<ILogger<ItemSaveCallbackHandler>>());
+            this.HistoryRepository, tagCaptureService, localizer.Object, Mock.Of<ILogger<ItemSaveCallbackHandler>>());
 
         var itemCancelEditHandler = new ItemCancelEditCallbackHandler(
             this.BotMock.Object, pendingEditService, localizer.Object);
@@ -308,7 +315,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         var priceCaptureHandler = new PriceCaptureStepHandler(
             this.BotMock.Object, priceDialogService, this.PurchaseRepository, this.PriceLogRepository,
-            this.GroupRepository, suggestionService, localizer.Object, Mock.Of<ILogger<PriceCaptureStepHandler>>());
+            this.GroupRepository, this.TagRepository, suggestionService, localizer.Object, Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
         var mealDialogHandler = new MealDialogStepHandler(
             this.BotMock.Object, this.GroupRepository, mealCreateDialogService,
@@ -319,8 +326,8 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var itemEditStepHandler = new ItemEditStepHandler(
             this.BotMock.Object, editItemDialogService, pendingEditService, localizer.Object);
 
-        var categoryCaptureStepHandler = new CategoryCaptureStepHandler(
-            this.BotMock.Object, categoryCaptureDialogService, this.ItemRepository, localizer.Object);
+        var tagCaptureStepHandler = new TagCaptureStepHandler(
+            this.BotMock.Object, tagCaptureDialogService, localizer.Object);
 
         var boughtStepHandler = new BoughtStepHandler(
             this.BotMock.Object, boughtDialogService, this.PurchaseRepository, this.HistoryRepository,
@@ -343,13 +350,13 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             priceSkipHandler, priceShopHandler, mealCallbackHandler, aiAddItemHandler,
             aiAddAllHandler, weekCallbackHandler, boughtSkipExpiryCallbackHandler,
             expirySuggestCallbackHandler, useRemoveCallbackHandler,
-            categorySuggestHandler, categorySkipHandler,
+            tagToggleHandler, tagDoneHandler, tagSkipHandler,
         };
 
         var dialogHandlers = new List<IDialogMessageHandler>
         {
             buyStepHandler, priceCaptureHandler, mealDialogHandler, itemEditStepHandler, boughtStepHandler,
-            categoryCaptureStepHandler,
+            tagCaptureStepHandler,
         };
 
 
@@ -429,7 +436,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         return null;
     }
 
-    protected string? GetLastCategorySuggestCallbackData()
+    protected string? GetLastTagToggleCallbackData()
     {
         for (int i = this.sentMessages.Count - 1; i >= 0; i--)
         {
@@ -440,7 +447,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
                 {
                     foreach (var btn in row)
                     {
-                        if (btn.CallbackData?.StartsWith("category:suggest:") == true)
+                        if (btn.CallbackData?.StartsWith("tag:toggle:") == true)
                         {
                             return btn.CallbackData;
                         }
@@ -482,12 +489,15 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
             DELETE FROM PriceLog;
+            DELETE FROM PurchaseHistoryTags;
             DELETE FROM PurchaseHistory;
             DELETE FROM BotActionHistory;
             DELETE FROM DayMeals;
             DELETE FROM MealSteps;
             DELETE FROM MealIngredients;
             DELETE FROM Meals;
+            DELETE FROM ItemTags;
+            DELETE FROM Tags;
             DELETE FROM ShoppingItems;
             DELETE FROM Groups;";
         await cmd.ExecuteNonQueryAsync();

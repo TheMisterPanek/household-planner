@@ -35,8 +35,8 @@ public class PurchaseHistoryRepository
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = @"
-            INSERT INTO PurchaseHistory (GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName, exp_date, Category)
-            VALUES (@groupId, @userId, @itemName, @quantity, @storeName, @price, @purchasedAt, @boughtByName, @expDate, @category);
+            INSERT INTO PurchaseHistory (GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName, exp_date)
+            VALUES (@groupId, @userId, @itemName, @quantity, @storeName, @price, @purchasedAt, @boughtByName, @expDate);
             SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("@groupId", record.GroupId);
         cmd.Parameters.AddWithValue("@userId", record.UserId);
@@ -47,7 +47,6 @@ public class PurchaseHistoryRepository
         cmd.Parameters.AddWithValue("@purchasedAt", record.PurchasedAt.ToString("O"));
         cmd.Parameters.AddWithValue("@boughtByName", record.BoughtByName);
         cmd.Parameters.AddWithValue("@expDate", record.ExpDate.HasValue ? record.ExpDate.Value.ToString("yyyy-MM-dd") : (object?)DBNull.Value);
-        cmd.Parameters.AddWithValue("@category", (object?)record.Category ?? DBNull.Value);
 
         var newId = (long)(await cmd.ExecuteScalarAsync())!;
         record.Id = (int)newId;
@@ -95,38 +94,6 @@ public class PurchaseHistoryRepository
     }
 
     /// <summary>
-    /// Retrieves the top categories for a group, ranked by frequency of use across all members and ties broken by recency.
-    /// </summary>
-    /// <param name="groupId">The group ID to filter by.</param>
-    /// <param name="limit">The maximum number of categories to return.</param>
-    /// <returns>A read-only list of top category names, ordered by frequency (descending) and most recent purchase date (descending).</returns>
-    public virtual async Task<IReadOnlyList<string>> GetTopCategoriesAsync(int groupId, int limit)
-    {
-        await using var connection = new SqliteConnection(this.connectionString);
-        await connection.OpenAsync();
-
-        await using var cmd = connection.CreateCommand();
-        cmd.CommandText = @"
-            SELECT Category
-            FROM PurchaseHistory
-            WHERE GroupId = @groupId AND Category IS NOT NULL
-            GROUP BY Category
-            ORDER BY COUNT(*) DESC, MAX(PurchasedAt) DESC
-            LIMIT @limit";
-        cmd.Parameters.AddWithValue("@groupId", groupId);
-        cmd.Parameters.AddWithValue("@limit", limit);
-
-        var categories = new List<string>();
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            categories.Add(reader.GetString(0));
-        }
-
-        return categories.AsReadOnly();
-    }
-
-    /// <summary>
     /// Searches purchase history by partial item name match (case-insensitive).
     /// </summary>
     /// <param name="groupId">The group ID to search within.</param>
@@ -139,7 +106,7 @@ public class PurchaseHistoryRepository
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = @"
-            SELECT Id, GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName, Category
+            SELECT Id, GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName
             FROM PurchaseHistory
             WHERE GroupId = @groupId
             ORDER BY PurchasedAt DESC";
@@ -160,14 +127,16 @@ public class PurchaseHistoryRepository
                 Price = reader.IsDBNull(6) ? null : reader.GetDecimal(6),
                 PurchasedAt = DateTime.Parse(reader.GetString(7), null, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal),
                 BoughtByName = reader.GetString(8),
-                Category = reader.IsDBNull(9) ? null : reader.GetString(9),
             });
         }
 
-        return records
+        var matched = records
             .Where(r => r.ItemName.Contains(query, StringComparison.OrdinalIgnoreCase))
-            .ToList()
-            .AsReadOnly();
+            .ToList();
+
+        await AttachTagsAsync(connection, matched);
+
+        return matched.AsReadOnly();
     }
 
     /// <summary>
@@ -244,7 +213,33 @@ public class PurchaseHistoryRepository
             });
         }
 
+        await AttachTagsAsync(connection, records);
+
         return (records, totalCount);
+    }
+
+    private static async Task AttachTagsAsync(SqliteConnection connection, List<PurchaseRecord> records)
+    {
+        for (int i = 0; i < records.Count; i++)
+        {
+            await using var tagsCmd = connection.CreateCommand();
+            tagsCmd.CommandText = @"
+                SELECT t.Name
+                FROM Tags t
+                INNER JOIN PurchaseHistoryTags pht ON pht.TagId = t.Id
+                WHERE pht.PurchaseHistoryId = @historyId
+                ORDER BY t.Name COLLATE NOCASE";
+            tagsCmd.Parameters.AddWithValue("@historyId", records[i].Id);
+
+            var tags = new List<string>();
+            await using var reader = await tagsCmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                tags.Add(reader.GetString(0));
+            }
+
+            records[i].Tags = tags.AsReadOnly();
+        }
     }
 
     /// <summary>

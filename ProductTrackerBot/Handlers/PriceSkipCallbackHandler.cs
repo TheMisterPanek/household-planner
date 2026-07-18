@@ -23,6 +23,7 @@ public class PriceSkipCallbackHandler : ICallbackHandler
     private readonly PendingDialogService<PriceCaptureDialogState> dialogService;
     private readonly PurchaseHistoryRepository purchaseRepository;
     private readonly GroupRepository groupRepository;
+    private readonly TagRepository tagRepository;
     private readonly ILocalizer localizer;
     private readonly ILogger<PriceSkipCallbackHandler> logger;
 
@@ -33,6 +34,7 @@ public class PriceSkipCallbackHandler : ICallbackHandler
     /// <param name="dialogService">The price-capture dialog state service.</param>
     /// <param name="purchaseRepository">The purchase history repository.</param>
     /// <param name="groupRepository">The group repository.</param>
+    /// <param name="tagRepository">The tag repository.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="logger">The logger.</param>
     public PriceSkipCallbackHandler(
@@ -40,6 +42,7 @@ public class PriceSkipCallbackHandler : ICallbackHandler
         PendingDialogService<PriceCaptureDialogState> dialogService,
         PurchaseHistoryRepository purchaseRepository,
         GroupRepository groupRepository,
+        TagRepository tagRepository,
         ILocalizer localizer,
         ILogger<PriceSkipCallbackHandler> logger)
     {
@@ -47,6 +50,7 @@ public class PriceSkipCallbackHandler : ICallbackHandler
         this.dialogService = dialogService;
         this.purchaseRepository = purchaseRepository;
         this.groupRepository = groupRepository;
+        this.tagRepository = tagRepository;
         this.localizer = localizer;
         this.logger = logger;
     }
@@ -147,10 +151,14 @@ public class PriceSkipCallbackHandler : ICallbackHandler
                 PurchasedAt = DateTime.UtcNow,
                 BoughtByName = state.BoughtByName,
                 ExpDate = null,
-                Category = state.Category,
             };
 
             await this.purchaseRepository.AddAsync(record);
+
+            if (state.Tags.Count > 0)
+            {
+                await this.tagRepository.LinkPurchaseHistoryTagsAsync(record.Id, group.Id, state.Tags);
+            }
 
             this.dialogService.ClearState(chatId, userId);
 

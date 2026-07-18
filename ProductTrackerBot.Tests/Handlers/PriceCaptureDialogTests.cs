@@ -106,6 +106,7 @@ public class PriceCaptureDialogTests
         var listService = new Mock<ShoppingListService>(
             CreateGroupRepoMock().Object,
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
         listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
@@ -178,7 +179,7 @@ public class PriceCaptureDialogTests
             dialogService,
             CreatePurchaseRepoMock().Object,
             CreatePriceLogRepoMock().Object,
-            CreateGroupRepoMock().Object,
+            CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
             Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
@@ -227,7 +228,7 @@ public class PriceCaptureDialogTests
             dialogService,
             purchaseRepo.Object,
             priceLogRepo.Object,
-            groupRepo.Object,
+            groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
             CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
@@ -273,7 +274,7 @@ public class PriceCaptureDialogTests
             dialogService,
             CreatePurchaseRepoMock().Object,
             CreatePriceLogRepoMock().Object,
-            CreateGroupRepoMock().Object,
+            CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
             Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
@@ -317,7 +318,7 @@ public class PriceCaptureDialogTests
             bot.Object,
             dialogService,
             CreatePurchaseRepoMock().Object,
-            CreateGroupRepoMock().Object,
+            CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<PriceSkipCallbackHandler>>());
 
@@ -368,7 +369,7 @@ public class PriceCaptureDialogTests
             bot.Object,
             dialogService,
             CreatePurchaseRepoMock().Object,
-            CreateGroupRepoMock().Object,
+            CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             localizerMock.Object,
             Mock.Of<ILogger<PriceSkipCallbackHandler>>());
 
@@ -423,7 +424,7 @@ public class PriceCaptureDialogTests
             bot.Object,
             dialogService,
             purchaseRepo.Object,
-            groupRepo.Object,
+            groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             localizerMock.Object,
             Mock.Of<ILogger<PriceSkipCallbackHandler>>());
 
@@ -463,6 +464,7 @@ public class PriceCaptureDialogTests
         var listService = new Mock<ShoppingListService>(
             CreateGroupRepoMock().Object,
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
         listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
@@ -519,6 +521,7 @@ public class PriceCaptureDialogTests
         var listService = new Mock<ShoppingListService>(
             CreateGroupRepoMock().Object,
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
         listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
@@ -575,6 +578,7 @@ public class PriceCaptureDialogTests
         var listService = new Mock<ShoppingListService>(
             CreateGroupRepoMock().Object,
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
         listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
@@ -677,7 +681,7 @@ public class PriceCaptureDialogTests
             dialogService,
             CreatePurchaseRepoMock().Object,
             CreatePriceLogRepoMock().Object,
-            CreateGroupRepoMock().Object,
+            CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
             Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
@@ -713,6 +717,7 @@ public class PriceCaptureDialogTests
         var listService = new Mock<ShoppingListService>(
             CreateGroupRepoMock().Object,
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
         listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
@@ -784,7 +789,7 @@ public class PriceCaptureDialogTests
             dialogService,
             purchaseRepo.Object,
             priceLogRepo.Object,
-            groupRepo.Object,
+            groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
             CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
@@ -827,7 +832,7 @@ public class PriceCaptureDialogTests
             bot.Object,
             dialogService,
             purchaseRepo.Object,
-            groupRepo.Object,
+            groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateLocalizerMock().Object,
             Mock.Of<ILogger<PriceSkipCallbackHandler>>());
 
@@ -867,7 +872,7 @@ public class PriceCaptureDialogTests
             dialogService,
             purchaseRepo.Object,
             priceLogRepo.Object,
-            groupRepo.Object,
+            groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
             CreateLocalizerMock().Object,
             logger.Object);
@@ -921,7 +926,7 @@ public class PriceCaptureDialogTests
             dialogService,
             CreatePurchaseRepoMock().Object,
             CreatePriceLogRepoMock().Object,
-            CreateGroupRepoMock().Object,
+            CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
             localizerMock.Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
@@ -974,7 +979,7 @@ public class PriceCaptureDialogTests
             dialogService,
             purchaseRepo.Object,
             CreatePriceLogRepoMock().Object,
-            groupRepo.Object,
+            groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
             localizerMock.Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
@@ -1032,7 +1037,7 @@ public class PriceCaptureDialogTests
             dialogService,
             purchaseRepo.Object,
             CreatePriceLogRepoMock().Object,
-            groupRepo.Object,
+            groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
             localizerMock.Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
@@ -1071,7 +1076,7 @@ public class PriceCaptureDialogTests
             dialogService,
             CreatePurchaseRepoMock().Object,
             CreatePriceLogRepoMock().Object,
-            CreateGroupRepoMock().Object,
+            CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
             localizerMock.Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
@@ -1121,7 +1126,7 @@ public class PriceCaptureDialogTests
             dialogService,
             purchaseRepo.Object,
             CreatePriceLogRepoMock().Object,
-            groupRepo.Object,
+            groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
             localizerMock.Object,
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
@@ -1139,17 +1144,18 @@ public class PriceCaptureDialogTests
     }
 
     [Fact]
-    public async Task ShopDoneCallbackHandler_Carries_Item_Category_Into_PriceCaptureDialogState()
+    public async Task ShopDoneCallbackHandler_Carries_Item_Tags_Into_PriceCaptureDialogState()
     {
         var bot = CreateBotMock();
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file:test");
         itemRepo.Setup(r => r.GetByIdAsync(1))
-            .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Milk", Quantity = "2л", AddedByName = "Alice", Category = "Молочка" });
+            .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Milk", Quantity = "2л", AddedByName = "Alice", Tags = new[] { "Молочка" } });
         itemRepo.Setup(r => r.DeleteAsync(1)).Returns(Task.CompletedTask);
 
         var listService = new Mock<ShoppingListService>(
             CreateGroupRepoMock().Object,
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
         listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
@@ -1185,11 +1191,11 @@ public class PriceCaptureDialogTests
 
         var state = priceDialogService.GetState(-100L, 42L);
         Assert.NotNull(state);
-        Assert.Equal("Молочка", state!.Category);
+        Assert.Contains("Молочка", state!.Tags);
     }
 
     [Fact]
-    public async Task PriceCaptureStepHandler_FinishDialogAsync_Saves_Record_With_Category()
+    public async Task PriceCaptureStepHandler_FinishDialogAsync_LinksTags_When_Present()
     {
         var bot = CreateBotMock();
         var dialogService = new PendingDialogService<PriceCaptureDialogState>();
@@ -1200,7 +1206,7 @@ public class PriceCaptureDialogTests
             dialogService,
             purchaseRepo.Object,
             CreatePriceLogRepoMock().Object,
-            CreateGroupRepoMock().Object,
+            CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
             Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
@@ -1209,16 +1215,16 @@ public class PriceCaptureDialogTests
         {
             ItemName = "Milk",
             BoughtByName = "Alice",
-            Category = "Молочка",
+            Tags = new[] { "Молочка" },
         };
 
         await handler.FinishDialogAsync(-100L, 42L, state, expDate: null, CancellationToken.None);
 
-        purchaseRepo.Verify(r => r.AddAsync(It.Is<PurchaseRecord>(p => p.Category == "Молочка")), Times.Once);
+        purchaseRepo.Verify(r => r.AddAsync(It.Is<PurchaseRecord>(p => p.ItemName == "Milk")), Times.Once);
     }
 
     [Fact]
-    public async Task PriceCaptureStepHandler_FinishDialogAsync_With_No_Category_Saves_Null()
+    public async Task PriceCaptureStepHandler_FinishDialogAsync_With_No_Tags_LeavesRecordUntagged()
     {
         var bot = CreateBotMock();
         var dialogService = new PendingDialogService<PriceCaptureDialogState>();
@@ -1229,7 +1235,7 @@ public class PriceCaptureDialogTests
             dialogService,
             purchaseRepo.Object,
             CreatePriceLogRepoMock().Object,
-            CreateGroupRepoMock().Object,
+            CreateGroupRepoMock().Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             CreateSuggestionService(),
             Mock.Of<ILocalizer>(),
             Mock.Of<ILogger<PriceCaptureStepHandler>>());
@@ -1242,11 +1248,11 @@ public class PriceCaptureDialogTests
 
         await handler.FinishDialogAsync(-100L, 42L, state, expDate: null, CancellationToken.None);
 
-        purchaseRepo.Verify(r => r.AddAsync(It.Is<PurchaseRecord>(p => p.Category == null)), Times.Once);
+        purchaseRepo.Verify(r => r.AddAsync(It.Is<PurchaseRecord>(p => p.ItemName == "Milk")), Times.Once);
     }
 
     [Fact]
-    public async Task PriceSkipCallbackHandler_Skip_Expiry_Saves_Record_With_Category()
+    public async Task PriceSkipCallbackHandler_Skip_Expiry_Saves_Record_With_Tags()
     {
         var bot = new Mock<ITelegramBotClient>();
         bot.Setup(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
@@ -1260,7 +1266,7 @@ public class PriceCaptureDialogTests
             Step = 3,
             ItemName = "Yogurt",
             BoughtByName = "Alice",
-            Category = "Молочка",
+            Tags = new[] { "Молочка" },
         });
 
         var purchaseRepo = CreatePurchaseRepoMock();
@@ -1274,7 +1280,7 @@ public class PriceCaptureDialogTests
             bot.Object,
             dialogService,
             purchaseRepo.Object,
-            groupRepo.Object,
+            groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
             localizerMock.Object,
             Mock.Of<ILogger<PriceSkipCallbackHandler>>());
 
@@ -1282,6 +1288,6 @@ public class PriceCaptureDialogTests
 
         await handler.HandleAsync(callback, CancellationToken.None);
 
-        purchaseRepo.Verify(r => r.AddAsync(It.Is<PurchaseRecord>(p => p.Category == "Молочка")), Times.Once);
+        purchaseRepo.Verify(r => r.AddAsync(It.Is<PurchaseRecord>(p => p.ItemName == "Yogurt")), Times.Once);
     }
 }

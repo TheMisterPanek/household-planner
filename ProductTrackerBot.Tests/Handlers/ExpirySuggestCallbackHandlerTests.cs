@@ -69,7 +69,8 @@ public class ExpirySuggestCallbackHandlerTests
 
         var priceStepHandler = new PriceCaptureStepHandler(
             bot.Object, priceDialog, purchaseRepo.Object, priceLogRepo.Object,
-            groupRepo.Object, suggestionService, localizer.Object, Mock.Of<ILogger<PriceCaptureStepHandler>>());
+            groupRepo.Object, new Mock<TagRepository>("Data Source=file::memory:").Object,
+            suggestionService, localizer.Object, Mock.Of<ILogger<PriceCaptureStepHandler>>());
 
         var handler = new ExpirySuggestCallbackHandler(
             bot.Object, boughtDialog, priceDialog, boughtStepHandler, priceStepHandler);

@@ -140,17 +140,17 @@ public class LocalizationHandlerTests
         var (bot, sentTexts) = CreateBotMock();
         var localizer = CreateLocalizerMock();
         var groupRepo = CreateGroupRepoMock();
-        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file::memory:");
-        purchaseRepo.Setup(r => r.GetTopCategoriesAsync(It.IsAny<int>(), It.IsAny<int>()))
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetTopTagsAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(new List<string>());
 
         var historyRepository = Mock.Of<IHistoryRepository>();
-        var categoryCaptureService = new CategoryCaptureService(bot.Object, new PendingDialogService<CategoryCaptureDialogState>(), purchaseRepo.Object, localizer.Object);
+        var tagCaptureService = new TagCaptureService(bot.Object, new PendingDialogService<TagCaptureDialogState>(), tagRepo.Object, localizer.Object);
         var buyAddService = new BuyAddService(
             bot.Object,
             new Mock<ShoppingItemRepository>("Data Source=file::memory:").Object,
             historyRepository,
-            categoryCaptureService,
+            tagCaptureService,
             localizer.Object,
             Mock.Of<ILogger<BuyAddService>>());
 
@@ -163,9 +163,10 @@ public class LocalizationHandlerTests
             new ShoppingListService(
                 new Mock<GroupRepository>("Data Source=file::memory:").Object,
                 new Mock<ShoppingItemRepository>("Data Source=file::memory:").Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object,
                 localizer.Object),
             historyRepository,
-            categoryCaptureService,
+            tagCaptureService,
             buyAddService,
             Mock.Of<ILogger<BuyCommandHandler>>());
 

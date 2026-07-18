@@ -56,7 +56,7 @@ public class PriceCaptureDialogState
     public DateOnly? ExpDate { get; set; }
 
     /// <summary>
-    /// Gets or sets the optional category carried over from the shopping item, saved to the purchase record.
+    /// Gets or sets the tags carried over from the shopping item, linked to the resulting purchase record.
     /// </summary>
-    public string? Category { get; set; }
+    public IReadOnlyList<string> Tags { get; set; } = Array.Empty<string>();
 }

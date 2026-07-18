@@ -46,7 +46,7 @@ public class ListFilterCallbackHandlerTests
     private static (ListFilterCallbackHandler Handler, Mock<ShoppingItemRepository> ItemRepo) CreateHandler(
         ITelegramBotClient bot,
         IReadOnlyList<ShoppingItem> items,
-        IReadOnlyList<string> categories)
+        IReadOnlyList<string> tags)
     {
         var groupRepo = new Mock<GroupRepository>("Data Source=file::memory:");
         groupRepo.Setup(r => r.GetOrCreateAsync(-100L))
@@ -56,29 +56,31 @@ public class ListFilterCallbackHandlerTests
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items);
-        itemRepo.Setup(r => r.GetDistinctCategoriesAsync(10)).ReturnsAsync(categories);
+
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetDistinctTagsAsync(10)).ReturnsAsync(tags);
 
         var localizer = CreateLocalizerMock();
-        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+        var listService = new ShoppingListService(groupRepo.Object, itemRepo.Object, tagRepo.Object, localizer.Object);
         var historyRepo = new Mock<IHistoryRepository>();
         var handler = new ListFilterCallbackHandler(
             bot,
             listService,
             groupRepo.Object,
-            itemRepo.Object,
+            tagRepo.Object,
             historyRepo.Object,
             Mock.Of<ILogger<ListFilterCallbackHandler>>());
         return (handler, itemRepo);
     }
 
     [Fact]
-    public async Task ValidCategoryTap_FiltersToMatchingItemsOnly()
+    public async Task ValidTagTap_FiltersToMatchingItemsOnly()
     {
         var bot = CreateBotMock();
         var items = new List<ShoppingItem>
         {
-            new() { Id = 1, GroupId = 10, Name = "Порошок", AddedByName = "Ivan", Category = "Химия" },
-            new() { Id = 2, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Category = "Еда" },
+            new() { Id = 1, GroupId = 10, Name = "Порошок", AddedByName = "Ivan", Tags = new[] { "Химия" } },
+            new() { Id = 2, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Tags = new[] { "Еда" } },
         };
         var (handler, _) = CreateHandler(bot.Object, items, new[] { "Еда", "Химия" });
         var callback = CreateCallbackQuery("list_filter:-100:1:1");
@@ -99,8 +101,8 @@ public class ListFilterCallbackHandlerTests
         var bot = CreateBotMock();
         var items = new List<ShoppingItem>
         {
-            new() { Id = 1, GroupId = 10, Name = "Порошок", AddedByName = "Ivan", Category = "Химия" },
-            new() { Id = 2, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Category = "Еда" },
+            new() { Id = 1, GroupId = 10, Name = "Порошок", AddedByName = "Ivan", Tags = new[] { "Химия" } },
+            new() { Id = 2, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Tags = new[] { "Еда" } },
         };
         var (handler, _) = CreateHandler(bot.Object, items, new[] { "Еда", "Химия" });
         var callback = CreateCallbackQuery("list_filter:-100:-1:1");
@@ -115,15 +117,15 @@ public class ListFilterCallbackHandlerTests
     }
 
     [Fact]
-    public async Task StaleCategoryIndex_FallsBackToAllView()
+    public async Task StaleTagIndex_FallsBackToAllView()
     {
         var bot = CreateBotMock();
         var items = new List<ShoppingItem>
         {
-            new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Category = "Еда" },
+            new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Tags = new[] { "Еда" } },
         };
 
-        // Category list shrank since the message was rendered — index 3 no longer resolves.
+        // Tag list shrank since the message was rendered — index 3 no longer resolves.
         var (handler, _) = CreateHandler(bot.Object, items, new[] { "Еда" });
         var callback = CreateCallbackQuery("list_filter:-100:3:1");
 
@@ -137,11 +139,34 @@ public class ListFilterCallbackHandlerTests
     }
 
     [Fact]
-    public async Task FilteredView_PaginatesWithinCategory()
+    public async Task MultipleActiveTags_UnionsMatches()
+    {
+        var bot = CreateBotMock();
+        var items = new List<ShoppingItem>
+        {
+            new() { Id = 1, GroupId = 10, Name = "Порошок", AddedByName = "Ivan", Tags = new[] { "Химия" } },
+            new() { Id = 2, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Tags = new[] { "Еда" } },
+            new() { Id = 3, GroupId = 10, Name = "Ключи", AddedByName = "Ivan", Tags = new[] { "Авто" } },
+        };
+        var (handler, _) = CreateHandler(bot.Object, items, new[] { "Авто", "Еда", "Химия" });
+        var callback = CreateCallbackQuery("list_filter:-100:1,2:1");
+
+        await handler.HandleAsync(callback, CancellationToken.None);
+
+        bot.Verify(
+            b => b.SendRequest(
+                It.Is<EditMessageTextRequest>(r =>
+                    r.Text.Contains("Молоко") && r.Text.Contains("Порошок") && !r.Text.Contains("Ключи")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task FilteredView_PaginatesWithinTag()
     {
         var bot = CreateBotMock();
         var items = Enumerable.Range(1, 12)
-            .Select(i => new ShoppingItem { Id = i, GroupId = 10, Name = $"Товар{i}", AddedByName = "Ivan", Category = "Химия" })
+            .Select(i => new ShoppingItem { Id = i, GroupId = 10, Name = $"Товар{i}", AddedByName = "Ivan", Tags = new[] { "Химия" } })
             .ToList();
         var (handler, _) = CreateHandler(bot.Object, items, new[] { "Химия" });
         var callback = CreateCallbackQuery("list_filter:-100:0:2");
@@ -171,7 +196,7 @@ public class ListFilterCallbackHandlerTests
 
         var items = new List<ShoppingItem>
         {
-            new() { Id = 1, GroupId = 10, Name = "Порошок", AddedByName = "Ivan", Category = "Химия" },
+            new() { Id = 1, GroupId = 10, Name = "Порошок", AddedByName = "Ivan", Tags = new[] { "Химия" } },
         };
         var (handler, _) = CreateHandler(bot.Object, items, new[] { "Химия" });
         var callback = CreateCallbackQuery("list_filter:-100:0:1");

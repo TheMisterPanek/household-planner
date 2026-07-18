@@ -20,7 +20,8 @@ public class ShoppingListServiceFormatterTests
             .ReturnsAsync(items ?? new List<ShoppingItem>());
 
         var localizer = CreateLocalizerMock();
-        return new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+        return new ShoppingListService(groupRepo.Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, localizer.Object);
     }
 
     private static Mock<ILocalizer> CreateLocalizerMock()

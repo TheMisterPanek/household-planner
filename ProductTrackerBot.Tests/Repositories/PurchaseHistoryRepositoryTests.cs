@@ -9,6 +9,7 @@ public class PurchaseHistoryRepositoryTests : IDisposable
 {
     private readonly SqliteConnection connection;
     private readonly PurchaseHistoryRepository repository;
+    private readonly TagRepository tagRepository;
 
     public PurchaseHistoryRepositoryTests()
     {
@@ -39,11 +40,24 @@ public class PurchaseHistoryRepositoryTests : IDisposable
                 BoughtByName TEXT NOT NULL,
                 exp_date TEXT NULL,
                 Category TEXT NULL
+            );
+            CREATE TABLE IF NOT EXISTS Tags (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                GroupId INTEGER NOT NULL,
+                Name TEXT NOT NULL,
+                UNIQUE (GroupId, Name COLLATE NOCASE)
+            );
+            CREATE TABLE IF NOT EXISTS PurchaseHistoryTags (
+                PurchaseHistoryId INTEGER NOT NULL,
+                TagId INTEGER NOT NULL,
+                PRIMARY KEY (PurchaseHistoryId, TagId)
             );";
         cmd.ExecuteNonQuery();
 
         using var cleanCmd = this.connection.CreateCommand();
         cleanCmd.CommandText = @"
+            DELETE FROM PurchaseHistoryTags;
+            DELETE FROM Tags;
             DELETE FROM PurchaseHistory;
             DELETE FROM sqlite_sequence WHERE name = 'PurchaseHistory';
             DELETE FROM Groups;
@@ -59,6 +73,7 @@ public class PurchaseHistoryRepositoryTests : IDisposable
         seedGroup2.ExecuteNonQuery();
 
         this.repository = new PurchaseHistoryRepository("Data Source=file:purchasetest?mode=memory&cache=shared");
+        this.tagRepository = new TagRepository("Data Source=file:purchasetest?mode=memory&cache=shared");
     }
 
     [Fact]
@@ -499,21 +514,6 @@ public class PurchaseHistoryRepositoryTests : IDisposable
         await cmd.ExecuteNonQueryAsync();
     }
 
-    private async Task InsertRecordWithCategoryAsync(int groupId, string itemName, string boughtByName, string? category, DateTime? purchasedAt = null, long userId = 123)
-    {
-        await using var cmd = this.connection.CreateCommand();
-        cmd.CommandText = @"
-            INSERT INTO PurchaseHistory (GroupId, UserId, ItemName, Quantity, StoreName, Price, PurchasedAt, BoughtByName, Category)
-            VALUES (@groupId, @userId, @itemName, NULL, NULL, NULL, @purchasedAt, @boughtByName, @category)";
-        cmd.Parameters.AddWithValue("@groupId", groupId);
-        cmd.Parameters.AddWithValue("@userId", userId);
-        cmd.Parameters.AddWithValue("@itemName", itemName);
-        cmd.Parameters.AddWithValue("@purchasedAt", (purchasedAt ?? DateTime.UtcNow).ToString("O"));
-        cmd.Parameters.AddWithValue("@boughtByName", boughtByName);
-        cmd.Parameters.AddWithValue("@category", (object?)category ?? DBNull.Value);
-        await cmd.ExecuteNonQueryAsync();
-    }
-
     private async Task InsertRecordWithShopAsync(int groupId, string itemName, string boughtByName, string storeName, DateTime? purchasedAt = null, long userId = 123)
     {
         await using var cmd = this.connection.CreateCommand();
@@ -545,7 +545,7 @@ public class PurchaseHistoryRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task AddAsync_Saves_Category_When_Set()
+    public async Task AddAsync_New_Record_Has_No_Tags()
     {
         var record = new PurchaseRecord
         {
@@ -553,101 +553,66 @@ public class PurchaseHistoryRepositoryTests : IDisposable
             ItemName = "Порошок",
             PurchasedAt = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc),
             BoughtByName = "Alice",
-            Category = "Бытовая химия",
         };
 
         var saved = await this.repository.AddAsync(record);
 
-        Assert.Equal("Бытовая химия", saved.Category);
+        Assert.Empty(saved.Tags);
     }
 
     [Fact]
-    public async Task AddAsync_Saves_Category_As_Null_When_Not_Set()
+    public async Task SearchAsync_Returns_Linked_Tags()
     {
-        var record = new PurchaseRecord
+        var record = await this.repository.AddAsync(new PurchaseRecord
+        {
+            GroupId = 1,
+            ItemName = "Порошок",
+            PurchasedAt = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc),
+            BoughtByName = "Alice",
+        });
+        await this.tagRepository.LinkPurchaseHistoryTagsAsync(record.Id, 1, new[] { "Бытовая химия", "Скидка" });
+
+        var results = await this.repository.SearchAsync(1, "Порошок");
+
+        var found = Assert.Single(results);
+        Assert.Equal(2, found.Tags.Count);
+        Assert.Contains("Бытовая химия", found.Tags);
+        Assert.Contains("Скидка", found.Tags);
+    }
+
+    [Fact]
+    public async Task SearchAsync_With_No_Tags_Returns_Empty_Tags()
+    {
+        await this.repository.AddAsync(new PurchaseRecord
         {
             GroupId = 1,
             ItemName = "Хлеб",
             PurchasedAt = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc),
             BoughtByName = "Bob",
-        };
+        });
 
-        var saved = await this.repository.AddAsync(record);
+        var results = await this.repository.SearchAsync(1, "Хлеб");
 
-        Assert.Null(saved.Category);
+        var found = Assert.Single(results);
+        Assert.Empty(found.Tags);
     }
 
     [Fact]
-    public async Task GetTopCategoriesAsync_Returns_Empty_When_No_History()
+    public async Task GetPageAsync_Returns_Linked_Tags()
     {
-        var categories = await this.repository.GetTopCategoriesAsync(1, 5);
-
-        Assert.Empty(categories);
-    }
-
-    [Fact]
-    public async Task GetTopCategoriesAsync_Ranks_By_Frequency()
-    {
-        for (int i = 0; i < 5; i++)
+        var record = await this.repository.AddAsync(new PurchaseRecord
         {
-            await InsertRecordWithCategoryAsync(1, $"Item{i}", "Alice", "Химия");
-        }
+            GroupId = 1,
+            ItemName = "Молоко",
+            PurchasedAt = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc),
+            BoughtByName = "Alice",
+        });
+        await this.tagRepository.LinkPurchaseHistoryTagsAsync(record.Id, 1, new[] { "Молочка" });
 
-        for (int i = 0; i < 2; i++)
-        {
-            await InsertRecordWithCategoryAsync(1, $"Car{i}", "Alice", "Авто");
-        }
+        var (items, totalCount) = await this.repository.GetPageAsync(1, 1, 10, string.Empty, null, null);
 
-        await InsertRecordWithCategoryAsync(1, "Aspirin", "Alice", "Аптека");
-
-        var categories = await this.repository.GetTopCategoriesAsync(1, 3);
-
-        Assert.Equal(new[] { "Химия", "Авто", "Аптека" }, categories);
-    }
-
-    [Fact]
-    public async Task GetTopCategoriesAsync_Breaks_Ties_By_Most_Recent_Purchase()
-    {
-        var date1 = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
-        var date2 = new DateTime(2026, 5, 2, 12, 0, 0, DateTimeKind.Utc);
-
-        await InsertRecordWithCategoryAsync(1, "Milk", "Alice", "Молочка", date1);
-        await InsertRecordWithCategoryAsync(1, "Bread", "Alice", "Выпечка", date2);
-
-        var categories = await this.repository.GetTopCategoriesAsync(1, 5);
-
-        Assert.Equal(new[] { "Выпечка", "Молочка" }, categories);
-    }
-
-    // TDD — bug #1: GetTopCategoriesAsync currently truncates long names to 20 chars + "…" and that
-    // truncated string is what CategoryCaptureService stores in dialog state and CategorySuggestCallbackHandler
-    // writes back into the item's Category — corrupting the value so it no longer matches the real category
-    // for /list filtering. Truncation is a button-label concern and must NOT mangle the returned data.
-    // NOTE: this replaces the old GetTopCategoriesAsync_Truncates_Long_Category_Labels test, which
-    // enshrined the bug. Once fixed, move the 20-char truncation into the keyboard-building code
-    // (mirroring ShoppingListService.TruncateCategoryLabel used for the /list filter row).
-    [Fact]
-    public async Task GetTopCategoriesAsync_Returns_Full_Category_Name_Not_Truncated()
-    {
-        var longCategory = new string('A', 25);
-        await InsertRecordWithCategoryAsync(1, "Item", "Alice", longCategory);
-
-        var categories = await this.repository.GetTopCategoriesAsync(1, 5);
-
-        Assert.Single(categories);
-        Assert.Equal(longCategory, categories[0]);
-    }
-
-    [Fact]
-    public async Task GetTopCategoriesAsync_Excludes_Null_Category_Values()
-    {
-        await InsertRecordAsync(1, "Milk", "Alice");
-        await InsertRecordWithCategoryAsync(1, "Bread", "Alice", "Выпечка");
-
-        var categories = await this.repository.GetTopCategoriesAsync(1, 5);
-
-        Assert.Single(categories);
-        Assert.Equal("Выпечка", categories[0]);
+        Assert.Equal(1, totalCount);
+        Assert.Contains("Молочка", items[0].Tags);
     }
 
     public void Dispose()

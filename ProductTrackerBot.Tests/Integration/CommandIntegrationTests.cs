@@ -80,11 +80,11 @@ public class CommandIntegrationTests : TelegramIntegrationTestBase
         // No Confirm/Edit/Cancel review message was sent
         Assert.Null(GetLastBuyConfirmCallbackData());
 
-        // Category-capture prompt followed (no purchase history yet, so only the skip button — still an
+        // Tag-capture prompt followed (no purchase history yet, so only the skip/done buttons — still an
         // inline-keyboard message distinct from the plain "added" confirmation).
         BotMock.Verify(
             b => b.SendRequest(
-                It.Is<SendMessageRequest>(r => r.Text.Contains("category.prompt")),
+                It.Is<SendMessageRequest>(r => r.Text.Contains("tag.prompt")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

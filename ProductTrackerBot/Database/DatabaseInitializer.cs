@@ -323,7 +323,149 @@ public class DatabaseInitializer : IHostedService
             this.logger.LogInformation("Category column already exists on PurchaseHistory table");
         }
 
+        var createTags = @"
+            CREATE TABLE IF NOT EXISTS Tags (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                GroupId INTEGER NOT NULL,
+                Name TEXT NOT NULL,
+                UNIQUE (GroupId, Name COLLATE NOCASE)
+            );";
+
+        await using var cmdTags = connection.CreateCommand();
+        cmdTags.CommandText = createTags;
+        await cmdTags.ExecuteNonQueryAsync(cancellationToken);
+
+        var createItemTags = @"
+            CREATE TABLE IF NOT EXISTS ItemTags (
+                ItemId INTEGER NOT NULL,
+                TagId INTEGER NOT NULL,
+                PRIMARY KEY (ItemId, TagId)
+            );";
+
+        await using var cmdItemTags = connection.CreateCommand();
+        cmdItemTags.CommandText = createItemTags;
+        await cmdItemTags.ExecuteNonQueryAsync(cancellationToken);
+
+        var createPurchaseHistoryTags = @"
+            CREATE TABLE IF NOT EXISTS PurchaseHistoryTags (
+                PurchaseHistoryId INTEGER NOT NULL,
+                TagId INTEGER NOT NULL,
+                PRIMARY KEY (PurchaseHistoryId, TagId)
+            );";
+
+        await using var cmdPurchaseHistoryTags = connection.CreateCommand();
+        cmdPurchaseHistoryTags.CommandText = createPurchaseHistoryTags;
+        await cmdPurchaseHistoryTags.ExecuteNonQueryAsync(cancellationToken);
+
+        await this.BackfillCategoriesIntoTagsAsync(connection, cancellationToken);
+
         this.logger.LogInformation("Database schema initialized successfully");
+    }
+
+    /// <summary>
+    /// One-time backfill: migrates every pre-existing non-null <c>Category</c> value on
+    /// <c>ShoppingItems</c>/<c>PurchaseHistory</c> into the tag tables. Guarded so it only ever
+    /// runs once (no-op once <c>ItemTags</c> has any rows or no non-null <c>Category</c> values remain).
+    /// The <c>Category</c> columns are read-only here — never modified or dropped.
+    /// </summary>
+    private async Task BackfillCategoriesIntoTagsAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        await using var checkCmd = connection.CreateCommand();
+        checkCmd.CommandText = @"
+            SELECT
+                (SELECT COUNT(*) FROM ItemTags) AS ItemTagsCount,
+                (SELECT COUNT(*) FROM ShoppingItems WHERE Category IS NOT NULL) AS CategorizedItems";
+        await using (var reader = await checkCmd.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                var itemTagsCount = reader.GetInt32(0);
+                var categorizedItems = reader.GetInt32(1);
+                if (itemTagsCount > 0 || categorizedItems == 0)
+                {
+                    this.logger.LogInformation("Category-to-tag backfill already applied or nothing to migrate, skipping");
+                    return;
+                }
+            }
+        }
+
+        this.logger.LogInformation("Backfilling ShoppingItems/PurchaseHistory Category values into tags");
+
+        await using var itemsCmd = connection.CreateCommand();
+        itemsCmd.CommandText = "SELECT Id, GroupId, Category FROM ShoppingItems WHERE Category IS NOT NULL";
+        var itemLinks = new List<(int ItemId, int GroupId, string Category)>();
+        await using (var reader = await itemsCmd.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                itemLinks.Add((reader.GetInt32(0), reader.GetInt32(1), reader.GetString(2)));
+            }
+        }
+
+        foreach (var (itemId, groupId, category) in itemLinks)
+        {
+            var tagId = await GetOrCreateTagAsync(connection, groupId, category, cancellationToken);
+            await using var linkCmd = connection.CreateCommand();
+            linkCmd.CommandText = "INSERT OR IGNORE INTO ItemTags (ItemId, TagId) VALUES (@itemId, @tagId)";
+            linkCmd.Parameters.AddWithValue("@itemId", itemId);
+            linkCmd.Parameters.AddWithValue("@tagId", tagId);
+            await linkCmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using var historyCmd = connection.CreateCommand();
+        historyCmd.CommandText = "SELECT Id, GroupId, Category FROM PurchaseHistory WHERE Category IS NOT NULL";
+        var historyLinks = new List<(int HistoryId, int GroupId, string Category)>();
+        await using (var reader = await historyCmd.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                historyLinks.Add((reader.GetInt32(0), reader.GetInt32(1), reader.GetString(2)));
+            }
+        }
+
+        foreach (var (historyId, groupId, category) in historyLinks)
+        {
+            var tagId = await GetOrCreateTagAsync(connection, groupId, category, cancellationToken);
+            await using var linkCmd = connection.CreateCommand();
+            linkCmd.CommandText = "INSERT OR IGNORE INTO PurchaseHistoryTags (PurchaseHistoryId, TagId) VALUES (@historyId, @tagId)";
+            linkCmd.Parameters.AddWithValue("@historyId", historyId);
+            linkCmd.Parameters.AddWithValue("@tagId", tagId);
+            await linkCmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        this.logger.LogInformation(
+            "Category-to-tag backfill complete: {ItemLinks} item links, {HistoryLinks} history links",
+            itemLinks.Count,
+            historyLinks.Count);
+    }
+
+    private static async Task<int> GetOrCreateTagAsync(SqliteConnection connection, int groupId, string name, CancellationToken cancellationToken)
+    {
+        // SQLite's built-in NOCASE collation only folds ASCII letters, so it cannot be relied on for
+        // case-insensitive matching of Cyrillic (or other non-ASCII) tag names — case folding is done
+        // in .NET (StringComparer.OrdinalIgnoreCase), which handles Cyrillic correctly.
+        await using var selectCmd = connection.CreateCommand();
+        selectCmd.CommandText = "SELECT Id, Name FROM Tags WHERE GroupId = @groupId";
+        selectCmd.Parameters.AddWithValue("@groupId", groupId);
+        await using (var reader = await selectCmd.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                if (string.Equals(reader.GetString(1), name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return reader.GetInt32(0);
+                }
+            }
+        }
+
+        await using var insertCmd = connection.CreateCommand();
+        insertCmd.CommandText = @"
+            INSERT INTO Tags (GroupId, Name) VALUES (@groupId, @name);
+            SELECT last_insert_rowid();";
+        insertCmd.Parameters.AddWithValue("@groupId", groupId);
+        insertCmd.Parameters.AddWithValue("@name", name);
+        var newId = (long)(await insertCmd.ExecuteScalarAsync(cancellationToken))!;
+        return (int)newId;
     }
 
     /// <inheritdoc/>

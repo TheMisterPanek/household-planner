@@ -128,10 +128,12 @@
   "use.empty": "✅ Zapasy są puste.",
   "use.remove-button": "🗑",
   "use.remove-toast": "✓ Usunięto",
-  "category.prompt": "Do jakiej grupy dodać {item}?",
   "category.bulk-label": "te {count} produkty",
   "category.skip": "Bez kategorii",
   "category.skipped": "Pominięto",
-  "category.set-confirmation": "✓ Ustawiono kategorię „{category}”",
+  "tag.prompt": "Do jakich grup dodać {item}?",
+  "tag.done": "Gotowe",
+  "tag.set-confirmation": "✓ Ustawiono tagi „{tags}”",
+  "tag.set-confirmation-empty": "✓ Nie ustawiono tagów",
   "list.filter-all": "Wszystkie"
 }

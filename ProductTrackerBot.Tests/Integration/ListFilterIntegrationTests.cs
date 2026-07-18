@@ -6,7 +6,7 @@ namespace ProductTrackerBot.Tests.Integration;
 public class ListFilterIntegrationTests : TelegramIntegrationTestBase
 {
     [Fact]
-    public async Task List_NoCategorizedItems_ShowsNoFilterRow()
+    public async Task List_NoTaggedItems_ShowsNoFilterRow()
     {
         await ClearDataAsync();
 
@@ -24,13 +24,15 @@ public class ListFilterIntegrationTests : TelegramIntegrationTestBase
     }
 
     [Fact]
-    public async Task List_WithCategorizedItems_FilterButtonScopesView_AndAllClearsIt()
+    public async Task List_WithTaggedItems_FilterButtonScopesView_AndAllClearsIt()
     {
         await ClearDataAsync();
 
         var group = await GroupRepository.GetOrCreateAsync(-100);
-        await ItemRepository.AddAsync(group.Id, "Порошок", null, "TestUser", null, "Химия");
-        await ItemRepository.AddAsync(group.Id, "Молоко", null, "TestUser", null, "Еда");
+        var item1 = await ItemRepository.AddAsync(group.Id, "Порошок", null, "TestUser");
+        await TagRepository.SetItemTagsAsync(new[] { item1.Id }, group.Id, new[] { "Химия" });
+        var item2 = await ItemRepository.AddAsync(group.Id, "Молоко", null, "TestUser");
+        await TagRepository.SetItemTagsAsync(new[] { item2.Id }, group.Id, new[] { "Еда" });
 
         await DispatchAsync(CommandUpdate(-100, 42, "/list"));
 
@@ -62,14 +64,66 @@ public class ListFilterIntegrationTests : TelegramIntegrationTestBase
     }
 
     [Fact]
-    public async Task FilteredView_PaginatesWithinCategory()
+    public async Task List_TwoActiveTags_ExpandsToUnion_TappingOneAgainNarrows()
+    {
+        await ClearDataAsync();
+
+        var group = await GroupRepository.GetOrCreateAsync(-100);
+        var item1 = await ItemRepository.AddAsync(group.Id, "Порошок", null, "TestUser");
+        await TagRepository.SetItemTagsAsync(new[] { item1.Id }, group.Id, new[] { "Химия" });
+        var item2 = await ItemRepository.AddAsync(group.Id, "Молоко", null, "TestUser");
+        await TagRepository.SetItemTagsAsync(new[] { item2.Id }, group.Id, new[] { "Еда" });
+        var item3 = await ItemRepository.AddAsync(group.Id, "Ключи", null, "TestUser");
+        await TagRepository.SetItemTagsAsync(new[] { item3.Id }, group.Id, new[] { "Авто" });
+
+        await DispatchAsync(CommandUpdate(-100, 42, "/list"));
+
+        var sent = GetLastSentMessage();
+        var keyboard = Assert.IsType<InlineKeyboardMarkup>(sent!.ReplyMarkup);
+        var chemistryButton = keyboard.InlineKeyboard
+            .SelectMany(row => row)
+            .First(btn => btn.CallbackData?.StartsWith("list_filter:") == true && btn.Text == "Химия");
+
+        await DispatchAsync(CallbackUpdate(-100, 42, 1, chemistryButton.CallbackData!));
+
+        var firstFilterEdit = GetLastEditedMessage();
+        Assert.Contains("Порошок", firstFilterEdit!.Text);
+        Assert.DoesNotContain("Молоко", firstFilterEdit.Text);
+
+        var firstFilterKeyboard = Assert.IsType<InlineKeyboardMarkup>(firstFilterEdit.ReplyMarkup);
+        var foodButton = firstFilterKeyboard.InlineKeyboard
+            .SelectMany(row => row)
+            .First(btn => btn.Text == "Еда");
+
+        await DispatchAsync(CallbackUpdate(-100, 42, 1, foodButton.CallbackData!));
+
+        var unionEdit = GetLastEditedMessage();
+        Assert.Contains("Порошок", unionEdit!.Text);
+        Assert.Contains("Молоко", unionEdit.Text);
+        Assert.DoesNotContain("Ключи", unionEdit.Text);
+
+        var unionKeyboard = Assert.IsType<InlineKeyboardMarkup>(unionEdit.ReplyMarkup);
+        var activeChemistryButton = unionKeyboard.InlineKeyboard
+            .SelectMany(row => row)
+            .First(btn => btn.Text == "✓ Химия");
+
+        await DispatchAsync(CallbackUpdate(-100, 42, 1, activeChemistryButton.CallbackData!));
+
+        var narrowedEdit = GetLastEditedMessage();
+        Assert.DoesNotContain("Порошок", narrowedEdit!.Text);
+        Assert.Contains("Молоко", narrowedEdit.Text);
+    }
+
+    [Fact]
+    public async Task FilteredView_PaginatesWithinTag()
     {
         await ClearDataAsync();
 
         var group = await GroupRepository.GetOrCreateAsync(-100);
         for (int i = 1; i <= 12; i++)
         {
-            await ItemRepository.AddAsync(group.Id, $"Товар{i}", null, "TestUser", null, "Химия");
+            var item = await ItemRepository.AddAsync(group.Id, $"Товар{i}", null, "TestUser");
+            await TagRepository.SetItemTagsAsync(new[] { item.Id }, group.Id, new[] { "Химия" });
         }
 
         await DispatchAsync(CommandUpdate(-100, 42, "/list"));

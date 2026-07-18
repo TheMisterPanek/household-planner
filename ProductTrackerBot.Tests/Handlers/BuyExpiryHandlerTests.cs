@@ -133,20 +133,21 @@ public class BuyExpiryHandlerTests
         });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(10, "Молоко", null, "Alice", null, null))
+        itemRepo.Setup(r => r.AddAsync(10, "Молоко", null, "Alice", null))
             .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Alice" });
 
         var localizer = new Mock<ILocalizer>();
         localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
             .Returns<long, string>((_, key) => key);
 
-        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file::memory:");
-        purchaseRepo.Setup(r => r.GetTopCategoriesAsync(It.IsAny<int>(), It.IsAny<int>()))
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetTopTagsAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(new List<string>());
-        var categoryCaptureServiceMock = new Mock<CategoryCaptureService>(
-            bot.Object, new PendingDialogService<CategoryCaptureDialogState>(), purchaseRepo.Object, localizer.Object);
-        categoryCaptureServiceMock.Setup(s => s.StartCategoryCaptureAsync(
-                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        var tagCaptureServiceMock = new Mock<TagCaptureService>(
+            bot.Object, new PendingDialogService<TagCaptureDialogState>(), tagRepo.Object, localizer.Object);
+        tagCaptureServiceMock.Setup(s => s.StartTagCaptureAsync(
+                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(),
+                It.IsAny<IReadOnlyCollection<string>?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var handler = new BuySkipCallbackHandler(
@@ -154,20 +155,21 @@ public class BuyExpiryHandlerTests
             dialogService,
             itemRepo.Object,
             Mock.Of<IHistoryRepository>(),
-            categoryCaptureServiceMock.Object,
+            tagCaptureServiceMock.Object,
             localizer.Object,
             Mock.Of<ILogger<BuySkipCallbackHandler>>());
 
         var callback = DeserializeCallbackQuery("{\"id\":\"cb1\",\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat_instance\":\"123\",\"message\":{\"message_id\":2,\"chat\":{\"id\":-100}},\"data\":\"buy:skip_quantity\"}");
         await handler.HandleAsync(callback, CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Alice", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Alice", null), Times.Once);
 
         // Dialog cleared
         Assert.Null(dialogService.GetState(-100L, 42L));
 
-        categoryCaptureServiceMock.Verify(s => s.StartCategoryCaptureAsync(
-            -100L, 42L, 10, It.Is<IReadOnlyList<int>>(ids => ids.Count == 1 && ids[0] == 1), "Молоко", It.IsAny<CancellationToken>()),
+        tagCaptureServiceMock.Verify(s => s.StartTagCaptureAsync(
+            -100L, 42L, 10, It.Is<IReadOnlyList<int>>(ids => ids.Count == 1 && ids[0] == 1), "Молоко",
+            It.IsAny<IReadOnlyCollection<string>?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -186,7 +188,7 @@ public class BuyExpiryHandlerTests
         });
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(10, "Молоко", "2л", "Alice", null, null))
+        itemRepo.Setup(r => r.AddAsync(10, "Молоко", "2л", "Alice", null))
             .ReturnsAsync(new ShoppingItem
             {
                 Id = 1,
@@ -212,7 +214,7 @@ public class BuyExpiryHandlerTests
         var callback = DeserializeCallbackQuery("{\"id\":\"cb1\",\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat_instance\":\"123\",\"message\":{\"message_id\":3,\"chat\":{\"id\":-100}}}");
         await handler.HandleAsync(callback, CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2л", "Alice", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2л", "Alice", null), Times.Once);
 
         var state = dialogService.GetState(-100L, 42L);
         Assert.Null(state);

@@ -1,4 +1,4 @@
-// <copyright file="CategorySkipCallbackHandler.cs" company="PlaceholderCompany">
+// <copyright file="TagDoneCallbackHandler.cs" company="PlaceholderCompany">
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
 
@@ -6,37 +6,43 @@ namespace ProductTrackerBot.Handlers;
 
 using ProductTrackerBot.Localization;
 using ProductTrackerBot.Models;
+using ProductTrackerBot.Repositories;
 using ProductTrackerBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
 /// <summary>
-/// Handles the "Без категории" skip button on the category-capture prompt.
+/// Handles the "Готово" button on the tag-capture prompt — applies the accumulated selection and
+/// clears the dialog.
 /// </summary>
-public class CategorySkipCallbackHandler : ICallbackHandler
+public class TagDoneCallbackHandler : ICallbackHandler
 {
     private readonly ITelegramBotClient botClient;
-    private readonly PendingDialogService<CategoryCaptureDialogState> dialogService;
+    private readonly PendingDialogService<TagCaptureDialogState> dialogService;
+    private readonly TagRepository tagRepository;
     private readonly ILocalizer localizer;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="CategorySkipCallbackHandler"/> class.
+    /// Initializes a new instance of the <see cref="TagDoneCallbackHandler"/> class.
     /// </summary>
     /// <param name="botClient">The Telegram bot client.</param>
-    /// <param name="dialogService">The category-capture dialog state service.</param>
+    /// <param name="dialogService">The tag-capture dialog state service.</param>
+    /// <param name="tagRepository">The tag repository.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
-    public CategorySkipCallbackHandler(
+    public TagDoneCallbackHandler(
         ITelegramBotClient botClient,
-        PendingDialogService<CategoryCaptureDialogState> dialogService,
+        PendingDialogService<TagCaptureDialogState> dialogService,
+        TagRepository tagRepository,
         ILocalizer localizer)
     {
         this.botClient = botClient;
         this.dialogService = dialogService;
+        this.tagRepository = tagRepository;
         this.localizer = localizer;
     }
 
     /// <inheritdoc/>
-    public string CallbackPrefix => "category:skip";
+    public string CallbackPrefix => "tag:done";
 
     /// <inheritdoc/>
     public async Task HandleAsync(CallbackQuery callbackQuery, CancellationToken cancellationToken)
@@ -59,18 +65,22 @@ public class CategorySkipCallbackHandler : ICallbackHandler
             return;
         }
 
+        await this.tagRepository.SetItemTagsAsync(state.ItemIds, state.GroupId, state.SelectedTagNames);
+
         this.dialogService.ClearState(chatId, userId);
 
         await this.botClient.AnswerCallbackQuery(
             callbackQueryId: callbackQuery.Id,
             cancellationToken: cancellationToken);
 
-        var promptText = this.localizer.Get(chatId, "category.prompt").Replace("{item}", state.ItemLabel);
+        var confirmText = state.SelectedTagNames.Count > 0
+            ? this.localizer.Get(chatId, "tag.set-confirmation").Replace("{tags}", string.Join(", ", state.SelectedTagNames))
+            : this.localizer.Get(chatId, "tag.set-confirmation-empty");
 
         await this.botClient.EditMessageText(
             chatId: chatId,
             messageId: callbackQuery.Message.MessageId,
-            text: $"{promptText}\n\n{this.localizer.Get(chatId, "category.skipped")}",
+            text: confirmText,
             cancellationToken: cancellationToken);
     }
 }

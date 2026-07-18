@@ -20,7 +20,7 @@ public class BuyAddService
     private readonly ITelegramBotClient botClient;
     private readonly ShoppingItemRepository itemRepository;
     private readonly IHistoryRepository historyRepository;
-    private readonly CategoryCaptureService categoryCaptureService;
+    private readonly TagCaptureService tagCaptureService;
     private readonly ILocalizer localizer;
     private readonly ILogger<BuyAddService> logger;
 
@@ -30,21 +30,21 @@ public class BuyAddService
     /// <param name="botClient">The Telegram bot client.</param>
     /// <param name="itemRepository">The shopping item repository.</param>
     /// <param name="historyRepository">The history repository.</param>
-    /// <param name="categoryCaptureService">The category-capture follow-up service.</param>
+    /// <param name="tagCaptureService">The tag-capture follow-up service.</param>
     /// <param name="localizer">The localizer.</param>
     /// <param name="logger">The logger.</param>
     public BuyAddService(
         ITelegramBotClient botClient,
         ShoppingItemRepository itemRepository,
         IHistoryRepository historyRepository,
-        CategoryCaptureService categoryCaptureService,
+        TagCaptureService tagCaptureService,
         ILocalizer localizer,
         ILogger<BuyAddService> logger)
     {
         this.botClient = botClient;
         this.itemRepository = itemRepository;
         this.historyRepository = historyRepository;
-        this.categoryCaptureService = categoryCaptureService;
+        this.tagCaptureService = tagCaptureService;
         this.localizer = localizer;
         this.logger = logger;
     }
@@ -107,8 +107,8 @@ public class BuyAddService
             this.logger.LogWarning(ex, "Failed to record history for ItemAdded");
         }
 
-        await this.categoryCaptureService.StartCategoryCaptureAsync(
-            chatId, userId, groupId, new[] { item.Id }, item.Name, cancellationToken);
+        await this.tagCaptureService.StartTagCaptureAsync(
+            chatId, userId, groupId, new[] { item.Id }, item.Name, preselectedTags: null, cancellationToken);
 
         return item;
     }

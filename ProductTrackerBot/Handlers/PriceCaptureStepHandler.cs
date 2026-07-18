@@ -24,6 +24,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
     private readonly PurchaseHistoryRepository purchaseRepository;
     private readonly PriceLogRepository priceLogRepository;
     private readonly GroupRepository groupRepository;
+    private readonly TagRepository tagRepository;
     private readonly ExpiryDaySuggestionService suggestionService;
     private readonly ILocalizer localizer;
     private readonly ILogger<PriceCaptureStepHandler> logger;
@@ -36,6 +37,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
     /// <param name="purchaseRepository">The purchase history repository.</param>
     /// <param name="priceLogRepository">The price log repository.</param>
     /// <param name="groupRepository">The group repository.</param>
+    /// <param name="tagRepository">The tag repository.</param>
     /// <param name="suggestionService">The expiry day suggestion service.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
     /// <param name="logger">The logger.</param>
@@ -45,6 +47,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
         PurchaseHistoryRepository purchaseRepository,
         PriceLogRepository priceLogRepository,
         GroupRepository groupRepository,
+        TagRepository tagRepository,
         ExpiryDaySuggestionService suggestionService,
         ILocalizer localizer,
         ILogger<PriceCaptureStepHandler> logger)
@@ -54,6 +57,7 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
         this.purchaseRepository = purchaseRepository;
         this.priceLogRepository = priceLogRepository;
         this.groupRepository = groupRepository;
+        this.tagRepository = tagRepository;
         this.suggestionService = suggestionService;
         this.localizer = localizer;
         this.logger = logger;
@@ -117,10 +121,14 @@ public class PriceCaptureStepHandler : IDialogMessageHandler
             PurchasedAt = DateTime.UtcNow,
             BoughtByName = state.BoughtByName,
             ExpDate = expDate,
-            Category = state.Category,
         };
 
         await this.purchaseRepository.AddAsync(record);
+
+        if (state.Tags.Count > 0)
+        {
+            await this.tagRepository.LinkPurchaseHistoryTagsAsync(record.Id, group.Id, state.Tags);
+        }
 
         if (record.Price.HasValue)
         {

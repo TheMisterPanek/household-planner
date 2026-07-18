@@ -9,6 +9,7 @@ public class ShoppingItemRepositoryTests : IDisposable
 {
     private readonly SqliteConnection connection;
     private readonly ShoppingItemRepository repository;
+    private readonly TagRepository tagRepository;
     private readonly int groupId;
 
     public ShoppingItemRepositoryTests()
@@ -33,15 +34,28 @@ public class ShoppingItemRepositoryTests : IDisposable
                 exp_date TEXT,
                 AddedByName TEXT NOT NULL,
                 Category TEXT NULL
+            );
+            CREATE TABLE IF NOT EXISTS Tags (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                GroupId INTEGER NOT NULL,
+                Name TEXT NOT NULL,
+                UNIQUE (GroupId, Name COLLATE NOCASE)
+            );
+            CREATE TABLE IF NOT EXISTS ItemTags (
+                ItemId INTEGER NOT NULL,
+                TagId INTEGER NOT NULL,
+                PRIMARY KEY (ItemId, TagId)
             );";
         cmd.ExecuteNonQuery();
 
         // Clean any leftover data and reset autoincrement
         using var cleanCmd = this.connection.CreateCommand();
         cleanCmd.CommandText = @"
+            DELETE FROM ItemTags;
+            DELETE FROM Tags;
             DELETE FROM ShoppingItems;
             DELETE FROM Groups;
-            DELETE FROM sqlite_sequence WHERE name IN ('Groups', 'ShoppingItems');";
+            DELETE FROM sqlite_sequence WHERE name IN ('Groups', 'ShoppingItems', 'Tags');";
         cleanCmd.ExecuteNonQuery();
 
         // Insert test group
@@ -50,6 +64,7 @@ public class ShoppingItemRepositoryTests : IDisposable
         this.groupId = (int)(long)insertCmd.ExecuteScalar()!;
 
         this.repository = new ShoppingItemRepository("Data Source=file:ShoppingItemRepoTests?mode=memory&cache=shared");
+        this.tagRepository = new TagRepository("Data Source=file:ShoppingItemRepoTests?mode=memory&cache=shared");
     }
 
     [Fact]
@@ -65,6 +80,7 @@ public class ShoppingItemRepositoryTests : IDisposable
         Assert.Equal("Молоко", item.Name);
         Assert.Equal("2л", item.Quantity);
         Assert.Equal("Иван", item.AddedByName);
+        Assert.Empty(item.Tags);
     }
 
     [Fact]
@@ -113,6 +129,18 @@ public class ShoppingItemRepositoryTests : IDisposable
         var items = await this.repository.GetAllAsync(this.groupId);
         Assert.Single(items);
         Assert.Equal("Хлеб", items[0].Name);
+    }
+
+    [Fact]
+    public async Task Delete_Item_Also_Removes_ItemTags_Rows()
+    {
+        var item = await this.repository.AddAsync(this.groupId, "Молоко", "2л", "Иван");
+        await this.tagRepository.SetItemTagsAsync(new[] { item.Id }, this.groupId, new[] { "Молочка" });
+
+        await this.repository.DeleteAsync(item.Id);
+
+        var distinctTags = await this.tagRepository.GetDistinctTagsAsync(this.groupId);
+        Assert.Empty(distinctTags);
     }
 
     [Fact]
@@ -227,92 +255,40 @@ public class ShoppingItemRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task Add_Item_With_Category_Should_Return_Category()
+    public async Task Get_All_Populates_Tags_From_ItemTags_Join()
     {
-        var item = await this.repository.AddAsync(
-            groupId: this.groupId,
-            name: "Порошок",
-            quantity: "1кг",
-            addedByName: "Иван",
-            category: "Бытовая химия");
+        var item = await this.repository.AddAsync(this.groupId, "Порошок", "1кг", "Иван");
+        await this.tagRepository.SetItemTagsAsync(new[] { item.Id }, this.groupId, new[] { "Химия", "Скидка" });
 
-        Assert.Equal("Бытовая химия", item.Category);
+        var items = await this.repository.GetAllAsync(this.groupId);
+
+        var reloaded = Assert.Single(items);
+        Assert.Equal(2, reloaded.Tags.Count);
+        Assert.Contains("Химия", reloaded.Tags);
+        Assert.Contains("Скидка", reloaded.Tags);
     }
 
     [Fact]
-    public async Task Add_Item_Without_Category_Should_Return_Null()
+    public async Task GetById_Populates_Tags_From_ItemTags_Join()
+    {
+        var item = await this.repository.AddAsync(this.groupId, "Молоко", "2л", "Иван");
+        await this.tagRepository.SetItemTagsAsync(new[] { item.Id }, this.groupId, new[] { "Молочка" });
+
+        var reloaded = await this.repository.GetByIdAsync(item.Id);
+
+        Assert.NotNull(reloaded);
+        Assert.Contains("Молочка", reloaded!.Tags);
+    }
+
+    [Fact]
+    public async Task GetById_With_No_Tags_Returns_Empty_Tags()
     {
         var item = await this.repository.AddAsync(this.groupId, "Молоко", "2л", "Иван");
 
-        Assert.Null(item.Category);
-    }
+        var reloaded = await this.repository.GetByIdAsync(item.Id);
 
-    [Fact]
-    public async Task UpdateCategoryAsync_Single_Id_Sets_Category()
-    {
-        var item = await this.repository.AddAsync(this.groupId, "Молоко", "2л", "Иван");
-
-        await this.repository.UpdateCategoryAsync(new[] { item.Id }, "Молочка");
-
-        var updated = await this.repository.GetByIdAsync(item.Id);
-        Assert.Equal("Молочка", updated!.Category);
-    }
-
-    [Fact]
-    public async Task UpdateCategoryAsync_Multiple_Ids_Sets_Category_On_All()
-    {
-        var item1 = await this.repository.AddAsync(this.groupId, "Молоко", null, "Иван");
-        var item2 = await this.repository.AddAsync(this.groupId, "Яйца", null, "Иван");
-
-        await this.repository.UpdateCategoryAsync(new[] { item1.Id, item2.Id }, "Молочка");
-
-        var updated1 = await this.repository.GetByIdAsync(item1.Id);
-        var updated2 = await this.repository.GetByIdAsync(item2.Id);
-        Assert.Equal("Молочка", updated1!.Category);
-        Assert.Equal("Молочка", updated2!.Category);
-    }
-
-    [Fact]
-    public async Task UpdateCategoryAsync_Null_Clears_Category()
-    {
-        var item = await this.repository.AddAsync(this.groupId, "Молоко", "2л", "Иван", category: "Молочка");
-
-        await this.repository.UpdateCategoryAsync(new[] { item.Id }, null);
-
-        var updated = await this.repository.GetByIdAsync(item.Id);
-        Assert.Null(updated!.Category);
-    }
-
-    [Fact]
-    public async Task GetDistinctCategoriesAsync_Returns_Empty_When_No_Categories()
-    {
-        await this.repository.AddAsync(this.groupId, "Молоко", "2л", "Иван");
-
-        var categories = await this.repository.GetDistinctCategoriesAsync(this.groupId);
-
-        Assert.Empty(categories);
-    }
-
-    [Fact]
-    public async Task GetDistinctCategoriesAsync_Returns_Distinct_Values_Alphabetically()
-    {
-        await this.repository.AddAsync(this.groupId, "Порошок", null, "Иван", category: "Химия");
-        await this.repository.AddAsync(this.groupId, "Машина", null, "Иван", category: "Авто");
-        await this.repository.AddAsync(this.groupId, "Отбеливатель", null, "Иван", category: "Химия");
-
-        var categories = await this.repository.GetDistinctCategoriesAsync(this.groupId);
-
-        Assert.Equal(new[] { "Авто", "Химия" }, categories);
-    }
-
-    [Fact]
-    public async Task GetDistinctCategoriesAsync_Is_Scoped_To_GroupId()
-    {
-        await this.repository.AddAsync(this.groupId, "Порошок", null, "Иван", category: "Химия");
-
-        var categories = await this.repository.GetDistinctCategoriesAsync(999);
-
-        Assert.Empty(categories);
+        Assert.NotNull(reloaded);
+        Assert.Empty(reloaded!.Tags);
     }
 
     public void Dispose()

@@ -34,14 +34,15 @@ public class ItemSaveCallbackHandlerTests
         return bot;
     }
 
-    private static Mock<CategoryCaptureService> CreateCategoryCaptureServiceMock(Mock<ITelegramBotClient> bot, ILocalizer localizer)
+    private static Mock<TagCaptureService> CreateTagCaptureServiceMock(Mock<ITelegramBotClient> bot, ILocalizer localizer)
     {
-        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file::memory:");
-        purchaseRepo.Setup(r => r.GetTopCategoriesAsync(It.IsAny<int>(), It.IsAny<int>()))
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetTopTagsAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(new List<string>());
-        var mock = new Mock<CategoryCaptureService>(bot.Object, new PendingDialogService<CategoryCaptureDialogState>(), purchaseRepo.Object, localizer);
-        mock.Setup(s => s.StartCategoryCaptureAsync(
-                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        var mock = new Mock<TagCaptureService>(bot.Object, new PendingDialogService<TagCaptureDialogState>(), tagRepo.Object, localizer);
+        mock.Setup(s => s.StartTagCaptureAsync(
+                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(),
+                It.IsAny<IReadOnlyCollection<string>?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         return mock;
     }
@@ -50,8 +51,9 @@ public class ItemSaveCallbackHandlerTests
     {
         var groupRepo = new Mock<GroupRepository>("Data Source=file::memory:");
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
         var localizer = Mock.Of<ILocalizer>();
-        var listServiceMock = new Mock<ShoppingListService>(groupRepo.Object, itemRepo.Object, localizer);
+        var listServiceMock = new Mock<ShoppingListService>(groupRepo.Object, itemRepo.Object, tagRepo.Object, localizer);
         listServiceMock
             .Setup(s => s.BuildListAsync(It.IsAny<long>(), It.IsAny<int>(), null))
             .ReturnsAsync(("list", null, new Group { Id = 10, ChatId = -100L }));
@@ -84,7 +86,7 @@ public class ItemSaveCallbackHandlerTests
         localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
             .Returns<long, string>((_, key) => key);
 
-        var categoryCaptureServiceMock = CreateCategoryCaptureServiceMock(bot, localizer.Object);
+        var tagCaptureServiceMock = CreateTagCaptureServiceMock(bot, localizer.Object);
 
         var handler = new ItemSaveCallbackHandler(
             bot.Object,
@@ -92,7 +94,7 @@ public class ItemSaveCallbackHandlerTests
             itemRepo.Object,
             CreateListServiceMock().Object,
             historyMock.Object,
-            categoryCaptureServiceMock.Object,
+            tagCaptureServiceMock.Object,
             localizer.Object,
             Mock.Of<ILogger<ItemSaveCallbackHandler>>());
 
@@ -104,8 +106,9 @@ public class ItemSaveCallbackHandlerTests
         await handler.HandleAsync(cbQuery, CancellationToken.None);
 
         itemRepo.Verify(r => r.UpdateAsync(5, "отривин", "2 шт"), Times.Once);
-        categoryCaptureServiceMock.Verify(s => s.StartCategoryCaptureAsync(
-            -100L, 42L, 10, It.Is<IReadOnlyList<int>>(ids => ids.Count == 1 && ids[0] == 5), "отривин", It.IsAny<CancellationToken>()),
+        tagCaptureServiceMock.Verify(s => s.StartTagCaptureAsync(
+            -100L, 42L, 10, It.Is<IReadOnlyList<int>>(ids => ids.Count == 1 && ids[0] == 5), "отривин",
+            It.IsAny<IReadOnlyCollection<string>?>(), It.IsAny<CancellationToken>()),
             Times.Once);
         historyMock.Verify(h => h.RecordAsync(
             -100L, 42L, "Alice", BotActionType.ItemEdited,
@@ -131,7 +134,7 @@ public class ItemSaveCallbackHandlerTests
             itemRepo.Object,
             CreateListServiceMock().Object,
             historyMock.Object,
-            CreateCategoryCaptureServiceMock(bot, localizer.Object).Object,
+            CreateTagCaptureServiceMock(bot, localizer.Object).Object,
             localizer.Object,
             Mock.Of<ILogger<ItemSaveCallbackHandler>>());
 

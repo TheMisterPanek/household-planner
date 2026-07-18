@@ -33,14 +33,15 @@ public class BuyConfirmCallbackHandlerTests
         return bot;
     }
 
-    private static Mock<CategoryCaptureService> CreateCategoryCaptureServiceMock(Mock<ITelegramBotClient> bot, Mock<ILocalizer> localizer)
+    private static Mock<TagCaptureService> CreateTagCaptureServiceMock(Mock<ITelegramBotClient> bot, Mock<ILocalizer> localizer)
     {
-        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file::memory:");
-        purchaseRepo.Setup(r => r.GetTopCategoriesAsync(It.IsAny<int>(), It.IsAny<int>()))
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetTopTagsAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(new List<string>());
-        var mock = new Mock<CategoryCaptureService>(bot.Object, new PendingDialogService<CategoryCaptureDialogState>(), purchaseRepo.Object, localizer.Object);
-        mock.Setup(s => s.StartCategoryCaptureAsync(
-                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        var mock = new Mock<TagCaptureService>(bot.Object, new PendingDialogService<TagCaptureDialogState>(), tagRepo.Object, localizer.Object);
+        mock.Setup(s => s.StartTagCaptureAsync(
+                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(),
+                It.IsAny<IReadOnlyCollection<string>?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         return mock;
     }
@@ -58,7 +59,7 @@ public class BuyConfirmCallbackHandlerTests
             AddedByName: "Alice"));
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(10, "Молоко", "2 л", "Alice", null, null))
+        itemRepo.Setup(r => r.AddAsync(10, "Молоко", "2 л", "Alice", null))
             .ReturnsAsync(new ShoppingItem { Id = 1, GroupId = 10, Name = "Молоко", Quantity = "2 л", AddedByName = "Alice" });
 
         var historyMock = new Mock<IHistoryRepository>();
@@ -72,9 +73,9 @@ public class BuyConfirmCallbackHandlerTests
         localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
             .Returns<long, string>((_, key) => key);
 
-        var categoryCaptureServiceMock = CreateCategoryCaptureServiceMock(bot, localizer);
+        var tagCaptureServiceMock = CreateTagCaptureServiceMock(bot, localizer);
         var buyAddService = new BuyAddService(
-            bot.Object, itemRepo.Object, historyMock.Object, categoryCaptureServiceMock.Object,
+            bot.Object, itemRepo.Object, historyMock.Object, tagCaptureServiceMock.Object,
             localizer.Object, Mock.Of<ILogger<BuyAddService>>());
 
         var handler = new BuyConfirmCallbackHandler(
@@ -87,13 +88,14 @@ public class BuyConfirmCallbackHandlerTests
 
         await handler.HandleAsync(cbQuery, CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Alice", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Alice", null), Times.Once);
         historyMock.Verify(h => h.RecordAsync(
             -100L, 42L, "Alice", BotActionType.ItemAdded,
             It.IsAny<string>(), null, It.IsAny<CancellationToken>()), Times.Once);
         bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
-        categoryCaptureServiceMock.Verify(s => s.StartCategoryCaptureAsync(
-            -100L, 42L, 10, It.Is<IReadOnlyList<int>>(ids => ids.Count == 1 && ids[0] == 1), "Молоко", It.IsAny<CancellationToken>()),
+        tagCaptureServiceMock.Verify(s => s.StartTagCaptureAsync(
+            -100L, 42L, 10, It.Is<IReadOnlyList<int>>(ids => ids.Count == 1 && ids[0] == 1), "Молоко",
+            It.IsAny<IReadOnlyCollection<string>?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -110,7 +112,7 @@ public class BuyConfirmCallbackHandlerTests
             .Returns<long, string>((_, key) => key);
 
         var buyAddService = new BuyAddService(
-            bot.Object, itemRepo.Object, historyMock.Object, CreateCategoryCaptureServiceMock(bot, localizer).Object,
+            bot.Object, itemRepo.Object, historyMock.Object, CreateTagCaptureServiceMock(bot, localizer).Object,
             localizer.Object, Mock.Of<ILogger<BuyAddService>>());
 
         var handler = new BuyConfirmCallbackHandler(
@@ -123,7 +125,7 @@ public class BuyConfirmCallbackHandlerTests
 
         await handler.HandleAsync(cbQuery, CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null), Times.Never);
+        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()), Times.Never);
         historyMock.Verify(h => h.RecordAsync(
             It.IsAny<long>(), It.IsAny<long>(), It.IsAny<string>(),
             It.IsAny<BotActionType>(), It.IsAny<string>(), It.IsAny<string?>(),

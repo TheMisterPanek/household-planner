@@ -19,6 +19,7 @@ public class ShoppingListService
 
     private readonly GroupRepository groupRepository;
     private readonly ShoppingItemRepository itemRepository;
+    private readonly TagRepository tagRepository;
     private readonly ILocalizer localizer;
 
     /// <summary>
@@ -26,11 +27,13 @@ public class ShoppingListService
     /// </summary>
     /// <param name="groupRepository">The group repository.</param>
     /// <param name="itemRepository">The shopping item repository.</param>
+    /// <param name="tagRepository">The tag repository.</param>
     /// <param name="localizer">The localizer for retrieving localized messages.</param>
-    public ShoppingListService(GroupRepository groupRepository, ShoppingItemRepository itemRepository, ILocalizer localizer)
+    public ShoppingListService(GroupRepository groupRepository, ShoppingItemRepository itemRepository, TagRepository tagRepository, ILocalizer localizer)
     {
         this.groupRepository = groupRepository;
         this.itemRepository = itemRepository;
+        this.tagRepository = tagRepository;
         this.localizer = localizer;
     }
 
@@ -68,18 +71,18 @@ public class ShoppingListService
     /// <param name="groupId">The group ID.</param>
     /// <param name="pageNumber">The page number (1-based; invalid numbers default to 1).</param>
     /// <param name="pageSize">The number of items per page.</param>
-    /// <param name="category">Optional category filter (case-insensitive exact match); null = unfiltered.</param>
+    /// <param name="tagNames">Optional tag filter set (OR semantics, case-insensitive); null/empty = unfiltered.</param>
     /// <returns>A tuple of (items, totalItems, totalPages, actualPageNumber).</returns>
     public virtual async Task<(IReadOnlyList<ShoppingItem> Items, int TotalItems, int TotalPages, int ActualPageNumber)> GetPagedItemsAsync(
         int groupId,
         int pageNumber,
         int pageSize,
-        string? category = null)
+        IReadOnlyCollection<string>? tagNames = null)
     {
         var items = await this.itemRepository.GetAllAsync(groupId);
-        if (category is not null)
+        if (tagNames is { Count: > 0 })
         {
-            items = items.Where(i => string.Equals(i.Category, category, StringComparison.OrdinalIgnoreCase)).ToList();
+            items = items.Where(i => i.Tags.Any(t => tagNames.Contains(t, StringComparer.OrdinalIgnoreCase))).ToList();
         }
 
         var totalItems = items.Count;
@@ -106,37 +109,28 @@ public class ShoppingListService
     /// </summary>
     /// <param name="chatId">The Telegram chat ID.</param>
     /// <param name="pageNumber">The page number for pagination (1-based; defaults to 1).</param>
-    /// <param name="category">Optional category filter (case-insensitive exact match); null = unfiltered.</param>
+    /// <param name="activeTagNames">Optional set of currently-active tag filters (OR semantics, case-insensitive); null/empty = unfiltered.</param>
     /// <returns>A tuple of (messageText, inlineKeyboard, group).</returns>
     public virtual async Task<(string MessageText, InlineKeyboardMarkup? Keyboard, Group Group)> BuildListAsync(
         long chatId,
         int pageNumber = 1,
-        string? category = null)
+        IReadOnlyCollection<string>? activeTagNames = null)
     {
         const int pageSize = 10;
         var group = await this.groupRepository.GetOrCreateAsync(chatId);
+        var isFiltered = activeTagNames is { Count: > 0 };
 
-        var (pagedItems, totalItems, totalPages, actualPageNumber) = await this.GetPagedItemsAsync(group.Id, pageNumber, pageSize, category);
+        var (pagedItems, totalItems, totalPages, actualPageNumber) = await this.GetPagedItemsAsync(group.Id, pageNumber, pageSize, activeTagNames);
+
+        var allTags = await this.tagRepository.GetDistinctTagsAsync(group.Id) ?? Array.Empty<string>();
+        var activeIndices = isFiltered ? IndicesOfTags(allTags, activeTagNames!) : Array.Empty<int>();
 
         if (totalItems == 0)
         {
-            if (category is not null)
+            if (isFiltered)
             {
-                // Filtered to a category with no current matches — still offer a way back to the full list.
-                var allCategories = await this.itemRepository.GetDistinctCategoriesAsync(group.Id) ?? Array.Empty<string>();
-                var emptyFilterButtons = new List<InlineKeyboardButton>();
-                var emptyVisibleCount = Math.Min(allCategories.Count, 5);
-                for (int i = 0; i < emptyVisibleCount; i++)
-                {
-                    emptyFilterButtons.Add(InlineKeyboardButton.WithCallbackData(
-                        TruncateCategoryLabel(allCategories[i]),
-                        $"list_filter:{group.ChatId}:{i}:1"));
-                }
-
-                emptyFilterButtons.Add(InlineKeyboardButton.WithCallbackData(
-                    this.localizer.Get(chatId, "list.filter-all"),
-                    $"list_filter:{group.ChatId}:-1:1"));
-
+                // Filtered to a set with no current matches — still offer a way back to the full list.
+                var emptyFilterButtons = BuildFilterButtons(chatId, group.ChatId, allTags, activeIndices, isFiltered);
                 var emptyKeyboard = new InlineKeyboardMarkup(new List<List<InlineKeyboardButton>> { emptyFilterButtons });
                 return (this.localizer.Get(chatId, "list.empty"), emptyKeyboard, group);
             }
@@ -145,9 +139,9 @@ public class ShoppingListService
         }
 
         var allItems = await this.itemRepository.GetAllAsync(group.Id);
-        if (category is not null)
+        if (isFiltered)
         {
-            allItems = allItems.Where(i => string.Equals(i.Category, category, StringComparison.OrdinalIgnoreCase)).ToList();
+            allItems = allItems.Where(i => i.Tags.Any(t => activeTagNames!.Contains(t, StringComparer.OrdinalIgnoreCase))).ToList();
         }
 
         var sb = new StringBuilder(this.localizer.Get(chatId, "list.header") + "\n\n");
@@ -176,10 +170,7 @@ public class ShoppingListService
             }
         }
 
-        var categories = await this.itemRepository.GetDistinctCategoriesAsync(group.Id) ?? Array.Empty<string>();
-        var categoryIndex = category is not null
-            ? IndexOfCategory(categories, category)
-            : -1;
+        var activeIndexCsv = string.Join(",", activeIndices);
 
         // Add pagination buttons if there are multiple pages
         if (totalPages > 1)
@@ -187,8 +178,8 @@ public class ShoppingListService
             var paginationButtons = new List<InlineKeyboardButton>();
             if (actualPageNumber > 1)
             {
-                var callbackData = category is not null
-                    ? $"list_filter:{group.ChatId}:{categoryIndex}:{actualPageNumber - 1}"
+                var callbackData = isFiltered
+                    ? $"list_filter:{group.ChatId}:{activeIndexCsv}:{actualPageNumber - 1}"
                     : $"list_prev:{group.ChatId}:{actualPageNumber - 1}";
                 paginationButtons.Add(InlineKeyboardButton.WithCallbackData(
                     this.localizer.Get(chatId, "pagination_previous_button"),
@@ -197,8 +188,8 @@ public class ShoppingListService
 
             if (actualPageNumber < totalPages)
             {
-                var callbackData = category is not null
-                    ? $"list_filter:{group.ChatId}:{categoryIndex}:{actualPageNumber + 1}"
+                var callbackData = isFiltered
+                    ? $"list_filter:{group.ChatId}:{activeIndexCsv}:{actualPageNumber + 1}"
                     : $"list_next:{group.ChatId}:{actualPageNumber + 1}";
                 paginationButtons.Add(InlineKeyboardButton.WithCallbackData(
                     this.localizer.Get(chatId, "pagination_next_button"),
@@ -211,26 +202,10 @@ public class ShoppingListService
             }
         }
 
-        // Add category filter row (only when the group has at least one categorized active item)
-        if (categories.Count > 0)
+        // Add tag filter row (only when the group has at least one tagged active item)
+        if (allTags.Count > 0)
         {
-            var filterButtons = new List<InlineKeyboardButton>();
-            var visibleCount = Math.Min(categories.Count, 5);
-            for (int i = 0; i < visibleCount; i++)
-            {
-                filterButtons.Add(InlineKeyboardButton.WithCallbackData(
-                    TruncateCategoryLabel(categories[i]),
-                    $"list_filter:{group.ChatId}:{i}:1"));
-            }
-
-            if (category is not null)
-            {
-                filterButtons.Add(InlineKeyboardButton.WithCallbackData(
-                    this.localizer.Get(chatId, "list.filter-all"),
-                    $"list_filter:{group.ChatId}:-1:1"));
-            }
-
-            buttons.Add(filterButtons);
+            buttons.Add(BuildFilterButtons(chatId, group.ChatId, allTags, activeIndices, isFiltered));
         }
 
         // Add page footer
@@ -248,24 +223,55 @@ public class ShoppingListService
         return (sb.ToString(), new InlineKeyboardMarkup(buttons), group);
     }
 
-    /// <summary>
-    /// Finds the position of a category (case-insensitive) in a distinct-categories list, or -1 if not found
-    /// (e.g. the category was re-tagged or removed since the message was last rendered).
-    /// </summary>
-    /// <param name="categories">The group's current distinct categories.</param>
-    /// <param name="category">The category to locate.</param>
-    /// <returns>The zero-based index, or -1 if not present.</returns>
-    public static int IndexOfCategory(IReadOnlyList<string> categories, string category)
+    private List<InlineKeyboardButton> BuildFilterButtons(long chatId, long groupChatId, IReadOnlyList<string> allTags, IReadOnlyList<int> activeIndices, bool isFiltered)
     {
-        for (int i = 0; i < categories.Count; i++)
+        var filterButtons = new List<InlineKeyboardButton>();
+        var visibleCount = Math.Min(allTags.Count, 5);
+        for (int i = 0; i < visibleCount; i++)
         {
-            if (string.Equals(categories[i], category, StringComparison.OrdinalIgnoreCase))
+            var isActive = activeIndices.Contains(i);
+            var newIndices = isActive
+                ? activeIndices.Where(x => x != i).OrderBy(x => x)
+                : activeIndices.Append(i).OrderBy(x => x);
+            var newCsv = string.Join(",", newIndices);
+
+            var label = TruncateCategoryLabel(allTags[i]);
+            if (isActive)
             {
-                return i;
+                label = $"✓ {label}";
+            }
+
+            filterButtons.Add(InlineKeyboardButton.WithCallbackData(
+                label,
+                $"list_filter:{groupChatId}:{newCsv}:1"));
+        }
+
+        if (isFiltered)
+        {
+            filterButtons.Add(InlineKeyboardButton.WithCallbackData(
+                this.localizer.Get(chatId, "list.filter-all"),
+                $"list_filter:{groupChatId}:-1:1"));
+        }
+
+        return filterButtons;
+    }
+
+    /// <summary>
+    /// Resolves the zero-based indices of <paramref name="tagNames"/> within <paramref name="allTags"/>
+    /// (case-insensitive), dropping any names no longer present.
+    /// </summary>
+    private static IReadOnlyList<int> IndicesOfTags(IReadOnlyList<string> allTags, IReadOnlyCollection<string> tagNames)
+    {
+        var result = new List<int>();
+        for (int i = 0; i < allTags.Count; i++)
+        {
+            if (tagNames.Contains(allTags[i], StringComparer.OrdinalIgnoreCase))
+            {
+                result.Add(i);
             }
         }
 
-        return -1;
+        return result;
     }
 
     /// <summary>

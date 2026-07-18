@@ -30,7 +30,7 @@ public class BuyCommandHandlerTests
     private static Message GroupBuyMessageNoArgs() =>
         DeserializeMessage("{\"message_id\":1,\"from\":{\"id\":42,\"first_name\":\"Alice\"},\"chat\":{\"id\":-100,\"type\":\"supergroup\"},\"text\":\"/buy\"}");
 
-    private (BuyCommandHandler Handler, Mock<ITelegramBotClient> Bot, Mock<ShoppingListService> ListService, Mock<IHistoryRepository> History, Mock<CategoryCaptureService> CategoryCaptureService, Mock<ShoppingItemRepository> ItemRepository) CreateHandler()
+    private (BuyCommandHandler Handler, Mock<ITelegramBotClient> Bot, Mock<ShoppingListService> ListService, Mock<IHistoryRepository> History, Mock<TagCaptureService> TagCaptureService, Mock<ShoppingItemRepository> ItemRepository) CreateHandler()
     {
         var bot = new Mock<ITelegramBotClient>();
         bot.Setup(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
@@ -43,6 +43,7 @@ public class BuyCommandHandlerTests
         var listService = new Mock<ShoppingListService>(
             new Mock<GroupRepository>("Data Source=file::memory:").Object,
             new Mock<ShoppingItemRepository>("Data Source=file::memory:").Object,
+            new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
 
         var history = new Mock<IHistoryRepository>();
@@ -51,22 +52,23 @@ public class BuyCommandHandlerTests
         localizer.Setup(l => l.Get(It.IsAny<long>(), It.IsAny<string>()))
             .Returns<long, string>((_, key) => key);
 
-        var purchaseRepo = new Mock<PurchaseHistoryRepository>("Data Source=file::memory:");
-        purchaseRepo.Setup(r => r.GetTopCategoriesAsync(It.IsAny<int>(), It.IsAny<int>()))
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetTopTagsAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(new List<string>());
-        var categoryCaptureServiceMock = new Mock<CategoryCaptureService>(
-            bot.Object, new PendingDialogService<CategoryCaptureDialogState>(), purchaseRepo.Object, localizer.Object);
-        categoryCaptureServiceMock.Setup(s => s.StartCategoryCaptureAsync(
-                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        var tagCaptureServiceMock = new Mock<TagCaptureService>(
+            bot.Object, new PendingDialogService<TagCaptureDialogState>(), tagRepo.Object, localizer.Object);
+        tagCaptureServiceMock.Setup(s => s.StartTagCaptureAsync(
+                It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(),
+                It.IsAny<IReadOnlyCollection<string>?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:");
-        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null))
-            .ReturnsAsync((int groupId, string name, string? quantity, string addedByName, DateOnly? _, string? _) =>
+        itemRepo.Setup(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
+            .ReturnsAsync((int groupId, string name, string? quantity, string addedByName, DateOnly? _) =>
                 new ShoppingItem { Id = 99, GroupId = groupId, Name = name, Quantity = quantity, AddedByName = addedByName });
 
         var buyAddService = new BuyAddService(
-            bot.Object, itemRepo.Object, history.Object, categoryCaptureServiceMock.Object, localizer.Object,
+            bot.Object, itemRepo.Object, history.Object, tagCaptureServiceMock.Object, localizer.Object,
             Mock.Of<ILogger<BuyAddService>>());
 
         var handler = new BuyCommandHandler(
@@ -77,11 +79,11 @@ public class BuyCommandHandlerTests
             localizer.Object,
             listService.Object,
             history.Object,
-            categoryCaptureServiceMock.Object,
+            tagCaptureServiceMock.Object,
             buyAddService,
             Mock.Of<ILogger<BuyCommandHandler>>());
 
-        return (handler, bot, listService, history, categoryCaptureServiceMock, itemRepo);
+        return (handler, bot, listService, history, tagCaptureServiceMock, itemRepo);
     }
 
     [Fact]
@@ -100,11 +102,11 @@ public class BuyCommandHandlerTests
     [Fact]
     public async Task Single_Item_Without_Quantity_Persists_Immediately_No_Review()
     {
-        var (handler, bot, listService, history, categoryCaptureService, itemRepo) = CreateHandler();
+        var (handler, bot, listService, history, tagCaptureService, itemRepo) = CreateHandler();
 
         await handler.HandleAsync(GroupBuyMessage("Молоко"), CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Alice", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Alice", null), Times.Once);
 
         // No review keyboard message — only the plain confirmation
         bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -113,8 +115,9 @@ public class BuyCommandHandlerTests
             -100L, 42L, "Alice", BotActionType.ItemAdded,
             It.IsAny<string>(), null, It.IsAny<CancellationToken>()), Times.Once);
 
-        categoryCaptureService.Verify(s => s.StartCategoryCaptureAsync(
-            -100L, 42L, 10, It.Is<IReadOnlyList<int>>(ids => ids.Count == 1 && ids[0] == 99), "Молоко", It.IsAny<CancellationToken>()),
+        tagCaptureService.Verify(s => s.StartTagCaptureAsync(
+            -100L, 42L, 10, It.Is<IReadOnlyList<int>>(ids => ids.Count == 1 && ids[0] == 99), "Молоко",
+            It.IsAny<IReadOnlyCollection<string>?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -125,7 +128,7 @@ public class BuyCommandHandlerTests
 
         await handler.HandleAsync(GroupBuyMessage("Молоко 2л"), CancellationToken.None);
 
-        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null), Times.Never);
+        itemRepo.Verify(r => r.AddAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()), Times.Never);
         bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -154,15 +157,16 @@ public class BuyCommandHandlerTests
     [Fact]
     public async Task Empty_Bulk_Result_Skips_Confirmation_And_Category_Prompt()
     {
-        var (handler, bot, listService, history, categoryCaptureService, _) = CreateHandler();
+        var (handler, bot, listService, history, tagCaptureService, _) = CreateHandler();
         listService.Setup(s => s.AddItemsAsync(It.IsAny<string>(), 10, "Alice"))
             .ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
 
         await handler.HandleAsync(GroupBuyMessage(","), CancellationToken.None);
 
         bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Never);
-        categoryCaptureService.Verify(s => s.StartCategoryCaptureAsync(
-            It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+        tagCaptureService.Verify(s => s.StartTagCaptureAsync(
+            It.IsAny<long>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<IReadOnlyList<int>>(), It.IsAny<string>(),
+            It.IsAny<IReadOnlyCollection<string>?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -175,7 +179,7 @@ public class BuyCommandHandlerTests
             new() { Id = 2, GroupId = 10, Name = "Яйца", Quantity = null, AddedByName = "Alice" },
         };
 
-        var (handler, _, listService, history, categoryCaptureService, _) = CreateHandler();
+        var (handler, _, listService, history, tagCaptureService, _) = CreateHandler();
         listService.Setup(s => s.AddItemsAsync(It.IsAny<string>(), 10, "Alice"))
             .ReturnsAsync(items.AsReadOnly());
 
@@ -186,8 +190,9 @@ public class BuyCommandHandlerTests
             It.IsAny<string>(), null, It.IsAny<CancellationToken>()),
             Times.Exactly(2));
 
-        categoryCaptureService.Verify(s => s.StartCategoryCaptureAsync(
-            -100L, 42L, 10, It.Is<IReadOnlyList<int>>(ids => ids.Count == 2 && ids[0] == 1 && ids[1] == 2), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+        tagCaptureService.Verify(s => s.StartTagCaptureAsync(
+            -100L, 42L, 10, It.Is<IReadOnlyList<int>>(ids => ids.Count == 2 && ids[0] == 1 && ids[1] == 2), It.IsAny<string>(),
+            It.IsAny<IReadOnlyCollection<string>?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 

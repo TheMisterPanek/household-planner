@@ -17,7 +17,8 @@ public class ShoppingListServiceTests
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
         var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, localizer.Object);
 
         var (text, keyboard, group) = await service.BuildListAsync(1);
 
@@ -26,8 +27,8 @@ public class ShoppingListServiceTests
         Assert.Equal(10, group.Id);
     }
 
-    // TDD — bug #4: when a category filter matches zero active items (e.g. the last item in that
-    // category was bought between render and tap), BuildListAsync must still return a keyboard with an
+    // TDD — bug #4: when a tag filter matches zero active items (e.g. the last item carrying that
+    // tag was bought between render and tap), BuildListAsync must still return a keyboard with an
     // "All" button so the user can clear the filter. Returning a null keyboard strands them.
     [Fact]
     public async Task Filtered_View_With_No_Matches_Should_Offer_All_Button()
@@ -36,16 +37,17 @@ public class ShoppingListServiceTests
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
         var items = new List<ShoppingItem>
         {
-            new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Иван", Category = "Еда" },
+            new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Иван", Tags = new[] { "Еда" } },
         };
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
-        itemRepo.Setup(r => r.GetDistinctCategoriesAsync(10)).ReturnsAsync(new[] { "Еда" });
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetDistinctTagsAsync(10)).ReturnsAsync(new[] { "Еда" });
         var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, tagRepo.Object, localizer.Object);
 
-        // Filter by a category that no active item carries.
-        var (_, keyboard, _) = await service.BuildListAsync(1, 1, "Химия");
+        // Filter by a tag that no active item carries.
+        var (_, keyboard, _) = await service.BuildListAsync(1, 1, new[] { "Химия" });
 
         Assert.NotNull(keyboard);
         Assert.Contains(
@@ -65,7 +67,8 @@ public class ShoppingListServiceTests
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
         var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, localizer.Object);
 
         var (text, keyboard, group) = await service.BuildListAsync(1);
 
@@ -97,7 +100,8 @@ public class ShoppingListServiceTests
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
         var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, localizer.Object);
 
         var (text, keyboard, _) = await service.BuildListAsync(1);
 
@@ -131,7 +135,8 @@ public class ShoppingListServiceTests
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
         var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, localizer.Object);
 
         var (text, keyboard, _) = await service.BuildListAsync(1);
 
@@ -155,7 +160,8 @@ public class ShoppingListServiceTests
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
         var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object, localizer.Object);
+        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, localizer.Object);
 
         var (pagedItems, totalItems, totalPages, actualPage) = await service.GetPagedItemsAsync(10, pageNumber: 1, pageSize: 2);
 
@@ -180,7 +186,8 @@ public class ShoppingListServiceTests
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
         var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object, localizer.Object);
+        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, localizer.Object);
 
         var (pagedItems, totalItems, totalPages, actualPage) = await service.GetPagedItemsAsync(10, pageNumber: 99, pageSize: 2);
 
@@ -199,7 +206,8 @@ public class ShoppingListServiceTests
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(new List<ShoppingItem>().AsReadOnly());
         var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object, localizer.Object);
+        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, localizer.Object);
 
         var (pagedItems, totalItems, totalPages, actualPage) = await service.GetPagedItemsAsync(10, pageNumber: 1, pageSize: 10);
 
@@ -219,7 +227,8 @@ public class ShoppingListServiceTests
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
         var localizer = CreateLocalizerMock();
 
-        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object, localizer.Object);
+        var service = new ShoppingListService(new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, localizer.Object);
 
         var (pagedItems, totalItems, totalPages, actualPage) = await service.GetPagedItemsAsync(10, pageNumber: 1, pageSize: 10);
 
@@ -235,7 +244,7 @@ public class ShoppingListServiceTests
         var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
         var added = await service.AddItemsAsync("Молоко", groupId: 10, addedByName: "Ivan");
         Assert.Single(added);
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Ivan", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Ivan", null), Times.Once);
     }
 
     [Fact]
@@ -244,7 +253,7 @@ public class ShoppingListServiceTests
         var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
         var added = await service.AddItemsAsync("Молоко 2л", groupId: 10, addedByName: "Ivan");
         Assert.Single(added);
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Ivan", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Ivan", null), Times.Once);
     }
 
     [Fact]
@@ -253,7 +262,7 @@ public class ShoppingListServiceTests
         var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
         var added = await service.AddItemsAsync("Молоко, Яйца, Хлеб", groupId: 10, addedByName: "Ivan");
         Assert.Equal(3, added.Count);
-        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), null, "Ivan", null, null), Times.Exactly(3));
+        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), null, "Ivan", null), Times.Exactly(3));
     }
 
     [Fact]
@@ -262,9 +271,9 @@ public class ShoppingListServiceTests
         var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
         var added = await service.AddItemsAsync("Молоко 2л, Яйца 6, Хлеб", groupId: 10, addedByName: "Ivan");
         Assert.Equal(3, added.Count);
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Ivan", null, null), Times.Once);
-        itemRepo.Verify(r => r.AddAsync(10, "Яйца", "6", "Ivan", null, null), Times.Once);
-        itemRepo.Verify(r => r.AddAsync(10, "Хлеб", null, "Ivan", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", "2 л", "Ivan", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Яйца", "6", "Ivan", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Хлеб", null, "Ivan", null), Times.Once);
     }
 
     [Fact]
@@ -273,9 +282,9 @@ public class ShoppingListServiceTests
         var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
         var added = await service.AddItemsAsync("  Молоко  ,  Яйца  ,  Хлеб  ", groupId: 10, addedByName: "Ivan");
         Assert.Equal(3, added.Count);
-        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Ivan", null, null), Times.Once);
-        itemRepo.Verify(r => r.AddAsync(10, "Яйца", null, "Ivan", null, null), Times.Once);
-        itemRepo.Verify(r => r.AddAsync(10, "Хлеб", null, "Ivan", null, null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Молоко", null, "Ivan", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Яйца", null, "Ivan", null), Times.Once);
+        itemRepo.Verify(r => r.AddAsync(10, "Хлеб", null, "Ivan", null), Times.Once);
     }
 
     [Fact]
@@ -285,7 +294,7 @@ public class ShoppingListServiceTests
         var csv = string.Join(", ", Enumerable.Range(1, 21).Select(i => $"Item{i}"));
         var added = await service.AddItemsAsync(csv, groupId: 10, addedByName: "Ivan");
         Assert.Equal(20, added.Count);
-        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), It.IsAny<string?>(), "Ivan", null, null), Times.Exactly(20));
+        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), It.IsAny<string?>(), "Ivan", null), Times.Exactly(20));
     }
 
     [Fact]
@@ -294,39 +303,41 @@ public class ShoppingListServiceTests
         var (service, itemRepo) = CreateServiceWithItemRepo(groupId: 10);
         var added = await service.AddItemsAsync("Молоко,,Яйца", groupId: 10, addedByName: "Ivan");
         Assert.Equal(2, added.Count);
-        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), It.IsAny<string?>(), "Ivan", null, null), Times.Exactly(2));
+        itemRepo.Verify(r => r.AddAsync(10, It.IsAny<string>(), It.IsAny<string?>(), "Ivan", null), Times.Exactly(2));
     }
 
     private static (ShoppingListService Service, Mock<ShoppingItemRepository> ItemRepo) CreateServiceWithItemRepo(int groupId)
     {
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
         itemRepo
-            .Setup(r => r.AddAsync(groupId, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>(), null))
-            .ReturnsAsync((int gid, string name, string? qty, string by, DateOnly? exp, string? category) =>
+            .Setup(r => r.AddAsync(groupId, It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<DateOnly?>()))
+            .ReturnsAsync((int gid, string name, string? qty, string by, DateOnly? exp) =>
                 new ShoppingItem { Id = 1, GroupId = gid, Name = name, Quantity = qty, AddedByName = by });
 
         var groupRepo = new Mock<GroupRepository>("Data Source=file::memory:?cache=shared");
         var localizer = CreateLocalizerMock();
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, localizer.Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, localizer.Object);
         return (service, itemRepo);
     }
 
     [Fact]
-    public async Task GetPagedItemsAsync_WithCategory_FiltersCaseInsensitively()
+    public async Task GetPagedItemsAsync_WithTag_FiltersCaseInsensitively()
     {
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
         var items = new List<ShoppingItem>
         {
-            new() { Id = 1, GroupId = 10, Name = "Порошок", AddedByName = "Ivan", Category = "Химия" },
-            new() { Id = 2, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Category = "Еда" },
-            new() { Id = 3, GroupId = 10, Name = "Отбеливатель", AddedByName = "Ivan", Category = "химия" },
+            new() { Id = 1, GroupId = 10, Name = "Порошок", AddedByName = "Ivan", Tags = new[] { "Химия" } },
+            new() { Id = 2, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Tags = new[] { "Еда" } },
+            new() { Id = 3, GroupId = 10, Name = "Отбеливатель", AddedByName = "Ivan", Tags = new[] { "химия" } },
         };
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
 
         var service = new ShoppingListService(
-            new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object, CreateLocalizerMock().Object);
+            new Mock<GroupRepository>("Data Source=file::memory:?cache=shared").Object, itemRepo.Object,
+                new Mock<TagRepository>("Data Source=file::memory:").Object, CreateLocalizerMock().Object);
 
-        var (pagedItems, totalItems, totalPages, actualPage) = await service.GetPagedItemsAsync(10, pageNumber: 1, pageSize: 10, category: "Химия");
+        var (pagedItems, totalItems, totalPages, actualPage) = await service.GetPagedItemsAsync(10, pageNumber: 1, pageSize: 10, tagNames: new[] { "Химия" });
 
         Assert.Equal(2, totalItems);
         Assert.Equal(1, totalPages);
@@ -335,7 +346,7 @@ public class ShoppingListServiceTests
     }
 
     [Fact]
-    public async Task BuildListAsync_NoCategorizedItems_OmitsFilterRow()
+    public async Task BuildListAsync_NoTaggedItems_OmitsFilterRow()
     {
         var groupRepo = CreateGroupRepoMock(chatId: 1, groupId: 10);
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
@@ -344,9 +355,10 @@ public class ShoppingListServiceTests
             new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Ivan" },
         };
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
-        itemRepo.Setup(r => r.GetDistinctCategoriesAsync(10)).ReturnsAsync(Array.Empty<string>());
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetDistinctTagsAsync(10)).ReturnsAsync(Array.Empty<string>());
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, CreateLocalizerMock().Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, tagRepo.Object, CreateLocalizerMock().Object);
 
         var (_, keyboard, _) = await service.BuildListAsync(1);
 
@@ -355,18 +367,19 @@ public class ShoppingListServiceTests
     }
 
     [Fact]
-    public async Task BuildListAsync_WithCategorizedItems_AddsFilterRow()
+    public async Task BuildListAsync_WithTaggedItems_AddsFilterRow()
     {
         var groupRepo = CreateGroupRepoMock(chatId: 1, groupId: 10);
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
         var items = new List<ShoppingItem>
         {
-            new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Category = "Еда" },
+            new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Tags = new[] { "Еда" } },
         };
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
-        itemRepo.Setup(r => r.GetDistinctCategoriesAsync(10)).ReturnsAsync(new List<string> { "Еда" });
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetDistinctTagsAsync(10)).ReturnsAsync(new List<string> { "Еда" });
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, CreateLocalizerMock().Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, tagRepo.Object, CreateLocalizerMock().Object);
 
         var (_, keyboard, _) = await service.BuildListAsync(1);
 
@@ -385,17 +398,19 @@ public class ShoppingListServiceTests
         var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
         var items = new List<ShoppingItem>
         {
-            new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Category = "Еда" },
+            new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Tags = new[] { "Еда" } },
         };
         itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
-        itemRepo.Setup(r => r.GetDistinctCategoriesAsync(10)).ReturnsAsync(new List<string> { "Еда" });
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetDistinctTagsAsync(10)).ReturnsAsync(new List<string> { "Еда" });
 
-        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, CreateLocalizerMock().Object);
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, tagRepo.Object, CreateLocalizerMock().Object);
 
-        var (_, keyboard, _) = await service.BuildListAsync(1, category: "Еда");
+        var (_, keyboard, _) = await service.BuildListAsync(1, activeTagNames: new[] { "Еда" });
 
         var filterRow = keyboard!.InlineKeyboard.ElementAt(1);
         Assert.Equal(2, filterRow.Count());
+        Assert.Equal("✓ Еда", filterRow.First().Text);
         Assert.Equal("list_filter:1:-1:1", filterRow.Last().CallbackData);
     }
 
