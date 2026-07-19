@@ -89,8 +89,8 @@ public class ListPrevCallbackHandler : ICallbackHandler
 
         try
         {
-            var (_, totalItems, totalPages, actualPageNumber) = await this.listService.GetPagedItemsAsync(group.Id, pageNumber, pageSize: 10);
-            var payload = new ListViewedPayload(actualPageNumber, 10, totalItems);
+            var (_, totalItems, totalPages, actualPageNumber) = await this.listService.GetPagedItemsAsync(group.Id, pageNumber, ShoppingListService.ActionPageSize);
+            var payload = new ListViewedPayload(actualPageNumber, ShoppingListService.ActionPageSize, totalItems);
             var payloadJson = JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.ListViewedPayload);
             await this.historyRepository.RecordAsync(
                 chatId: callbackQuery.Message.Chat.Id,

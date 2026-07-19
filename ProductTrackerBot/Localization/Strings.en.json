@@ -41,7 +41,7 @@
   "language.confirmation": "✓ Language updated",
   "list.header": "📋 Shopping List",
   "list.empty": "Your shopping list is empty",
-  "list.remove": "Remove",
+  "list.remove": "✕",
   "shop:remove:{item.Id}": "🗑️",
   "prices.group-only": "❌ The /prices command only works in group chats.",
   "prices.usage": "Usage: /prices <item name>\nExample: /prices milk",
@@ -137,6 +137,7 @@
   "tag.set-confirmation": "✓ Tags \"{tags}\" set",
   "tag.set-confirmation-empty": "✓ No tags set",
   "tag.free-text-added": "✓ Tag \"{tag}\" added",
-  "list.filter-all": "All"
+  "list.filter-all": "All",
+  "list.tags-label": "Tags"
 }
 

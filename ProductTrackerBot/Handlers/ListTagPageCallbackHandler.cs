@@ -1,4 +1,4 @@
-// <copyright file="ListNextCallbackHandler.cs" company="PlaceholderCompany">
+// <copyright file="ListTagPageCallbackHandler.cs" company="PlaceholderCompany">
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
 
@@ -13,40 +13,45 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 
 /// <summary>
-/// Handles the list next page navigation callback.
+/// Handles taps on the /list tag-pagination row — re-renders the list showing a different page of the
+/// tag/filter list, preserving the current item page and active tag filter.
 /// </summary>
-public class ListNextCallbackHandler : ICallbackHandler
+public class ListTagPageCallbackHandler : ICallbackHandler
 {
     private readonly ITelegramBotClient botClient;
     private readonly ShoppingListService listService;
     private readonly GroupRepository groupRepository;
+    private readonly TagRepository tagRepository;
     private readonly IHistoryRepository historyRepository;
-    private readonly ILogger<ListNextCallbackHandler> logger;
+    private readonly ILogger<ListTagPageCallbackHandler> logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ListNextCallbackHandler"/> class.
+    /// Initializes a new instance of the <see cref="ListTagPageCallbackHandler"/> class.
     /// </summary>
     /// <param name="botClient">The Telegram bot client.</param>
     /// <param name="listService">The shopping list service.</param>
     /// <param name="groupRepository">The group repository.</param>
+    /// <param name="tagRepository">The tag repository.</param>
     /// <param name="historyRepository">The history repository.</param>
     /// <param name="logger">The logger.</param>
-    public ListNextCallbackHandler(
+    public ListTagPageCallbackHandler(
         ITelegramBotClient botClient,
         ShoppingListService listService,
         GroupRepository groupRepository,
+        TagRepository tagRepository,
         IHistoryRepository historyRepository,
-        ILogger<ListNextCallbackHandler> logger)
+        ILogger<ListTagPageCallbackHandler> logger)
     {
         this.botClient = botClient;
         this.listService = listService;
         this.groupRepository = groupRepository;
+        this.tagRepository = tagRepository;
         this.historyRepository = historyRepository;
         this.logger = logger;
     }
 
     /// <inheritdoc/>
-    public string CallbackPrefix => "list_next:";
+    public string CallbackPrefix => "list_tagpage:";
 
     /// <inheritdoc/>
     public async Task HandleAsync(CallbackQuery callbackQuery, CancellationToken cancellationToken)
@@ -56,16 +61,40 @@ public class ListNextCallbackHandler : ICallbackHandler
             return;
         }
 
-        var data = callbackQuery.Data["list_next:".Length..];
+        var data = callbackQuery.Data[this.CallbackPrefix.Length..];
         var parts = data.Split(':');
-        if (parts.Length != 2 || !long.TryParse(parts[0], out var groupChatId) || !int.TryParse(parts[1], out var pageNumber))
+        if (parts.Length != 4
+            || !long.TryParse(parts[0], out var groupChatId)
+            || !int.TryParse(parts[2], out var pageNumber)
+            || !int.TryParse(parts[3], out var tagPageNumber))
         {
-            this.logger.LogWarning("Invalid data in list_next callback: {Data}", data);
+            this.logger.LogWarning("Invalid data in list_tagpage callback: {Data}", data);
             return;
         }
 
         var group = await this.groupRepository.GetOrCreateAsync(groupChatId);
-        var (messageText, keyboard, _) = await this.listService.BuildListAsync(groupChatId, pageNumber);
+
+        var tagIndices = parts[1]
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => int.TryParse(s, out var idx) ? idx : -1)
+            .Where(idx => idx >= 0)
+            .ToList();
+
+        IReadOnlyCollection<string>? tagNames = null;
+        if (tagIndices.Count > 0)
+        {
+            var allTags = await this.tagRepository.GetDistinctTagsAsync(group.Id);
+            var resolved = tagIndices
+                .Where(idx => idx < allTags.Count)
+                .Select(idx => allTags[idx])
+                .ToList();
+            if (resolved.Count > 0)
+            {
+                tagNames = resolved;
+            }
+        }
+
+        var (messageText, keyboard, _) = await this.listService.BuildListAsync(groupChatId, pageNumber, tagNames, tagPageNumber);
 
         try
         {
@@ -78,18 +107,21 @@ public class ListNextCallbackHandler : ICallbackHandler
         }
         catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.ErrorCode == 400)
         {
-            var sent = await this.botClient.SendMessage(
-                chatId: callbackQuery.Message.Chat.Id,
-                text: messageText,
-                replyMarkup: keyboard,
-                cancellationToken: cancellationToken);
+            if (!ex.Message.Contains("not modified", StringComparison.OrdinalIgnoreCase))
+            {
+                var sent = await this.botClient.SendMessage(
+                    chatId: callbackQuery.Message.Chat.Id,
+                    text: messageText,
+                    replyMarkup: keyboard,
+                    cancellationToken: cancellationToken);
 
-            await this.groupRepository.UpdateListMessageIdAsync(group.Id, sent.MessageId);
+                await this.groupRepository.UpdateListMessageIdAsync(group.Id, sent.MessageId);
+            }
         }
 
         try
         {
-            var (_, totalItems, totalPages, actualPageNumber) = await this.listService.GetPagedItemsAsync(group.Id, pageNumber, ShoppingListService.ActionPageSize);
+            var (_, totalItems, totalPages, actualPageNumber) = await this.listService.GetPagedItemsAsync(group.Id, pageNumber, ShoppingListService.ActionPageSize, tagNames);
             var payload = new ListViewedPayload(actualPageNumber, ShoppingListService.ActionPageSize, totalItems);
             var payloadJson = JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.ListViewedPayload);
             await this.historyRepository.RecordAsync(

@@ -41,7 +41,7 @@
   "language.confirmation": "✓ Язык обновлен",
   "list.header": "📋 Список покупок",
   "list.empty": "Ваш список покупок пуст",
-  "list.remove": "Удалить",
+  "list.remove": "✕",
   "shop:remove:{item.Id}": "🗑️",
   "prices.group-only": "❌ Команда /prices работает только в групповых чатах.",
   "prices.usage": "Использование: /prices <название товара>\nПример: /prices молоко",
@@ -137,5 +137,6 @@
   "tag.set-confirmation": "✓ Теги «{tags}» установлены",
   "tag.set-confirmation-empty": "✓ Теги не установлены",
   "tag.free-text-added": "✓ Тег «{tag}» добавлен",
-  "list.filter-all": "Все"
+  "list.filter-all": "Все",
+  "list.tags-label": "Теги"
 }

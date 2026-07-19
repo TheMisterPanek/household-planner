@@ -60,11 +60,11 @@ The system SHALL accept `/buy` in a group chat. If arguments are provided inline
 ---
 
 ### Requirement: View shared shopping list via /list command
-The system SHALL post or edit a persistent shopping list message in the group chat showing all current items with inline action buttons. When the group has at least one item carrying one or more tags, the message SHALL include an additional row of tag filter buttons (per the `item-tags` capability) below the item rows.
+The system SHALL post or edit a persistent shopping list message in the group chat showing all current items with inline action buttons. When the group has at least one item carrying one or more tags, the message SHALL include additional rows of tag filter buttons, wrapped to at most 2 buttons per row. The item-pagination row and the tag-pagination row (when present) SHALL each render an inline page indicator button (`[n/N]`) between the Previous/Next buttons.
 
 #### Scenario: List has items
 - **WHEN** a group member sends `/list`
-- **THEN** the bot posts (or edits the existing) list message with header "🛒 Список покупок:" and one inline button row per item: `[✓ Name qty]` and `[✗ Убрать]`
+- **THEN** the bot posts (or edits the existing) list message with header "🛒 Список покупок:" and one inline button row per item: `[✓ Name qty]` and `[✕]`
 
 #### Scenario: List is empty
 - **WHEN** a group member sends `/list` and no items exist
@@ -84,11 +84,43 @@ The system SHALL post or edit a persistent shopping list message in the group ch
 
 #### Scenario: List with no tagged items shows no filter row
 - **WHEN** a group member sends `/list` and no item in the group carries any tag
-- **THEN** the list message renders exactly as before, with no tag filter button row
+- **THEN** the list message renders with no tag filter button rows
 
-#### Scenario: List with tagged items shows a filter row
-- **WHEN** a group member sends `/list` and at least one item carries a tag
-- **THEN** the list message includes a row of tag filter buttons (up to 5, alphabetical) below the item rows, in addition to the unfiltered item list and existing action buttons
+#### Scenario: List with tagged items shows wrapped filter rows
+- **WHEN** a group member sends `/list` and at least one item carries a tag, with 5 tags plus "All Items" active (6 buttons total)
+- **THEN** the filter buttons render across 3 rows of at most 2 buttons each, rather than one crowded row
+
+#### Scenario: Filter row paginates when there are more than 6 tags
+- **WHEN** a group has 10 distinct tags
+- **THEN** the filter block shows tag page 1 (tags 1-6, wrapped 2 per row) followed by a `[1/2] [Next →]` row; tags 7-10 are reachable by paging
+
+#### Scenario: Tag page navigation preserves the active filter and item page
+- **WHEN** a user on tag page 1 taps `[Next →]` in the tag-pagination row
+- **THEN** the bot re-renders the list showing tag page 2, with the current item page and any active tag filter selection unchanged
+
+#### Scenario: Toggling a tag preserves the current tag page
+- **WHEN** a user on tag page 2 taps a tag button to add/remove it from the active filter
+- **THEN** the bot re-renders with the updated filter applied and the tag block still showing tag page 2, not reset to tag page 1
+
+#### Scenario: Item pagination resets the tag page
+- **WHEN** a user taps `[← Previous]`/`[Next →]` on the item-action pagination row while the tag block is showing tag page 2
+- **THEN** the bot re-renders the requested item page with the tag block reset to tag page 1
+
+#### Scenario: All Items and Cancel remain reachable from any tag page
+- **WHEN** a filter is active and the tag block is showing any tag page (not just the last one)
+- **THEN** the "All Items" (clear filter) button and the "Cancel" button render as fixed rows immediately below the tag-page block, regardless of which tag page is displayed
+
+#### Scenario: Item pagination row shows a page indicator
+- **WHEN** the list has more than one carousel page of items
+- **THEN** the pagination row renders `[← Previous] [n/N] [Next →]`, omitting Previous on the first page and Next on the last page
+
+#### Scenario: No pagination row when there is only one page
+- **WHEN** the list has only one carousel page (item count ≤ `ActionPageSize`)
+- **THEN** no pagination row is rendered — only the item action rows, any filter rows, and the final Cancel row
+
+#### Scenario: Tapping the page indicator does nothing
+- **WHEN** a user taps the `[n/N]` page-indicator button (item or tag pagination) on the list message
+- **THEN** the callback query is answered (no loading spinner persists) and the list message, item state, and any pending dialogs are left completely unchanged
 
 ---
 
@@ -129,7 +161,7 @@ When a user taps the ✓ button on a list item, the system SHALL immediately rem
 The system SHALL delete the item from the list when the user taps the remove button. This path is unchanged — no price-capture dialog is initiated.
 
 #### Scenario: User removes item
-- **WHEN** a user taps `[✗ Убрать]` on a list item
+- **WHEN** a user taps `[✕]` on a list item
 - **THEN** the item is deleted from `ShoppingItems` and the list message is updated immediately with no price dialog
 
 ---
@@ -191,10 +223,10 @@ The system SHALL record a `BotActionType.ItemBought` history entry via `IHistory
 ---
 
 ### Requirement: Remove callback records ItemRemoved history entry
-The system SHALL record a `BotActionType.ItemRemoved` history entry via `IHistoryRepository.RecordAsync` after an item is deleted from the database by the `[✗ Убрать]` button callback. The payload SHALL include the item name.
+The system SHALL record a `BotActionType.ItemRemoved` history entry via `IHistoryRepository.RecordAsync` after an item is deleted from the database by the `[✕]` button callback. The payload SHALL include the item name.
 
 #### Scenario: Item removed records history
-- **WHEN** a user taps `[✗ Убрать]` and the item is deleted
+- **WHEN** a user taps `[✕]` and the item is deleted
 - **THEN** an `ItemRemoved` history entry is recorded for the chat with the item name
 
 #### Scenario: History write failure does not suppress remove response
@@ -242,11 +274,11 @@ The system SHALL let a user tap one or more tag filter buttons on the `/list` me
 - **THEN** the bot drops the stale tag from the active set and falls back to the unfiltered "All" view if no active tags remain, rather than showing an empty or error state
 
 ### Requirement: Item rows expose no edit control
-The system SHALL render each `/list` item row with exactly two buttons — `[✓ Name qty]` (mark bought) and `[✗ Убрать]` (remove) — and SHALL NOT include any in-place rename/requantify control. Changing an item's name or quantity requires removing it and re-adding it via `/buy`.
+The system SHALL render each `/list` item row with exactly two buttons — `[✓ Name qty]` (mark bought) and `[✕]` (remove) — and SHALL NOT include any in-place rename/requantify control. Changing an item's name or quantity requires removing it and re-adding it via `/buy`.
 
 #### Scenario: Item row has exactly two buttons
 - **WHEN** a group member sends `/list`
-- **THEN** each item row contains exactly two inline buttons: `[✓ Name qty]` and `[✗ Убрать]`, with no third "edit" button
+- **THEN** each item row contains exactly two inline buttons: `[✓ Name qty]` and `[✕]`, with no third "edit" button
 
 #### Scenario: No callback exists for in-place item editing
 - **WHEN** any callback data matching a legacy `item:edit:*` pattern is received (e.g. from a stale cached keyboard on an old list message)

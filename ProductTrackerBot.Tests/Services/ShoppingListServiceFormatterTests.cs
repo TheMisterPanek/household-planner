@@ -90,12 +90,13 @@ public class ShoppingListServiceFormatterTests
     [Fact]
     public async Task Formatter_LastPageMultiplePages_ShowsPreviousButton()
     {
-        var items = Enumerable.Range(1, 15)
+        var items = Enumerable.Range(1, ShoppingListService.ActionPageSize + 5)
             .Select(i => new ShoppingItem { Id = i, GroupId = 10, Name = $"Item{i}", Quantity = null, AddedByName = "User1" })
             .ToList();
+        var lastPage = (int)Math.Ceiling(items.Count / (double)ShoppingListService.ActionPageSize);
         var service = CreateService(items);
 
-        var (_, keyboard, _) = await service.BuildListAsync(1, pageNumber: 2);
+        var (_, keyboard, _) = await service.BuildListAsync(1, pageNumber: lastPage);
 
         Assert.NotNull(keyboard);
         var allButtons = keyboard!.InlineKeyboard.SelectMany(row => row).ToList();
@@ -109,11 +110,12 @@ public class ShoppingListServiceFormatterTests
         var items = Enumerable.Range(1, 25)
             .Select(i => new ShoppingItem { Id = i, GroupId = 10, Name = $"Item{i}", Quantity = null, AddedByName = "User1" })
             .ToList();
+        var totalPages = (int)Math.Ceiling(items.Count / (double)ShoppingListService.ActionPageSize);
         var service = CreateService(items);
 
         var (text, _, _) = await service.BuildListAsync(1, pageNumber: 2);
 
-        Assert.Contains("Page 2 of 3", text);
+        Assert.Contains($"Page 2 of {totalPages}", text);
         Assert.Contains("(25 total items)", text);
     }
 

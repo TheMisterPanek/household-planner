@@ -52,7 +52,7 @@ public class ShoppingListServiceTests
         Assert.NotNull(keyboard);
         Assert.Contains(
             keyboard!.InlineKeyboard.SelectMany(row => row),
-            btn => btn.CallbackData == "list_filter:1:-1:1");
+            btn => btn.CallbackData == "list_filter:1:-1:1:1");
     }
 
     [Fact]
@@ -380,12 +380,12 @@ public class ShoppingListServiceTests
 
         var (_, keyboard, _) = await service.BuildListAsync(1);
 
-        // Item row + filter row + Cancel row
+        // Item row + filter (tag) row + Cancel row
         Assert.Equal(3, keyboard!.InlineKeyboard.Count());
         var filterRow = keyboard.InlineKeyboard.ElementAt(1);
         Assert.Single(filterRow);
         Assert.Equal("Еда", filterRow.First().Text);
-        Assert.Equal("list_filter:1:0:1", filterRow.First().CallbackData);
+        Assert.Equal("list_filter:1:0:1:1", filterRow.First().CallbackData);
     }
 
     [Fact]
@@ -405,10 +405,140 @@ public class ShoppingListServiceTests
 
         var (_, keyboard, _) = await service.BuildListAsync(1, activeTagNames: new[] { "Еда" });
 
-        var filterRow = keyboard!.InlineKeyboard.ElementAt(1);
-        Assert.Equal(2, filterRow.Count());
-        Assert.Equal("✓ Еда", filterRow.First().Text);
-        Assert.Equal("list_filter:1:-1:1", filterRow.Last().CallbackData);
+        // Item row + tag-toggle row + All-Items row + Cancel row
+        Assert.Equal(4, keyboard!.InlineKeyboard.Count());
+        var tagToggleRow = keyboard.InlineKeyboard.ElementAt(1);
+        Assert.Single(tagToggleRow);
+        Assert.Equal("✓ Еда", tagToggleRow.First().Text);
+
+        var allItemsRow = keyboard.InlineKeyboard.ElementAt(2);
+        Assert.Single(allItemsRow);
+        Assert.Equal("list_filter:1:-1:1:1", allItemsRow.First().CallbackData);
+    }
+
+    [Fact]
+    public async Task Spacer_NotInserted_When_NoPaginationAndNoFilters()
+    {
+        var groupRepo = CreateGroupRepoMock(chatId: 1, groupId: 10);
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
+        var items = new List<ShoppingItem> { new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Иван" } };
+        itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetDistinctTagsAsync(10)).ReturnsAsync(Array.Empty<string>());
+
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, tagRepo.Object, CreateLocalizerMock().Object);
+
+        var (_, keyboard, _) = await service.BuildListAsync(1);
+
+        // Item row + Cancel row only — no pagination, no filters, so no spacer.
+        Assert.Equal(2, keyboard!.InlineKeyboard.Count());
+        Assert.DoesNotContain(keyboard.InlineKeyboard.SelectMany(row => row), btn => btn.CallbackData == "noop");
+    }
+
+    [Fact]
+    public async Task PaginationRow_ShowsPageIndicator_NoFilters()
+    {
+        var groupRepo = CreateGroupRepoMock(chatId: 1, groupId: 10);
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
+        var items = Enumerable.Range(1, ShoppingListService.ActionPageSize + 1)
+            .Select(i => new ShoppingItem { Id = i, GroupId = 10, Name = $"Item{i}", AddedByName = "Иван" })
+            .ToList();
+        itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetDistinctTagsAsync(10)).ReturnsAsync(Array.Empty<string>());
+
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, tagRepo.Object, CreateLocalizerMock().Object);
+
+        var (_, keyboard, _) = await service.BuildListAsync(1);
+
+        // ActionPageSize item rows + pagination row (indicator + Next) + Cancel row
+        var rows = keyboard!.InlineKeyboard.ToList();
+        Assert.Equal(ShoppingListService.ActionPageSize + 2, rows.Count);
+        var paginationRow = rows[ShoppingListService.ActionPageSize].ToList();
+        Assert.Equal("1/2", paginationRow[0].Text);
+        Assert.Equal("noop", paginationRow[0].CallbackData);
+    }
+
+    [Fact]
+    public async Task PaginationRow_And_FilterRow_BothPresent_NoExtraRows()
+    {
+        var groupRepo = CreateGroupRepoMock(chatId: 1, groupId: 10);
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
+        var items = Enumerable.Range(1, ShoppingListService.ActionPageSize + 1)
+            .Select(i => new ShoppingItem { Id = i, GroupId = 10, Name = $"Item{i}", AddedByName = "Иван" })
+            .ToList();
+        itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        tagRepo.Setup(r => r.GetDistinctTagsAsync(10)).ReturnsAsync(new List<string> { "Еда" });
+
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, tagRepo.Object, CreateLocalizerMock().Object);
+
+        var (_, keyboard, _) = await service.BuildListAsync(1);
+
+        // ActionPageSize item rows + pagination row + filter row + Cancel row
+        var rows = keyboard!.InlineKeyboard.ToList();
+        Assert.Equal(ShoppingListService.ActionPageSize + 3, rows.Count);
+        Assert.Single(rows.SelectMany(row => row), btn => btn.CallbackData == "noop");
+    }
+
+    [Fact]
+    public async Task FilterRow_WrapsAtTwoButtonsPerRow_With5Tags()
+    {
+        var groupRepo = CreateGroupRepoMock(chatId: 1, groupId: 10);
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
+        var items = new List<ShoppingItem> { new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Иван" } };
+        itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        var tags = new List<string> { "Tag1", "Tag2", "Tag3", "Tag4", "Tag5" };
+        tagRepo.Setup(r => r.GetDistinctTagsAsync(10)).ReturnsAsync(tags);
+
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, tagRepo.Object, CreateLocalizerMock().Object);
+
+        var (_, keyboard, _) = await service.BuildListAsync(1);
+
+        // item row + 3 wrapped tag rows (2,2,1) + Cancel row
+        var rows = keyboard!.InlineKeyboard.ToList();
+        Assert.Equal(5, rows.Count);
+        Assert.Equal(2, rows[1].Count());
+        Assert.Equal(2, rows[2].Count());
+        Assert.Single(rows[3]);
+    }
+
+    [Fact]
+    public async Task TagPagination_MoreThanTagPageSizeTags_PagesAndClamps()
+    {
+        var groupRepo = CreateGroupRepoMock(chatId: 1, groupId: 10);
+        var itemRepo = new Mock<ShoppingItemRepository>("Data Source=file::memory:?cache=shared");
+        var items = new List<ShoppingItem> { new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Иван" } };
+        itemRepo.Setup(r => r.GetAllAsync(10)).ReturnsAsync(items.AsReadOnly());
+        var tagRepo = new Mock<TagRepository>("Data Source=file::memory:");
+        var tags = Enumerable.Range(1, 8).Select(i => $"Tag{i}").ToList();
+        tagRepo.Setup(r => r.GetDistinctTagsAsync(10)).ReturnsAsync(tags);
+
+        var service = new ShoppingListService(groupRepo.Object, itemRepo.Object, tagRepo.Object, CreateLocalizerMock().Object);
+
+        // Page 1: tags 1-6 (3 wrapped rows), a tag-pagination row with only "Next".
+        var (_, page1Keyboard, _) = await service.BuildListAsync(1);
+        var page1Buttons = page1Keyboard!.InlineKeyboard.SelectMany(row => row).ToList();
+        Assert.Contains(page1Buttons, b => b.Text == "Tag1");
+        Assert.Contains(page1Buttons, b => b.Text == "Tag6");
+        Assert.DoesNotContain(page1Buttons, b => b.Text == "Tag7");
+        Assert.Contains(page1Buttons, b => b.CallbackData!.StartsWith("list_tagpage:1:") && b.Text == "pagination_next_button");
+        Assert.DoesNotContain(page1Buttons, b => b.CallbackData!.StartsWith("list_tagpage:1:") && b.Text == "pagination_previous_button");
+
+        // Page 2: tags 7-8, pagination row shows only "Previous" (last page).
+        var (_, page2Keyboard, _) = await service.BuildListAsync(1, tagPageNumber: 2);
+        var page2Buttons = page2Keyboard!.InlineKeyboard.SelectMany(row => row).ToList();
+        Assert.Contains(page2Buttons, b => b.Text == "Tag7");
+        Assert.Contains(page2Buttons, b => b.Text == "Tag8");
+        Assert.DoesNotContain(page2Buttons, b => b.Text == "Tag1");
+        Assert.Contains(page2Buttons, b => b.CallbackData!.StartsWith("list_tagpage:1:") && b.Text == "pagination_previous_button");
+        Assert.DoesNotContain(page2Buttons, b => b.CallbackData!.StartsWith("list_tagpage:1:") && b.Text == "pagination_next_button");
+
+        // Out-of-range tag page clamps back to page 1.
+        var (_, clampedKeyboard, _) = await service.BuildListAsync(1, tagPageNumber: 99);
+        var clampedButtons = clampedKeyboard!.InlineKeyboard.SelectMany(row => row).ToList();
+        Assert.Contains(clampedButtons, b => b.Text == "Tag1");
     }
 
     private static Mock<GroupRepository> CreateGroupRepoMock(long chatId, int groupId)

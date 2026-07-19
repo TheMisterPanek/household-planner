@@ -15,6 +15,18 @@ using Telegram.Bot.Types.ReplyMarkups;
 /// </summary>
 public class ShoppingListService
 {
+    /// <summary>
+    /// The number of items shown as interactive action-button rows per carousel page. The plain-text
+    /// item listing in the message body always shows every item regardless of this page size.
+    /// </summary>
+    public const int ActionPageSize = 10;
+
+    /// <summary>
+    /// The number of category-filter tags shown per tag page. Groups with more tags than this page through
+    /// them via a dedicated Previous/Next row rather than losing access to tags beyond the first page.
+    /// </summary>
+    public const int TagPageSize = 6;
+
     private const int BulkItemLimit = 20;
 
     private readonly GroupRepository groupRepository;
@@ -110,28 +122,36 @@ public class ShoppingListService
     /// <param name="chatId">The Telegram chat ID.</param>
     /// <param name="pageNumber">The page number for pagination (1-based; defaults to 1).</param>
     /// <param name="activeTagNames">Optional set of currently-active tag filters (OR semantics, case-insensitive); null/empty = unfiltered.</param>
+    /// <param name="tagPageNumber">The tag-filter page number (1-based; defaults to 1). Out-of-range values clamp to 1.</param>
     /// <returns>A tuple of (messageText, inlineKeyboard, group).</returns>
     public virtual async Task<(string MessageText, InlineKeyboardMarkup? Keyboard, Group Group)> BuildListAsync(
         long chatId,
         int pageNumber = 1,
-        IReadOnlyCollection<string>? activeTagNames = null)
+        IReadOnlyCollection<string>? activeTagNames = null,
+        int tagPageNumber = 1)
     {
-        const int pageSize = 10;
         var group = await this.groupRepository.GetOrCreateAsync(chatId);
         var isFiltered = activeTagNames is { Count: > 0 };
 
-        var (pagedItems, totalItems, totalPages, actualPageNumber) = await this.GetPagedItemsAsync(group.Id, pageNumber, pageSize, activeTagNames);
+        var (pagedItems, totalItems, totalPages, actualPageNumber) = await this.GetPagedItemsAsync(group.Id, pageNumber, ActionPageSize, activeTagNames);
 
         var allTags = await this.tagRepository.GetDistinctTagsAsync(group.Id) ?? Array.Empty<string>();
         var activeIndices = isFiltered ? IndicesOfTags(allTags, activeTagNames!) : Array.Empty<int>();
+
+        var totalTagPages = allTags.Count == 0 ? 1 : ((allTags.Count + TagPageSize - 1) / TagPageSize);
+        var actualTagPageNumber = tagPageNumber;
+        if (actualTagPageNumber < 1 || actualTagPageNumber > totalTagPages)
+        {
+            actualTagPageNumber = 1;
+        }
 
         if (totalItems == 0)
         {
             if (isFiltered)
             {
                 // Filtered to a set with no current matches — still offer a way back to the full list.
-                var emptyFilterButtons = BuildFilterButtons(chatId, group.ChatId, allTags, activeIndices, isFiltered);
-                var emptyKeyboard = new InlineKeyboardMarkup(new List<List<InlineKeyboardButton>> { emptyFilterButtons });
+                var emptyFilterRows = this.BuildFilterSectionRows(chatId, group.ChatId, allTags, activeIndices, isFiltered, actualPageNumber, actualTagPageNumber, totalTagPages);
+                var emptyKeyboard = new InlineKeyboardMarkup(emptyFilterRows);
                 return (this.localizer.Get(chatId, "list.empty"), emptyKeyboard, group);
             }
 
@@ -171,40 +191,43 @@ public class ShoppingListService
 
         var activeIndexCsv = string.Join(",", activeIndices);
 
-        // Add pagination buttons if there are multiple pages
+        // Add pagination buttons if there are multiple item-action pages
         if (totalPages > 1)
         {
             var paginationButtons = new List<InlineKeyboardButton>();
             if (actualPageNumber > 1)
             {
                 var callbackData = isFiltered
-                    ? $"list_filter:{group.ChatId}:{activeIndexCsv}:{actualPageNumber - 1}"
+                    ? $"list_filter:{group.ChatId}:{activeIndexCsv}:{actualPageNumber - 1}:{actualTagPageNumber}"
                     : $"list_prev:{group.ChatId}:{actualPageNumber - 1}";
                 paginationButtons.Add(InlineKeyboardButton.WithCallbackData(
                     this.localizer.Get(chatId, "pagination_previous_button"),
                     callbackData));
             }
 
+            paginationButtons.Add(InlineKeyboardButton.WithCallbackData($"{actualPageNumber}/{totalPages}", "noop"));
+
             if (actualPageNumber < totalPages)
             {
                 var callbackData = isFiltered
-                    ? $"list_filter:{group.ChatId}:{activeIndexCsv}:{actualPageNumber + 1}"
+                    ? $"list_filter:{group.ChatId}:{activeIndexCsv}:{actualPageNumber + 1}:{actualTagPageNumber}"
                     : $"list_next:{group.ChatId}:{actualPageNumber + 1}";
                 paginationButtons.Add(InlineKeyboardButton.WithCallbackData(
                     this.localizer.Get(chatId, "pagination_next_button"),
                     callbackData));
             }
 
-            if (paginationButtons.Count > 0)
-            {
-                buttons.Add(paginationButtons);
-            }
+            buttons.Add(paginationButtons);
         }
 
-        // Add tag filter row (only when the group has at least one tagged active item)
-        if (allTags.Count > 0)
+        // Add tag filter section (only when the group has at least one tagged active item)
+        var filterRows = allTags.Count > 0
+            ? this.BuildFilterSectionRows(chatId, group.ChatId, allTags, activeIndices, isFiltered, actualPageNumber, actualTagPageNumber, totalTagPages)
+            : new List<List<InlineKeyboardButton>>();
+
+        if (filterRows.Count > 0)
         {
-            buttons.Add(BuildFilterButtons(chatId, group.ChatId, allTags, activeIndices, isFiltered));
+            buttons.AddRange(filterRows);
         }
 
         // Add page footer
@@ -212,6 +235,11 @@ public class ShoppingListService
         var ofLabel = this.localizer.Get(chatId, "pagination_of_label");
         var itemsLabel = this.localizer.Get(chatId, "pagination_items_label");
         sb.AppendLine($"\n{pageLabel} {actualPageNumber} {ofLabel} {totalPages} ({totalItems} {itemsLabel})");
+        if (totalTagPages > 1)
+        {
+            var tagsLabel = this.localizer.Get(chatId, "list.tags-label");
+            sb.AppendLine($"{tagsLabel}: {pageLabel} {actualTagPageNumber} {ofLabel} {totalTagPages}");
+        }
 
         // Add Cancel button as the last row
         buttons.Add(
@@ -222,11 +250,23 @@ public class ShoppingListService
         return (sb.ToString(), new InlineKeyboardMarkup(buttons), group);
     }
 
-    private List<InlineKeyboardButton> BuildFilterButtons(long chatId, long groupChatId, IReadOnlyList<string> allTags, IReadOnlyList<int> activeIndices, bool isFiltered)
+    private List<List<InlineKeyboardButton>> BuildFilterSectionRows(
+        long chatId,
+        long groupChatId,
+        IReadOnlyList<string> allTags,
+        IReadOnlyList<int> activeIndices,
+        bool isFiltered,
+        int itemPageNumber,
+        int actualTagPageNumber,
+        int totalTagPages)
     {
-        var filterButtons = new List<InlineKeyboardButton>();
-        var visibleCount = Math.Min(allTags.Count, 5);
-        for (int i = 0; i < visibleCount; i++)
+        var rows = new List<List<InlineKeyboardButton>>();
+        var activeIndexCsv = string.Join(",", activeIndices);
+        var skip = (actualTagPageNumber - 1) * TagPageSize;
+        var take = Math.Min(TagPageSize, allTags.Count - skip);
+
+        var tagButtons = new List<InlineKeyboardButton>();
+        for (int i = skip; i < skip + take; i++)
         {
             var isActive = activeIndices.Contains(i);
             var newIndices = isActive
@@ -240,19 +280,47 @@ public class ShoppingListService
                 label = $"✓ {label}";
             }
 
-            filterButtons.Add(InlineKeyboardButton.WithCallbackData(
+            tagButtons.Add(InlineKeyboardButton.WithCallbackData(
                 label,
-                $"list_filter:{groupChatId}:{newCsv}:1"));
+                $"list_filter:{groupChatId}:{newCsv}:1:{actualTagPageNumber}"));
+        }
+
+        foreach (var chunk in tagButtons.Chunk(2))
+        {
+            rows.Add(chunk.ToList());
+        }
+
+        if (totalTagPages > 1)
+        {
+            var tagPaginationButtons = new List<InlineKeyboardButton>();
+            if (actualTagPageNumber > 1)
+            {
+                tagPaginationButtons.Add(InlineKeyboardButton.WithCallbackData(
+                    this.localizer.Get(chatId, "pagination_previous_button"),
+                    $"list_tagpage:{groupChatId}:{activeIndexCsv}:{itemPageNumber}:{actualTagPageNumber - 1}"));
+            }
+
+            tagPaginationButtons.Add(InlineKeyboardButton.WithCallbackData($"{actualTagPageNumber}/{totalTagPages}", "noop"));
+
+            if (actualTagPageNumber < totalTagPages)
+            {
+                tagPaginationButtons.Add(InlineKeyboardButton.WithCallbackData(
+                    this.localizer.Get(chatId, "pagination_next_button"),
+                    $"list_tagpage:{groupChatId}:{activeIndexCsv}:{itemPageNumber}:{actualTagPageNumber + 1}"));
+            }
+
+            rows.Add(tagPaginationButtons);
         }
 
         if (isFiltered)
         {
-            filterButtons.Add(InlineKeyboardButton.WithCallbackData(
-                this.localizer.Get(chatId, "list.filter-all"),
-                $"list_filter:{groupChatId}:-1:1"));
+            rows.Add(
+            [
+                InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "list.filter-all"), $"list_filter:{groupChatId}:-1:1:1"),
+            ]);
         }
 
-        return filterButtons;
+        return rows;
     }
 
     /// <summary>

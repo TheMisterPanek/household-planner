@@ -223,6 +223,8 @@ builder.Services.AddScoped<ICallbackHandler, TagToggleCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, TagDoneCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, TagSkipCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ListFilterCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, NoOpCallbackHandler>();
+builder.Services.AddScoped<ICallbackHandler, ListTagPageCallbackHandler>();
 
 var host = builder.Build();
 await host.RunAsync();

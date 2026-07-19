@@ -41,7 +41,7 @@
   "language.confirmation": "✓ Język zaktualizowany",
   "list.header": "📋 Lista zakupów",
   "list.empty": "Twoja lista zakupów jest pusta",
-  "list.remove": "Usuń",
+  "list.remove": "✕",
   "shop:remove:{item.Id}": "🗑️",
   "prices.group-only": "❌ Polecenie /prices działa tylko w czatach grupowych.",
   "prices.usage": "Użycie: /prices <nazwa produktu>\nPrzykład: /prices mleko",
@@ -137,5 +137,6 @@
   "tag.set-confirmation": "✓ Ustawiono tagi „{tags}”",
   "tag.set-confirmation-empty": "✓ Nie ustawiono tagów",
   "tag.free-text-added": "✓ Dodano tag „{tag}”",
-  "list.filter-all": "Wszystkie"
+  "list.filter-all": "Wszystkie",
+  "list.tags-label": "Tagi"
 }

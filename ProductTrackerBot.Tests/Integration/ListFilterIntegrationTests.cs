@@ -1,3 +1,4 @@
+using ProductTrackerBot.Services;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace ProductTrackerBot.Tests.Integration;
@@ -53,7 +54,7 @@ public class ListFilterIntegrationTests : TelegramIntegrationTestBase
         var filteredKeyboard = Assert.IsType<InlineKeyboardMarkup>(filteredEdit.ReplyMarkup);
         var allButton = filteredKeyboard.InlineKeyboard
             .SelectMany(row => row)
-            .First(btn => btn.CallbackData == "list_filter:-100:-1:1");
+            .First(btn => btn.CallbackData == "list_filter:-100:-1:1:1");
 
         await DispatchAsync(CallbackUpdate(-100, 42, 1, allButton.CallbackData!));
 
@@ -119,8 +120,10 @@ public class ListFilterIntegrationTests : TelegramIntegrationTestBase
     {
         await ClearDataAsync();
 
+        var itemCount = ShoppingListService.ActionPageSize * 2;
+        var totalPages = 2;
         var group = await GroupRepository.GetOrCreateAsync(-100);
-        for (int i = 1; i <= 12; i++)
+        for (int i = 1; i <= itemCount; i++)
         {
             var item = await ItemRepository.AddAsync(group.Id, $"Товар{i}", null, "TestUser");
             await TagRepository.SetItemTagsAsync(new[] { item.Id }, group.Id, new[] { "Химия" });
@@ -137,25 +140,29 @@ public class ListFilterIntegrationTests : TelegramIntegrationTestBase
 
         await DispatchAsync(CallbackUpdate(-100, 42, 1, filterButton.CallbackData!));
 
-        var page1Edit = GetLastEditedMessage();
-        Assert.NotNull(page1Edit);
-        var page1Keyboard = Assert.IsType<InlineKeyboardMarkup>(page1Edit!.ReplyMarkup);
-        var nextButton = page1Keyboard.InlineKeyboard
-            .SelectMany(row => row)
-            .First(btn => btn.CallbackData?.StartsWith("list_filter:-100:0:2") == true);
+        // itemCount items at ActionPageSize per page → exactly 2 pages; page through to the last page.
+        for (int page = 2; page <= totalPages; page++)
+        {
+            var currentEdit = GetLastEditedMessage();
+            Assert.NotNull(currentEdit);
+            var currentKeyboard = Assert.IsType<InlineKeyboardMarkup>(currentEdit!.ReplyMarkup);
+            var nextButton = currentKeyboard.InlineKeyboard
+                .SelectMany(row => row)
+                .First(btn => btn.CallbackData?.StartsWith($"list_filter:-100:0:{page}:") == true);
 
-        await DispatchAsync(CallbackUpdate(-100, 42, 1, nextButton.CallbackData!));
+            await DispatchAsync(CallbackUpdate(-100, 42, 1, nextButton.CallbackData!));
+        }
 
-        var page2Edit = GetLastEditedMessage();
-        Assert.NotNull(page2Edit);
-        var page2Keyboard = Assert.IsType<InlineKeyboardMarkup>(page2Edit!.ReplyMarkup);
-        var itemButtons = page2Keyboard.InlineKeyboard
+        var lastPageEdit = GetLastEditedMessage();
+        Assert.NotNull(lastPageEdit);
+        var lastPageKeyboard = Assert.IsType<InlineKeyboardMarkup>(lastPageEdit!.ReplyMarkup);
+        var itemButtons = lastPageKeyboard.InlineKeyboard
             .SelectMany(row => row)
             .Where(btn => btn.CallbackData?.StartsWith("shop:done:") == true)
             .Select(btn => btn.Text)
             .ToList();
-        Assert.Equal(2, itemButtons.Count);
-        Assert.Contains("✓ Товар11", itemButtons);
-        Assert.Contains("✓ Товар12", itemButtons);
+        Assert.Equal(ShoppingListService.ActionPageSize, itemButtons.Count);
+        Assert.Contains($"✓ Товар{itemCount - 1}", itemButtons);
+        Assert.Contains($"✓ Товар{itemCount}", itemButtons);
     }
 }

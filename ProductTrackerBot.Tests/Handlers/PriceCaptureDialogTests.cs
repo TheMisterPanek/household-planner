@@ -108,7 +108,7 @@ public class PriceCaptureDialogTests
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
                 new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
-        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
+        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null, It.IsAny<int>()))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
 
         var groupRepo = CreateGroupRepoMock();
@@ -179,7 +179,7 @@ public class PriceCaptureDialogTests
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
                 new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
-        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
+        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null, It.IsAny<int>()))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
 
         var groupRepo = CreateGroupRepoMock();
@@ -514,7 +514,7 @@ public class PriceCaptureDialogTests
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
                 new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
-        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
+        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null, It.IsAny<int>()))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
 
         var groupRepo = CreateGroupRepoMock();
@@ -572,7 +572,7 @@ public class PriceCaptureDialogTests
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
                 new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
-        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
+        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null, It.IsAny<int>()))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
 
         var groupRepo = CreateGroupRepoMock();
@@ -630,7 +630,7 @@ public class PriceCaptureDialogTests
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
                 new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
-        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
+        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null, It.IsAny<int>()))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
 
         var groupRepo = CreateGroupRepoMock();
@@ -771,7 +771,7 @@ public class PriceCaptureDialogTests
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
                 new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
-        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
+        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null, It.IsAny<int>()))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
 
         var groupRepo = CreateGroupRepoMock();
@@ -1196,7 +1196,7 @@ public class PriceCaptureDialogTests
             new Mock<ShoppingItemRepository>("Data Source=file:test").Object,
                 new Mock<TagRepository>("Data Source=file::memory:").Object,
             Mock.Of<ILocalizer>());
-        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null))
+        listService.Setup(s => s.BuildListAsync(-100L, It.IsAny<int>(), null, It.IsAny<int>()))
             .ReturnsAsync(("list text", (InlineKeyboardMarkup?)null, new Group { Id = 10, ChatId = -100L }));
 
         var groupRepo = CreateGroupRepoMock();

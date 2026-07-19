@@ -107,7 +107,7 @@ public class ListCommandHandlerHistoryTests
         var parsed = JsonSerializer.Deserialize<ListViewedPayload>(capturedPayload);
         Assert.NotNull(parsed);
         Assert.Equal(1, parsed.Page);
-        Assert.Equal(10, parsed.PageSize);
+        Assert.Equal(ShoppingListService.ActionPageSize, parsed.PageSize);
         Assert.Equal(0, parsed.TotalItems);
     }
 }

@@ -4,15 +4,15 @@
 TBD - created by archiving change add-pagination-to-list. Update Purpose after archive.
 ## Requirements
 ### Requirement: View paginated shopping list with /list command and page number parameter
-The system SHALL accept an optional page number parameter in the `/list` command. If provided, the bot displays the specified page; if omitted or invalid, it defaults to page 1. The list displays 10 items per page with navigation buttons.
+The system SHALL accept an optional page number parameter in the `/list` command. If provided, the bot displays the specified page; if omitted or invalid, it defaults to page 1. The list displays `ActionPageSize` (10) items per page as action buttons, with navigation buttons; the message's plain-text item listing always shows every item regardless of the current page.
 
 #### Scenario: User sends /list without page number
 - **WHEN** a group member sends `/list`
-- **THEN** the bot displays page 1 of the shopping list (up to 10 items) with `[✓]` and `[✗ Убрать]` buttons per item
+- **THEN** the bot displays page 1 of the shopping list (up to 10 items as action buttons) with `[✓]` and `[✕]` buttons per item, alongside a plain-text listing of all items in the message body
 
 #### Scenario: User sends /list with explicit page number
 - **WHEN** a group member sends `/list 2`
-- **THEN** the bot displays page 2 of the shopping list (items 11-20) with pagination controls
+- **THEN** the bot displays page 2 of the action-button carousel (items 11-20) with pagination controls
 
 #### Scenario: User requests page that exceeds available pages
 - **WHEN** a group member sends `/list 99` but only 3 pages exist
@@ -29,7 +29,7 @@ The system SHALL accept an optional page number parameter in the `/list` command
 ---
 
 ### Requirement: Navigate list pages with Previous and Next buttons
-The system SHALL provide `[← Previous]` and `[Next →]` buttons below the item list. Previous button appears on page 2+; Next button appears when more items exist beyond the current page. Buttons use callbacks that fit the 64-byte Telegram limit.
+The system SHALL provide `[← Previous]` and `[Next →]` buttons below the item list, with an inline `[n/N]` page-indicator button (inert `noop` callback) rendered between them. Previous button appears on page 2+; Next button appears when more items exist beyond the current page. Buttons use callbacks that fit the 64-byte Telegram limit.
 
 #### Scenario: Previous button on page 2
 - **WHEN** user is viewing page 2+ of a list and taps `[← Previous]`
@@ -54,14 +54,14 @@ The system SHALL provide `[← Previous]` and `[Next →]` buttons below the ite
 ---
 
 ### Requirement: Item action buttons work across all pages
-The system SHALL ensure that item buttons (`[✓ Name qty]` and `[✗ Убрать]`) function identically on paginated lists as on non-paginated lists. Removing an item updates the list and resets to page 1.
+The system SHALL ensure that item buttons (`[✓ Name qty]` and `[✕]`) function identically on paginated lists as on non-paginated lists. Removing an item updates the list and resets to page 1.
 
 #### Scenario: Tapping done button on paginated list
 - **WHEN** user taps `[✓ Item Name]` on any page of a paginated list
 - **THEN** the item is deleted, the list message updates to show page 1, and the price-capture dialog is initiated (unchanged from non-paginated behavior)
 
 #### Scenario: Tapping remove button on paginated list
-- **WHEN** user taps `[✗ Убрать]` on any page of a paginated list
+- **WHEN** user taps `[✕]` on any page of a paginated list
 - **THEN** the item is deleted, the list message updates to show page 1, and no dialog is initiated
 
 #### Scenario: Item deletion shifts page contents

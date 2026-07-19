@@ -83,7 +83,7 @@ public class ListFilterCallbackHandlerTests
             new() { Id = 2, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Tags = new[] { "Еда" } },
         };
         var (handler, _) = CreateHandler(bot.Object, items, new[] { "Еда", "Химия" });
-        var callback = CreateCallbackQuery("list_filter:-100:1:1");
+        var callback = CreateCallbackQuery("list_filter:-100:1:1:1");
 
         await handler.HandleAsync(callback, CancellationToken.None);
 
@@ -105,7 +105,7 @@ public class ListFilterCallbackHandlerTests
             new() { Id = 2, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Tags = new[] { "Еда" } },
         };
         var (handler, _) = CreateHandler(bot.Object, items, new[] { "Еда", "Химия" });
-        var callback = CreateCallbackQuery("list_filter:-100:-1:1");
+        var callback = CreateCallbackQuery("list_filter:-100:-1:1:1");
 
         await handler.HandleAsync(callback, CancellationToken.None);
 
@@ -127,7 +127,7 @@ public class ListFilterCallbackHandlerTests
 
         // Tag list shrank since the message was rendered — index 3 no longer resolves.
         var (handler, _) = CreateHandler(bot.Object, items, new[] { "Еда" });
-        var callback = CreateCallbackQuery("list_filter:-100:3:1");
+        var callback = CreateCallbackQuery("list_filter:-100:3:1:1");
 
         await handler.HandleAsync(callback, CancellationToken.None);
 
@@ -149,7 +149,7 @@ public class ListFilterCallbackHandlerTests
             new() { Id = 3, GroupId = 10, Name = "Ключи", AddedByName = "Ivan", Tags = new[] { "Авто" } },
         };
         var (handler, _) = CreateHandler(bot.Object, items, new[] { "Авто", "Еда", "Химия" });
-        var callback = CreateCallbackQuery("list_filter:-100:1,2:1");
+        var callback = CreateCallbackQuery("list_filter:-100:1,2:1:1");
 
         await handler.HandleAsync(callback, CancellationToken.None);
 
@@ -165,20 +165,22 @@ public class ListFilterCallbackHandlerTests
     public async Task FilteredView_PaginatesWithinTag()
     {
         var bot = CreateBotMock();
-        var items = Enumerable.Range(1, 12)
+        var itemCount = ShoppingListService.ActionPageSize * 2;
+        var items = Enumerable.Range(1, itemCount)
             .Select(i => new ShoppingItem { Id = i, GroupId = 10, Name = $"Товар{i}", AddedByName = "Ivan", Tags = new[] { "Химия" } })
             .ToList();
         var (handler, _) = CreateHandler(bot.Object, items, new[] { "Химия" });
-        var callback = CreateCallbackQuery("list_filter:-100:0:2");
+        // itemCount items at ActionPageSize per page → exactly 2 pages; page 2 holds the last ActionPageSize items.
+        var callback = CreateCallbackQuery("list_filter:-100:0:2:1");
 
         await handler.HandleAsync(callback, CancellationToken.None);
 
         bot.Verify(
             b => b.SendRequest(
                 It.Is<EditMessageTextRequest>(r =>
-                    r.ReplyMarkup!.InlineKeyboard.Count(row => row.Any(btn => btn.CallbackData!.StartsWith("shop:done:"))) == 2
-                    && r.ReplyMarkup!.InlineKeyboard.Any(row => row.Any(btn => btn.Text == "✓ Товар11"))
-                    && r.ReplyMarkup!.InlineKeyboard.Any(row => row.Any(btn => btn.Text == "✓ Товар12"))),
+                    r.ReplyMarkup!.InlineKeyboard.Count(row => row.Any(btn => btn.CallbackData!.StartsWith("shop:done:"))) == ShoppingListService.ActionPageSize
+                    && r.ReplyMarkup!.InlineKeyboard.Any(row => row.Any(btn => btn.Text == $"✓ Товар{itemCount - 1}"))
+                    && r.ReplyMarkup!.InlineKeyboard.Any(row => row.Any(btn => btn.Text == $"✓ Товар{itemCount}"))),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -199,13 +201,39 @@ public class ListFilterCallbackHandlerTests
             new() { Id = 1, GroupId = 10, Name = "Порошок", AddedByName = "Ivan", Tags = new[] { "Химия" } },
         };
         var (handler, _) = CreateHandler(bot.Object, items, new[] { "Химия" });
-        var callback = CreateCallbackQuery("list_filter:-100:0:1");
+        var callback = CreateCallbackQuery("list_filter:-100:0:1:1");
 
         await handler.HandleAsync(callback, CancellationToken.None);
 
         // No duplicate list posted; the callback is still answered so the spinner clears.
         bot.Verify(b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Never);
         bot.Verify(b => b.SendRequest(It.IsAny<AnswerCallbackQueryRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task TogglingTag_OnTagPage2_PreservesTagPage2InResponse()
+    {
+        var bot = CreateBotMock();
+        var items = new List<ShoppingItem>
+        {
+            new() { Id = 1, GroupId = 10, Name = "Молоко", AddedByName = "Ivan", Tags = new[] { "Tag7" } },
+        };
+        var tags = Enumerable.Range(1, 8).Select(i => $"Tag{i}").ToList();
+        var (handler, _) = CreateHandler(bot.Object, items, tags);
+
+        // Tap toggles tag index 6 ("Tag7") on, while currently viewing tag page 2.
+        var callback = CreateCallbackQuery("list_filter:-100:6:1:2");
+
+        await handler.HandleAsync(callback, CancellationToken.None);
+
+        bot.Verify(
+            b => b.SendRequest(
+                It.Is<EditMessageTextRequest>(r =>
+                    r.ReplyMarkup!.InlineKeyboard.SelectMany(row => row).Any(btn => btn.Text == "✓ Tag7")
+                    && r.ReplyMarkup!.InlineKeyboard.SelectMany(row => row).Any(btn => btn.Text == "Tag8")
+                    && !r.ReplyMarkup!.InlineKeyboard.SelectMany(row => row).Any(btn => btn.Text == "Tag1")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

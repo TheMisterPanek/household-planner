@@ -62,9 +62,10 @@ public class ListFilterCallbackHandler : ICallbackHandler
 
         var data = callbackQuery.Data[this.CallbackPrefix.Length..];
         var parts = data.Split(':');
-        if (parts.Length != 3
+        if (parts.Length != 4
             || !long.TryParse(parts[0], out var groupChatId)
-            || !int.TryParse(parts[2], out var pageNumber))
+            || !int.TryParse(parts[2], out var pageNumber)
+            || !int.TryParse(parts[3], out var tagPageNumber))
         {
             this.logger.LogWarning("Invalid data in list_filter callback: {Data}", data);
             return;
@@ -92,7 +93,7 @@ public class ListFilterCallbackHandler : ICallbackHandler
             }
         }
 
-        var (messageText, keyboard, _) = await this.listService.BuildListAsync(groupChatId, pageNumber, tagNames);
+        var (messageText, keyboard, _) = await this.listService.BuildListAsync(groupChatId, pageNumber, tagNames, tagPageNumber);
 
         try
         {
@@ -122,8 +123,8 @@ public class ListFilterCallbackHandler : ICallbackHandler
 
         try
         {
-            var (_, totalItems, totalPages, actualPageNumber) = await this.listService.GetPagedItemsAsync(group.Id, pageNumber, pageSize: 10, tagNames);
-            var payload = new ListViewedPayload(actualPageNumber, 10, totalItems);
+            var (_, totalItems, totalPages, actualPageNumber) = await this.listService.GetPagedItemsAsync(group.Id, pageNumber, ShoppingListService.ActionPageSize, tagNames);
+            var payload = new ListViewedPayload(actualPageNumber, ShoppingListService.ActionPageSize, totalItems);
             var payloadJson = JsonSerializer.Serialize(payload, BotActionPayloadContext.Default.ListViewedPayload);
             await this.historyRepository.RecordAsync(
                 chatId: callbackQuery.Message.Chat.Id,

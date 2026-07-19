@@ -242,6 +242,12 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             this.BotMock.Object, listService, this.GroupRepository, this.TagRepository, this.HistoryRepository,
             Mock.Of<ILogger<ListFilterCallbackHandler>>());
 
+        var listTagPageHandler = new ListTagPageCallbackHandler(
+            this.BotMock.Object, listService, this.GroupRepository, this.TagRepository, this.HistoryRepository,
+            Mock.Of<ILogger<ListTagPageCallbackHandler>>());
+
+        var noOpHandler = new NoOpCallbackHandler(this.BotMock.Object);
+
         var tagToggleHandler = new TagToggleCallbackHandler(
             this.BotMock.Object, tagCaptureDialogService, localizer.Object,
             Mock.Of<ILogger<TagToggleCallbackHandler>>());
@@ -337,6 +343,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             aiAddAllHandler, weekCallbackHandler, boughtSkipExpiryCallbackHandler,
             expirySuggestCallbackHandler, useRemoveCallbackHandler,
             tagToggleHandler, tagDoneHandler, tagSkipHandler,
+            listTagPageHandler, noOpHandler,
         };
 
         var dialogHandlers = new List<IDialogMessageHandler>
