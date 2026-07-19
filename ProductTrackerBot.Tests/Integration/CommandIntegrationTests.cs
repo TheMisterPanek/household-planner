@@ -1,5 +1,6 @@
 using Moq;
 using Telegram.Bot.Requests;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace ProductTrackerBot.Tests.Integration;
 
@@ -143,5 +144,26 @@ public class CommandIntegrationTests : TelegramIntegrationTestBase
                 It.Is<SendMessageRequest>(r => r.Text.Contains("Eggs")),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task List_Item_Row_Has_Exactly_Two_Buttons_No_Edit_Button()
+    {
+        await ClearDataAsync();
+
+        await DispatchAsync(CommandUpdate(-100, 42, "/buy Eggs"));
+
+        BotMock.Invocations.Clear();
+        await DispatchAsync(CommandUpdate(-100, 42, "/list"));
+
+        var sent = GetLastSentMessage();
+        Assert.NotNull(sent);
+        var keyboard = Assert.IsType<InlineKeyboardMarkup>(sent!.ReplyMarkup);
+        var row = keyboard.InlineKeyboard.First();
+
+        Assert.Equal(2, row.Count());
+        Assert.DoesNotContain(row, btn => btn.CallbackData?.StartsWith("item:edit:") == true);
+        Assert.Contains(row, btn => btn.CallbackData?.StartsWith("shop:done:") == true);
+        Assert.Contains(row, btn => btn.CallbackData?.StartsWith("shop:remove:") == true);
     }
 }

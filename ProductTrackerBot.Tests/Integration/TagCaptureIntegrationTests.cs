@@ -105,45 +105,6 @@ public class TagCaptureIntegrationTests : TelegramIntegrationTestBase
     }
 
     [Fact]
-    public async Task ItemEdit_ReopensTagPrompt_WithExistingTagsPreselected()
-    {
-        await ClearDataAsync();
-
-        var group = await GroupRepository.GetOrCreateAsync(-100);
-        var item = await ItemRepository.AddAsync(group.Id, "Bread", null, "TestUser", null);
-        await TagRepository.SetItemTagsAsync(new[] { item.Id }, group.Id, new[] { "Бакалея" });
-
-        // "Бакалея" must be among the top-tag suggestions (sourced from purchase history) for the
-        // pre-selected toggle button to render at a known index.
-        var historyId = (await PurchaseRepository.AddAsync(new Models.PurchaseRecord
-        {
-            GroupId = group.Id,
-            UserId = 42,
-            ItemName = "Другое",
-            BoughtByName = "TestUser",
-            PurchasedAt = DateTime.UtcNow,
-        })).Id;
-        await TagRepository.LinkPurchaseHistoryTagsAsync(historyId, group.Id, new[] { "Бакалея" });
-
-        await DispatchAsync(CallbackUpdate(-100, 42, 1, $"item:edit:{item.Id}"));
-        await DispatchAsync(MessageUpdate(-100, 42, "Bread 2 loaves"));
-
-        var saveData = GetLastItemSaveCallbackData();
-        Assert.NotNull(saveData);
-        await DispatchAsync(CallbackUpdate(-100, 42, 2, saveData));
-
-        // Toggle off the pre-selected suggestion (index 0 = "Бакалея") and add a new one via free text.
-        await DispatchAsync(CallbackUpdate(-100, 42, 3, "tag:toggle:0"));
-        await DispatchAsync(MessageUpdate(-100, 42, "Свежая выпечка"));
-        await DispatchAsync(CallbackUpdate(-100, 42, 3, "tag:done"));
-
-        var updated = await ItemRepository.GetByIdAsync(item.Id);
-        Assert.NotNull(updated);
-        Assert.DoesNotContain("Бакалея", updated!.Tags);
-        Assert.Contains("Свежая выпечка", updated.Tags);
-    }
-
-    [Fact]
     public async Task BoughtItem_WithTags_CarriesTagsIntoPurchaseHistory()
     {
         await ClearDataAsync();

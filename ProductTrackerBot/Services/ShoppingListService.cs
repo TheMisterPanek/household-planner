@@ -164,7 +164,6 @@ public class ShoppingListService
                 buttons.Add(
                 [
                     InlineKeyboardButton.WithCallbackData(btnLabel, $"shop:done:{item.Id}"),
-                    InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "item.edit-button"), $"item:edit:{item.Id}"),
                     InlineKeyboardButton.WithCallbackData(this.localizer.Get(chatId, "list.remove"), $"shop:remove:{item.Id}"),
                 ]);
             }

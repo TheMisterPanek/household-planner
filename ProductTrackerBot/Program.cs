@@ -122,13 +122,11 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<ILoginCodeStore>(sp => new LoginCodeStore(connectionString, sp.GetRequiredService<TimeProvider>()));
 
 builder.Services.AddSingleton<PendingAddService>();
-builder.Services.AddSingleton<PendingEditService>();
 builder.Services.AddSingleton<ConversationHistoryService>();
 builder.Services.AddSingleton<AiSuggestionService>();
 
 // Register dialog state services
 builder.Services.AddSingleton<PendingDialogService<BuyDialogState>>();
-builder.Services.AddSingleton<PendingDialogService<EditItemDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<PriceCaptureDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<MealCreateDialogState>>();
 builder.Services.AddSingleton<PendingDialogService<MealAddIngredientDialogState>>();
@@ -194,7 +192,6 @@ builder.Services.AddScoped<IDialogMessageHandler, BuyStepHandler>();
 builder.Services.AddScoped<PriceCaptureStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler>(sp => sp.GetRequiredService<PriceCaptureStepHandler>());
 builder.Services.AddScoped<IDialogMessageHandler, MealDialogStepHandler>();
-builder.Services.AddScoped<IDialogMessageHandler, ItemEditStepHandler>();
 builder.Services.AddScoped<BoughtStepHandler>();
 builder.Services.AddScoped<IDialogMessageHandler>(sp => sp.GetRequiredService<BoughtStepHandler>());
 builder.Services.AddScoped<IDialogMessageHandler, TagCaptureStepHandler>();
@@ -204,9 +201,6 @@ builder.Services.AddScoped<ICallbackHandler, BuySkipCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, BuyConfirmCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, BuyEditCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, BuyCancelCallbackHandler>();
-builder.Services.AddScoped<ICallbackHandler, ItemEditCallbackHandler>();
-builder.Services.AddScoped<ICallbackHandler, ItemSaveCallbackHandler>();
-builder.Services.AddScoped<ICallbackHandler, ItemCancelEditCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopDoneCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, ShopRemoveCallbackHandler>();
 builder.Services.AddScoped<ICallbackHandler, PriceSkipCallbackHandler>();

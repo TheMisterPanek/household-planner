@@ -79,10 +79,9 @@ public class ShoppingListServiceTests
         Assert.Equal(2, keyboard!.InlineKeyboard.Count());
 
         var row = keyboard.InlineKeyboard.First();
-        Assert.Equal(3, row.Count());
+        Assert.Equal(2, row.Count());
         Assert.StartsWith("✓", row.First().Text);
         Assert.Equal("shop:done:1", row.First().CallbackData);
-        Assert.Equal("item:edit:1", row.ElementAt(1).CallbackData);
         Assert.Equal("list.remove", row.Last().Text);
         Assert.Equal("shop:remove:1", row.Last().CallbackData);
     }
@@ -114,12 +113,10 @@ public class ShoppingListServiceTests
         // Verify callback data for both items
         var firstRow = keyboard.InlineKeyboard.First();
         Assert.Equal("shop:done:1", firstRow.First().CallbackData);
-        Assert.Equal("item:edit:1", firstRow.ElementAt(1).CallbackData);
         Assert.Equal("shop:remove:1", firstRow.Last().CallbackData);
 
         var secondRow = keyboard.InlineKeyboard.ElementAt(1);
         Assert.Equal("shop:done:2", secondRow.First().CallbackData);
-        Assert.Equal("item:edit:2", secondRow.ElementAt(1).CallbackData);
         Assert.Equal("shop:remove:2", secondRow.Last().CallbackData);
     }
 

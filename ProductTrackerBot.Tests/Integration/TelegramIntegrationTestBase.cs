@@ -118,7 +118,6 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             .ReturnsAsync(new AiQueryResult("AI response", []));
 
         var buyDialogService = new PendingDialogService<BuyDialogState>();
-        var editItemDialogService = new PendingDialogService<EditItemDialogState>();
         var priceDialogService = new PendingDialogService<PriceCaptureDialogState>();
         var tagCaptureDialogService = new PendingDialogService<TagCaptureDialogState>();
         var mealCreateDialogService = new PendingDialogService<MealCreateDialogState>();
@@ -128,7 +127,6 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         this.BoughtDialogService = boughtDialogService;
 
         var pendingAddService = new PendingAddService();
-        var pendingEditService = new PendingEditService();
         var aiSuggestionService = new AiSuggestionService();
         this.AiSuggestionService = aiSuggestionService;
         var loginCodeStore = new LoginCodeStore(ConnectionString, TimeProvider.System);
@@ -287,16 +285,6 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         var buyCancelHandler = new BuyCancelCallbackHandler(
             this.BotMock.Object, pendingAddService, localizer.Object);
 
-        var itemEditCallbackHandler = new ItemEditCallbackHandler(
-            this.BotMock.Object, this.ItemRepository, editItemDialogService, localizer.Object);
-
-        var itemSaveHandler = new ItemSaveCallbackHandler(
-            this.BotMock.Object, pendingEditService, this.ItemRepository, listService,
-            this.HistoryRepository, tagCaptureService, localizer.Object, Mock.Of<ILogger<ItemSaveCallbackHandler>>());
-
-        var itemCancelEditHandler = new ItemCancelEditCallbackHandler(
-            this.BotMock.Object, pendingEditService, localizer.Object);
-
         var aiAddItemHandler = new AiAddItemCallbackHandler(
             this.BotMock.Object, aiSuggestionService, this.GroupRepository, this.ItemRepository,
             this.HistoryRepository, localizer.Object, Mock.Of<ILogger<AiAddItemCallbackHandler>>());
@@ -325,9 +313,6 @@ public abstract class TelegramIntegrationTestBase : IDisposable
             this.MealRepository, this.MealIngredientRepository, this.MealStepRepository,
             Mock.Of<ILogger<MealDialogStepHandler>>());
 
-        var itemEditStepHandler = new ItemEditStepHandler(
-            this.BotMock.Object, editItemDialogService, pendingEditService, localizer.Object);
-
         var tagCaptureStepHandler = new TagCaptureStepHandler(
             this.BotMock.Object, tagCaptureDialogService, localizer.Object);
 
@@ -347,8 +332,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
         {
             shopDoneHandler, shopRemoveHandler, actionCancelHandler, langCallbackHandler,
             langSelectionHandler, buySkipHandler, buySkipExpiryHandler, buyConfirmHandler,
-            buyEditHandler, buyCancelHandler, itemEditCallbackHandler, itemSaveHandler,
-            itemCancelEditHandler, listNextHandler, listPrevHandler, listFilterHandler, undoInlineHandler,
+            buyEditHandler, buyCancelHandler, listNextHandler, listPrevHandler, listFilterHandler, undoInlineHandler,
             priceSkipHandler, priceShopHandler, mealCallbackHandler, aiAddItemHandler,
             aiAddAllHandler, weekCallbackHandler, boughtSkipExpiryCallbackHandler,
             expirySuggestCallbackHandler, useRemoveCallbackHandler,
@@ -357,7 +341,7 @@ public abstract class TelegramIntegrationTestBase : IDisposable
 
         var dialogHandlers = new List<IDialogMessageHandler>
         {
-            buyStepHandler, priceCaptureHandler, mealDialogHandler, itemEditStepHandler, boughtStepHandler,
+            buyStepHandler, priceCaptureHandler, mealDialogHandler, boughtStepHandler,
             tagCaptureStepHandler,
         };
 
@@ -404,29 +388,6 @@ public abstract class TelegramIntegrationTestBase : IDisposable
                     foreach (var btn in row)
                     {
                         if (btn.CallbackData?.StartsWith("buy:confirm:") == true)
-                        {
-                            return btn.CallbackData;
-                        }
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    protected string? GetLastItemSaveCallbackData()
-    {
-        for (int i = this.sentMessages.Count - 1; i >= 0; i--)
-        {
-            var req = this.sentMessages[i];
-            if (req.ReplyMarkup is Telegram.Bot.Types.ReplyMarkups.InlineKeyboardMarkup ikm)
-            {
-                foreach (var row in ikm.InlineKeyboard)
-                {
-                    foreach (var btn in row)
-                    {
-                        if (btn.CallbackData?.StartsWith("item:save:") == true)
                         {
                             return btn.CallbackData;
                         }

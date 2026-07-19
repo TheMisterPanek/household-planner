@@ -49,4 +49,29 @@ public class CallbackIntegrationTests : TelegramIntegrationTestBase
             b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
+
+    [Fact]
+    public async Task Legacy_ItemEdit_Callback_From_Stale_Keyboard_Is_A_NoOp()
+    {
+        await ClearDataAsync();
+
+        var group = await GroupRepository.GetOrCreateAsync(-100);
+        var item = await ItemRepository.AddAsync(group.Id, "Milk", "2l", "TestUser");
+
+        await DispatchAsync(CallbackUpdate(-100, 42, 99, $"item:edit:{item.Id}"));
+
+        BotMock.Verify(
+            b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        // No dialog opened: a subsequent free-text message is not swallowed as an edit reply.
+        await DispatchAsync(MessageUpdate(-100, 42, "Milk 3l"));
+        BotMock.Verify(
+            b => b.SendRequest(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        var unchanged = await ItemRepository.GetAllAsync(group.Id);
+        var milk = Assert.Single(unchanged, i => i.Id == item.Id);
+        Assert.Equal("2l", milk.Quantity);
+    }
 }
